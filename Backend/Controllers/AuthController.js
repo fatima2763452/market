@@ -1,82 +1,108 @@
 // Controllers/userAuthController.js
 const asyncHandler = require('express-async-handler');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
-// Utility function to generate JWT Token (MUST BE UPDATED TO ACCEPT 4 ARGUMENTS)
+const BrokerModel = require('../Model/BrokerModel');
+const CustomerModel = require('../Model/CustomerModel');
+
+// Utility: Generate JWT with 4 args (userId, role, mongoBrokerId, stringBrokerId)
 const generateToken = (id, role, mongoBrokerId = null, stringBrokerId = null) => {
-    // The payload now includes the Customer's string broker ID
-    const payload = { id, role, mongoBrokerId, stringBrokerId }; 
-    return jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: '30d',
-    });
+  const payload = { id, role, mongoBrokerId, stringBrokerId };
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
-// @desc    Handle User Login (Broker/Customer)
-// @route   POST /api/auth/login
-// @access  Public
+// @desc     Handle User Login (Broker/Customer)
+// @route    POST /api/auth/login
+// @access   Public
 const handleUserLogin = asyncHandler(async (req, res) => {
-    const { identifier, password } = req.body; 
-    
-    if (!identifier || !password) {
-        res.status(400).json({ success: false, message: 'enter your correct id and password' });
-        return;
-    }
+  const { identifier, password } = req.body;
 
-    let user = null;
-    let role = '';
-    let attachedMongoBrokerId = null; // Stores the Mongoose ObjectId of the Broker
-    let associatedBrokerStringId = null; // Stores the 10-digit login_id of the Broker
+  if (!identifier || !password) {
+    return res
+      .status(400)
+      .json({ success: false, message: 'enter your correct id and password' });
+  }
 
-    // 1. Try to find Broker (Broker's own login)
-    user = await BrokerModel.findOne({ login_id: identifier });
-    if (user) {
-        role = 'broker';
-    }
+  let user = null;
+  let role = '';
+  let attachedMongoBrokerId = null;       // Broker का Mongo _id (customer के case में attached broker)
+  let associatedBrokerStringId = null;    // Broker का 10-digit login_id (string)
 
-    // 2. If not a Broker, try to find Customer
-    if (!user) {
-        // Find Customer and explicitly select the attached_broker_id field
-        user = await CustomerModel.findOne({ customer_id: identifier }).select('+attached_broker_id'); 
-        
-        if (user) {
-            role = 'customer';
-            attachedMongoBrokerId = user.attached_broker_id;
+  // 1) Try Broker first (by login_id)
+  // NOTE: अगर hashed_password schema में select:false है, तो उसे explicitly select करें
+  user = await BrokerModel.findOne({ login_id: identifier }).select('+hashed_password');
+  if (user) {
+    role = 'broker';
+    attachedMongoBrokerId = user._id;           // broker खुद ही "attached" broker है
+    associatedBrokerStringId = user.login_id;   // broker का 10-digit id
+  }
 
-            // CRITICAL STEP: Fetch the 10-digit login_id of the associated Broker
-            const brokerDetail = await BrokerModel.findById(attachedMongoBrokerId).select('login_id');
-            
-            if (brokerDetail) {
-                associatedBrokerStringId = brokerDetail.login_id;
-            }
+  // 2) Else try Customer (by customer_id)
+  if (!user) {
+    // attached_broker_id और hashed_password दोनों को ensure करें
+    const customer = await CustomerModel.findOne({ customer_id: identifier })
+      .select('+attached_broker_id +hashed_password');
+
+    if (customer) {
+      user = customer;
+      role = 'customer';
+
+      // Customer के साथ जुड़ा broker (Mongo _id)
+      attachedMongoBrokerId = customer.attached_broker_id || null;
+
+      // उस broker का 10-digit login_id निकालें
+      if (attachedMongoBrokerId) {
+        const brokerDetail = await BrokerModel.findById(attachedMongoBrokerId).select('login_id');
+        if (brokerDetail) {
+          associatedBrokerStringId = brokerDetail.login_id;
         }
+      }
     }
+  }
 
-    if (!user) {
-        res.status(404).json({ success: false, message: 'Invalid ID. User not found.' });
-        return;
-    }
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'Invalid ID. User not found.' });
+  }
 
-    // Check Password and generate token
-    if (await bcrypt.compare(password, user.hashed_password)) {
-        
-        // Determine the string ID of the active broker for the token payload
-        const stringBrokerId = (role === 'broker') ? user.login_id : associatedBrokerStringId;
+  // 3) Password check (handle missing hashed_password safely)
+  const hashed = user.hashed_password;
+  if (!hashed) {
+    // Schema में field का नाम अलग हुआ तो message दें (या यहां mapping जोड़ें)
+    return res.status(500).json({
+      success: false,
+      message: 'Password field not available on user document.',
+    });
+  }
 
-        res.status(200).json({
-            success: true,
-            message: `${role.charAt(0).toUpperCase() + role.slice(1)} login successful.`,
-            // FIX: Pass both IDs to token generation
-            token: generateToken(user._id, role, attachedMongoBrokerId, stringBrokerId), 
-            name: user.name,
-            role: role, 
-            // Send the 10-digit Broker ID to the frontend response
-            associatedBrokerStringId: stringBrokerId, 
-        });
-    } else {
-        res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    }
+  const isMatch = await bcrypt.compare(password, hashed);
+  if (!isMatch) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+  }
+
+  // 4) Token payload के लिए final IDs
+  const mongoBrokerId = role === 'broker' ? user._id : attachedMongoBrokerId;
+  const stringBrokerId = role === 'broker' ? user.login_id : associatedBrokerStringId;
+
+  // Safety: customer case में अगर broker mapping missing है
+  if (role === 'customer' && (!mongoBrokerId || !stringBrokerId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Customer is not attached to any valid broker.',
+    });
+  }
+
+  // 5) Success response
+  return res.status(200).json({
+    success: true,
+    message: `${role.charAt(0).toUpperCase() + role.slice(1)} login successful.`,
+    token: generateToken(user._id, role, mongoBrokerId, stringBrokerId),
+    name: user.name || user.fullName || user.customer_name || 'User',
+    role,
+    associatedBrokerStringId: stringBrokerId, // 10-digit broker id (frontend को भेजना ज़रूरी)
+  });
 });
 
-
 module.exports = {
-    handleUserLogin,
+  handleUserLogin,
 };

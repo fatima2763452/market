@@ -58,9 +58,19 @@ const LoginForm = () => {
     setIsSubmitting(true);
     setApiMessage({ text: '', type: '' });
 
-    // 🔧 FIX: compare to superBrockerPass (not undefined `password`)
+    // ✅ SUPER BROCKER: token/state पहले save करें, फिर redirect करें
     if (formData.identifier === superBrockerId && formData.password === superBrockerPass) {
-      window.location.href = '/brockerDetail'; // (keep your existing path)
+      const fakeToken = 'super-broker-local-token';
+      const user = { id: formData.identifier, name: 'Super Broker', role: 'broker' };
+
+      localStorage.setItem('token', fakeToken);
+      localStorage.setItem('authToken', fakeToken);            // कुछ guards authToken पढ़ते हैं
+      localStorage.setItem('loggedInUser', JSON.stringify(user));
+      localStorage.setItem('associatedBrokerStringId', superBrockerId);
+
+      axios.defaults.headers.common['Authorization'] = `Bearer ${fakeToken}`;
+      // अब redirect (hard reload भी ठीक है क्योंकि token पहले से set है)
+      window.location.href = '/brockerDetail';
       setIsSubmitting(false);
       return;
     }
@@ -72,18 +82,22 @@ const LoginForm = () => {
       );
 
       if (res.data?.success) {
-        const { name, role, token,  associatedBrokerStringId } = res.data;
-
+        const { name, role, token, associatedBrokerStringId } = res.data;
         const user = { id: formData.identifier, name, role };
 
+        // ✅ same keys जैसे guard/बाकी code expect करता है
+        localStorage.setItem('token', token);
         localStorage.setItem('authToken', token);
         localStorage.setItem('loggedInUser', JSON.stringify(user));
         if (associatedBrokerStringId) {
-                    localStorage.setItem('associatedBrokerStringId', associatedBrokerStringId);
-                }
+          localStorage.setItem('associatedBrokerStringId', associatedBrokerStringId);
+        }
+
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
         setApiMessage({ text: ` Login successful! Redirecting… Role: ${role}`, type: 'success' });
 
+        // NOTE: आपने पहले यहीं रखा था — इसे नहीं छेड़ रहा
         const redirectionPath = role === 'broker' ? '/customerDetail' : '/watchlist';
         setTimeout(() => (window.location.href = redirectionPath), 800);
       } else {
