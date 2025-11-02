@@ -1,0 +1,80 @@
+import React, { useState, useEffect } from 'react';
+import { Layers, PieChart, Users, TrendingUp, User } from 'lucide-react'; 
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const NAV_ITEMS = [
+    { name: 'Watchlist', icon: Layers, href: '/watchlist' },
+    { name: 'Order', icon: TrendingUp, href: '/orders' },
+    { name: 'Funds', icon: PieChart, href: '/funds' },
+    { name: 'Portfolio', icon: Users, href: '/portfolio' },
+    { name: 'Profile', icon: User, href: '/profile' },
+];
+
+const NavBar = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // The active state should be derived directly from location.pathname for reliable routing
+    const NavItem = ({ item }) => {
+        // Use location.pathname directly for determining the active state
+        const isActive = location.pathname.includes(item.href) && item.href !== '/';
+        const IconComponent = item.icon;
+
+        return (
+            <button
+                onClick={() => {
+                    // No need to call setActiveTab, the useEffect in the parent handles this
+                    navigate(item.href);
+                }}
+                className={`
+                    flex flex-col lg:flex-row items-center justify-center 
+                    cursor-pointer p-2 lg:px-4 lg:py-1 
+                    transition duration-200 ease-in-out relative
+                    
+                    ${isActive 
+                        ? 'text-indigo-400 lg:bg-indigo-900/40 rounded-lg' 
+                        : 'text-gray-400 hover:text-white lg:hover:bg-gray-700/30'
+                    }
+                    
+                    ${isActive 
+                        ? 'lg:border-b-4 lg:border-indigo-500' 
+                        : 'lg:border-b-4 lg:border-transparent' 
+                    }
+                `}
+            >
+                <IconComponent className="w-5 h-5 mb-1 lg:mb-0" />
+                <span className="text-[10px] font-medium lg:text-sm lg:font-medium lg:ml-2">{item.name}</span>
+            </button>
+        );
+    };
+
+    return (
+        <>
+            {/* Desktop Header/Navigation Bar (Visible at the TOP on large screens) */}
+            <header className="hidden lg:flex justify-between items-center px-6 py-2 bg-[#21283D] border-b border-gray-700">
+                <div className="text-xl font-bold text-white">TradeApp</div>
+                <nav className="flex space-x-6">
+                    {NAV_ITEMS.map(item => (
+                        <NavItem key={item.name} item={item} />
+                    ))}
+                </nav>
+            </header>
+
+            {/* Mobile Footer Navigation Bar (Fixed at the BOTTOM on small screens) */}
+            <nav
+                className="
+                    fixed bottom-0 left-0 right-0 z-50
+                    bg-[#21283D] grid grid-cols-5 px-2 py-1 border-t border-gray-700
+                    lg:hidden 
+                "
+            >
+                {NAV_ITEMS.map(item => (
+                    // Reusing NavItem for mobile layout
+                    <NavItem key={item.name} item={item} />
+                ))}
+            </nav>
+        </>
+    );
+};
+
+export default NavBar;

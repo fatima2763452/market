@@ -1,0 +1,8 @@
+@import "tailwindcss";
+body{
+    overflow-y: hidden;
+}
+
+html, body, #root {
+  height: 100%;
+}
