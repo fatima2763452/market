@@ -8,8 +8,9 @@ import CustomerDetailsPage from './page/User/CutomerDetailPage.jsx';
 import Watchlist from './page/WatchList/Watchlist.jsx';
 import Layout from './page/Layout';
 import Portfolio from './page/Portfolio/Portfolio.jsx';
-import FundPage from "./page/Funds/FundManagement.jsx";
+import FundPage from "./page/Funds/FundView.jsx";
 import Orders from './page/Orders/Order.jsx';
+import Profile from './page/Profile/Profile.jsx';
 
 function App() {
     return (
@@ -57,6 +58,15 @@ function App() {
                     element={
                         <Layout>
                             <Orders />
+                        </Layout>
+                    }
+                />
+
+                <Route
+                    path="/profile"
+                    element={
+                        <Layout>
+                            <Profile />
                         </Layout>
                     }
                 />
