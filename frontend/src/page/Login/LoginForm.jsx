@@ -34,10 +34,8 @@ const LoginForm = () => {
   const validate = (data) => {
     const newErrors = {};
     const digitRegex = /^\d{10}$/;
-
     if (!data.identifier) newErrors.identifier = 'Login ID (10 digits) zaroori hai.';
     else if (!digitRegex.test(data.identifier)) newErrors.identifier = 'ID 10 ankon (digits) ki honi chahiye.';
-
     if (!data.password) newErrors.password = 'Password zaroori hai.';
     return newErrors;
   };
@@ -49,6 +47,16 @@ const LoginForm = () => {
     setApiMessage({ text: '', type: '' });
   };
 
+  // ---- helper: compute final redirect
+  const computeRedirect = (role, assocBrokerId) => {
+    if (role === 'broker') {
+      const id = assocBrokerId || localStorage.getItem('associatedBrokerStringId');
+      return id ? `/broker/${id}/customerDetail` : '/customerDetail';
+    }
+    // customer
+    return '/watchlist';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate(formData);
@@ -58,19 +66,20 @@ const LoginForm = () => {
     setIsSubmitting(true);
     setApiMessage({ text: '', type: '' });
 
-    // ✅ SUPER BROCKER: token/state पहले save करें, फिर redirect करें
+    // ✅ SUPER BROKER (local)
     if (formData.identifier === superBrockerId && formData.password === superBrockerPass) {
       const fakeToken = 'super-broker-local-token';
       const user = { id: formData.identifier, name: 'Super Broker', role: 'broker' };
 
       localStorage.setItem('token', fakeToken);
-      localStorage.setItem('authToken', fakeToken);            // कुछ guards authToken पढ़ते हैं
+      localStorage.setItem('authToken', fakeToken);
       localStorage.setItem('loggedInUser', JSON.stringify(user));
       localStorage.setItem('associatedBrokerStringId', superBrockerId);
 
       axios.defaults.headers.common['Authorization'] = `Bearer ${fakeToken}`;
-      // अब redirect (hard reload भी ठीक है क्योंकि token पहले से set है)
-      window.location.href = '/brockerDetail';
+
+      // 🔁 CHANGED: go straight to broker's customer detail
+      window.location.href = computeRedirect('broker', superBrockerId);
       setIsSubmitting(false);
       return;
     }
@@ -85,7 +94,6 @@ const LoginForm = () => {
         const { name, role, token, associatedBrokerStringId } = res.data;
         const user = { id: formData.identifier, name, role };
 
-        // ✅ same keys जैसे guard/बाकी code expect करता है
         localStorage.setItem('token', token);
         localStorage.setItem('authToken', token);
         localStorage.setItem('loggedInUser', JSON.stringify(user));
@@ -97,9 +105,9 @@ const LoginForm = () => {
 
         setApiMessage({ text: ` Login successful! Redirecting… Role: ${role}`, type: 'success' });
 
-        // NOTE: आपने पहले यहीं रखा था — इसे नहीं छेड़ रहा
-        const redirectionPath = role === 'broker' ? '/customerDetail' : '/watchlist';
-        setTimeout(() => (window.location.href = redirectionPath), 800);
+        // 🔁 CHANGED: broker -> /broker/:id/customerDetail ; customer -> /watchlist
+        const redirectionPath = computeRedirect(role, associatedBrokerStringId);
+        setTimeout(() => (window.location.href = redirectionPath), 600);
       } else {
         setApiMessage({ text: res.data?.message || 'Login failed.', type: 'error' });
       }
@@ -155,18 +163,7 @@ const LoginForm = () => {
             error={errors.password}
           />
 
-          <div className="flex justify-between items-center text-sm mb-6">
-            <label className="flex items-center text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mr-2 text-indigo-500 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500"
-              />
-              Remember Me
-            </label>
-            <a href="/forgot-password" className="text-indigo-400 hover:text-indigo-300 transition duration-150">
-              Forgot Password?
-            </a>
-          </div>
+         
 
           <button
             type="submit"
@@ -183,12 +180,7 @@ const LoginForm = () => {
           </button>
         </form>
 
-        <div className="mt-8 text-center text-gray-400">
-          Broker/Admin setup?
-          <a href="/add-broker" className="text-indigo-400 font-semibold ml-2 hover:underline">
-            Add Broker
-          </a>
-        </div>
+        
       </div>
     </div>
   );

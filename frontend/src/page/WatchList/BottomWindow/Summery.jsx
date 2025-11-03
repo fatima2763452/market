@@ -101,7 +101,7 @@ function Summery({ selectedStock, sheetData, actionTab, setActionTab, quantity, 
                     className={`flex-1 p-2 rounded-lg text-xs font-medium transition ${getProductTypeClass('Intranight')}`}
                     onClick={() => setProductType('Intranight')}
                 >
-                    Intranight
+                    Overnight
                 </button>
             </div>
             {/* --- END NEW PRODUCT TYPE BUTTONS --- */}
@@ -138,7 +138,7 @@ function Summery({ selectedStock, sheetData, actionTab, setActionTab, quantity, 
                             onClick={placeFakeOrder}
                             className={`flex-1 p-3 rounded-lg text-white font-semibold ${actionTab === 'Buy' ? 'bg-green-600' : 'bg-red-600'}`}
                         >
-                            {actionTab === 'Buy' ? 'Save Fake Buy' : 'Save Fake Sell'}
+                            {actionTab === 'Buy' ? 'Confirom Buy' : 'Confirom Sell'}
                         </button>
                         <button
                             onClick={() => { setSelectedStock(null); }}

@@ -53,18 +53,41 @@
 
 
 // Middleware/authMiddleware.js  (example if needed)
+// const jwt = require('jsonwebtoken');
+
+// exports.protect = (req, res, next) => {
+//   try {
+//     const h = req.headers.authorization || '';
+//     const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+//     if (!token) return res.status(401).json({ success: false, message: 'No token' });
+
+//     const payload = jwt.verify(token, process.env.JWT_SECRET);
+//     req.user = { id: payload.id, role: payload.role }; // your payload keys
+//     next();
+//   } catch (e) {
+//     return res.status(401).json({ success: false, message: 'Invalid/expired token' });
+//   }
+// };
+
+
+
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
+const { isBlacklisted } = require('../Controllers/AuthController');
 
 exports.protect = (req, res, next) => {
-  try {
-    const h = req.headers.authorization || '';
-    const token = h.startsWith('Bearer ') ? h.slice(7) : null;
-    if (!token) return res.status(401).json({ success: false, message: 'No token' });
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ message: 'Not authorized' });
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: payload.id, role: payload.role }; // your payload keys
-    next();
-  } catch (e) {
-    return res.status(401).json({ success: false, message: 'Invalid/expired token' });
+  if (isBlacklisted(token)) {
+    return res.status(401).json({ message: 'Session expired. Please login again.' });
+  }
+
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    return next();
+  } catch {
+    return res.status(401).json({ message: 'Token invalid' });
   }
 };

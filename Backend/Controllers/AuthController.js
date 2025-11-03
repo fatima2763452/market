@@ -6,6 +6,30 @@ const bcrypt = require('bcryptjs');
 const BrokerModel = require('../Model/BrokerModel');
 const CustomerModel = require('../Model/CustomerModel');
 
+// ------------------ TOKEN BLACKLIST (in-memory) ------------------
+// NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
+const tokenBlacklist = new Map(); // token -> expiresAt(ms)
+
+const addToBlacklist = (token, expUnixSeconds) => {
+  const expiresAtMs = expUnixSeconds * 1000;
+  tokenBlacklist.set(token, expiresAtMs);
+
+  // auto cleanup when token naturally expires
+  const delay = Math.max(0, expiresAtMs - Date.now());
+  setTimeout(() => tokenBlacklist.delete(token), delay);
+};
+
+const isTokenBlacklisted = (token) => {
+  const ts = tokenBlacklist.get(token);
+  if (!ts) return false;
+  if (Date.now() > ts) {
+    tokenBlacklist.delete(token);
+    return false;
+  }
+  return true;
+};
+// -----------------------------------------------------------------
+
 // Utility: Generate JWT with 4 args (userId, role, mongoBrokerId, stringBrokerId)
 const generateToken = (id, role, mongoBrokerId = null, stringBrokerId = null) => {
   const payload = { id, role, mongoBrokerId, stringBrokerId };
@@ -30,33 +54,26 @@ const handleUserLogin = asyncHandler(async (req, res) => {
   let associatedBrokerStringId = null;    // Broker का 10-digit login_id (string)
 
   // 1) Try Broker first (by login_id)
-  // NOTE: अगर hashed_password schema में select:false है, तो उसे explicitly select करें
   user = await BrokerModel.findOne({ login_id: identifier }).select('+hashed_password');
   if (user) {
     role = 'broker';
-    attachedMongoBrokerId = user._id;           // broker खुद ही "attached" broker है
-    associatedBrokerStringId = user.login_id;   // broker का 10-digit id
+    attachedMongoBrokerId = user._id;
+    associatedBrokerStringId = user.login_id;
   }
 
   // 2) Else try Customer (by customer_id)
   if (!user) {
-    // attached_broker_id और hashed_password दोनों को ensure करें
     const customer = await CustomerModel.findOne({ customer_id: identifier })
       .select('+attached_broker_id +hashed_password');
 
     if (customer) {
       user = customer;
       role = 'customer';
-
-      // Customer के साथ जुड़ा broker (Mongo _id)
       attachedMongoBrokerId = customer.attached_broker_id || null;
 
-      // उस broker का 10-digit login_id निकालें
       if (attachedMongoBrokerId) {
         const brokerDetail = await BrokerModel.findById(attachedMongoBrokerId).select('login_id');
-        if (brokerDetail) {
-          associatedBrokerStringId = brokerDetail.login_id;
-        }
+        if (brokerDetail) associatedBrokerStringId = brokerDetail.login_id;
       }
     }
   }
@@ -65,10 +82,8 @@ const handleUserLogin = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Invalid ID. User not found.' });
   }
 
-  // 3) Password check (handle missing hashed_password safely)
   const hashed = user.hashed_password;
   if (!hashed) {
-    // Schema में field का नाम अलग हुआ तो message दें (या यहां mapping जोड़ें)
     return res.status(500).json({
       success: false,
       message: 'Password field not available on user document.',
@@ -80,11 +95,9 @@ const handleUserLogin = asyncHandler(async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid credentials.' });
   }
 
-  // 4) Token payload के लिए final IDs
   const mongoBrokerId = role === 'broker' ? user._id : attachedMongoBrokerId;
   const stringBrokerId = role === 'broker' ? user.login_id : associatedBrokerStringId;
 
-  // Safety: customer case में अगर broker mapping missing है
   if (role === 'customer' && (!mongoBrokerId || !stringBrokerId)) {
     return res.status(400).json({
       success: false,
@@ -92,17 +105,47 @@ const handleUserLogin = asyncHandler(async (req, res) => {
     });
   }
 
-  // 5) Success response
   return res.status(200).json({
     success: true,
     message: `${role.charAt(0).toUpperCase() + role.slice(1)} login successful.`,
     token: generateToken(user._id, role, mongoBrokerId, stringBrokerId),
     name: user.name || user.fullName || user.customer_name || 'User',
     role,
-    associatedBrokerStringId: stringBrokerId, // 10-digit broker id (frontend को भेजना ज़रूरी)
+    associatedBrokerStringId: stringBrokerId,
   });
 });
 
+// @desc     Logout current token (blacklist until it naturally expires)
+// @route    POST /api/auth/logout
+// @access   Private (requires Bearer token)
+const handleLogout = asyncHandler(async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+
+  if (!token) {
+    return res.status(400).json({ success: false, message: 'No token provided.' });
+  }
+
+  try {
+    // verify to read exp
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (isTokenBlacklisted(token)) {
+      return res.status(200).json({ success: true, message: 'Already logged out.' });
+    }
+
+    addToBlacklist(token, decoded.exp);
+    return res.status(200).json({ success: true, message: 'Logged out successfully.' });
+  } catch (err) {
+    // If token already expired/invalid, still return OK (idempotent UX)
+    return res.status(200).json({ success: true, message: 'Logged out.' });
+  }
+});
+
+// (optional) export helper for your auth middleware
+const isBlacklisted = (token) => isTokenBlacklisted(token);
+
 module.exports = {
   handleUserLogin,
+  handleLogout,
+  isBlacklisted,
 };
