@@ -28,7 +28,7 @@ export const OrderCard = ({ o }) => {
   const pctText = `${profit ? "+" : ""}${pnl.toFixed(2)} (${profit ? "+" : ""}${pct.toFixed(2)}%)`;
 
   return (
-    <li className="relative bg-[#1b2234] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition">
+    <li className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition">
       <Accent />
       <div className="flex items-start justify-between">
         <h4 className="text-white font-bold tracking-wide text-sm">{o.symbol}</h4>

@@ -243,7 +243,7 @@ function Watchlist() {
         )}
       </div>
 
-      {/* Index cards (same palette) */}
+      {/* Index cards (same palette)
       <div className="p-2 flex sticky top-[120px] bg-[#0b1020] z-10 border-b border-white/10">
         <IndexCard name="Sensex" price="65,123.45" change="0.85" isPositive />
         <IndexCard
@@ -252,7 +252,7 @@ function Watchlist() {
           change="0.42"
           isPositive={false}
         />
-      </div>
+      </div> */}
 
       {/* List */}
       <ul className="space-y-2 text-sm md:text-base p-2 flex-grow overflow-y-auto">

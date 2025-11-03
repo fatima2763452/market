@@ -23,8 +23,8 @@ app.use(bodyParser.json());
 app.use(
   cors({
     origin: [
-      // "http://localhost:5173",
-      "https://devakibrockrage.onrender.com"
+      "http://localhost:5173",
+      // "https://devakibrockrage.onrender.com"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
