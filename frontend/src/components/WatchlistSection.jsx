@@ -4,7 +4,7 @@ import clsx from "clsx";
 const WatchlistSection = ({ sectionStocks }) => {
   return (
     <div className="mb-6">
-      {/* <div className="max-h-[500px] overflow-y-auto border rounded-lg shadow-sm">
+<div className="max-h-[500px] overflow-y-auto border rounded-lg shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
@@ -29,7 +29,7 @@ const WatchlistSection = ({ sectionStocks }) => {
             ))}
           </tbody>
         </table>
-      </div> */}
+      </div>
     </div>
   );
 };

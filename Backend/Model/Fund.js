@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 const FundsSchemas = new Schema({
@@ -20,4 +20,4 @@ const FundsSchemas = new Schema({
     }],
 });
 
-module.exports = mongoose.model('Funds', FundsSchemas);
+export default mongoose.model('Funds', FundsSchemas);

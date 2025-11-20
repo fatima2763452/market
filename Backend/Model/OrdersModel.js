@@ -1,34 +1,82 @@
-const mongoose = require("mongoose");
-const { Schema } = mongoose;
+import mongoose from 'mongoose';
 
-const OrdersSchemas = new Schema({
-    userId: { // Account kiska hai (Customer)
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
+const OrderSchema = new mongoose.Schema(
+  {
+    // --- Who placed and for whom ---
+    broker_id_str: { type: String, index: true, required: true },       // "5852270733"
+    // broker_mongo_id: { type: mongoose.Types.ObjectId, index: true },    // optional
+    customer_id_str: { type: String, index: true, required: true },     // your customer_id
+
+    // --- What to trade ---
+    security_Id: { type: String, index: true, required: true },      // e.g. "NSE_FO|46470"
+    symbol: { type: String, required: true },                           // e.g. "RELIANCE" / "NIFTY24NOV19500CE"
+    segment : {type : String , require : true},
+    // exchange: { type: String, required: true },                      // optional for now
+
+    // --- Order intent ---
+    side: { type: String, enum: ['BUY', 'SELL'], required: true },
+    // order_type: { type: String, enum: ['MARKET', 'LIMIT'], required: true },
+    product: { type: String, enum: ['MIS', 'NRML'], required: true },   // intraday vs overnight
+    price: { type: Number, default: 0 },                                // limit price; MARKET => 0
+    // trigger_price: { type: Number, default: 0 },                     // future SL use
+
+    // --- Quantity (store absolute quantity in shares; also keep lots for F&O UI) ---
+    quantity: { type: Number, required: true, min: 1 },                 // abs qty = lots * lot_size
+    lots: { type: Number, default: 0 },                                 // UI display only
+    lot_size: { type: Number, default: 1 },                             // snapshot from instrument
+
+    // --- Execution summary ---
+    filled_qty: { type: Number, default: 0 },
+    avg_fill_price: { type: Number, default: 0 },
+
+    // --- New: UI buckets / tags ---
+    // Open/Closed == UI filter; CLOSED when fully filled/cancelled/rejected
+    order_status: { type: String, enum: ['OPEN', 'CLOSED'], default: 'OPEN', index: true },
+
+    // Intraday / Overnight / Holding == UI category
+    // Default: MIS => INTRADAY, NRML => OVERNIGHT
+    order_category: {
+      type: String,
+      enum: ['INTRADAY', 'OVERNIGHT', 'HOLDING'],
+      index: true,
+      default: function () {
+        return this.product === 'MIS' ? 'INTRADAY' : 'OVERNIGHT';
+      }
     },
-    initiated_by_id: { // Action kisne liya (Customer or Broker)
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
+
+    // --- New: increase_price (jobbing %). Allow decimals (e.g. 0.08)
+    increase_price: {
+      type: Number,
+      default: 0,
+      validate: { validator: (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0, message: 'increase_price must be a non-negative number' }
     },
-    symbol: String,
-    qty: Number,
-    price: Number,
-    transaction_type: { // BUY ya SELL
-        type: String,
-        enum: ['BUY', 'SELL'],
-        required: true,
-    },
-    order_status: { // Executed, Pending, Cancelled
-        type: String,
-        enum: ['PENDING', 'EXECUTED', 'CANCELLED'],
-        default: 'PENDING',
-    },
-    created_at: {
-        type: Date,
-        default: Date.now,
-    },
+
+    // --- Broker/Exchange references (real execution mode) ---
+    broker_order_id: { type: String, index: true },
+    exchange_order_id: { type: String, index: true },
+    reason: { type: String },                                           // rejection/cancel reason
+
+    // --- Risk snapshot (optional but useful) ---
+    margin_blocked: { type: Number, default: 0 },
+    notional_value: { type: Number, default: 0 },
+
+    // --- Audit ---
+    placed_at: { type: Date },
+    updated_at: { type: Date },
+    meta: { type: Object, default: {} }                                 // free-form (ui/device/ip etc.)
+  },
+  { timestamps: true }
+);
+
+// helpful compound index for queries by customer + instrument + time
+OrderSchema.index({ customer_id_str: 1, instrument_key: 1, createdAt: -1 });
+
+// Safety: ensure category default aligns with product if not set explicitly
+OrderSchema.pre('save', function(next) {
+  if (!this.order_category) {
+    this.order_category = this.product === 'MIS' ? 'INTRADAY' : 'OVERNIGHT';
+  }
+  next();
 });
 
-module.exports = mongoose.model('Orders', OrdersSchemas);
+export default mongoose.model('Order', OrderSchema);

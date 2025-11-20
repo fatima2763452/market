@@ -1,8 +1,8 @@
 // Controllers/upstoxController.js (FINAL FIX: Ensures all helpers are accessible)
 
-const axios = require("axios");
-const fs = require("fs");
-const { URLSearchParams } = require("url");
+import axios from 'axios';
+import fs from 'fs';
+import { URLSearchParams } from 'url';
 
 // --- CONFIGURATION (Reads from environment variables) ---
 const TOKEN_STORE = process.env.TOKEN_STORE || "./token.json";
@@ -150,10 +150,4 @@ loadToken();
 
 
 // FIX 3: Export all necessary functions so the callback logic can work
-module.exports = {
-    ensureAccessToken, 
-    handleUpstoxCallback, 
-    loadToken,      // Exported to be accessible by other modules if needed
-    saveToken,      // Exported to fix the "is not a function" error in other modules
-    tokenState,
-};
+export { ensureAccessToken, handleUpstoxCallback, loadToken, saveToken, tokenState };

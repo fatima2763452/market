@@ -1,6 +1,6 @@
 // Backend/Model/WatchlistModel.js
 
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const WatchlistSchema = new mongoose.Schema({
     userId: { 
@@ -51,4 +51,4 @@ WatchlistSchema.index({ userId: 1, underlying: 1 }, { unique: true });
 // Optional: MongoDB TTL Index (If you want MongoDB to automatically clean up expired cache)
 // WatchlistSchema.index({ cacheExpiresAt: 1 }, { expireAfterSeconds: 0 }); 
 
-module.exports = mongoose.model('Watchlist', WatchlistSchema);
+export default mongoose.model('Watchlist', WatchlistSchema);

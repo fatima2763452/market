@@ -1,9 +1,6 @@
-
-
-const asyncHandler = require('express-async-handler');
-const bcrypt = require('bcryptjs');
-const BrokerModel = require('../Model/BrokerModel'); 
-
+import asyncHandler from 'express-async-handler';
+import bcrypt from 'bcryptjs';
+import BrokerModel from '../Model/BrokerModel.js';
 
 const getBrokers = asyncHandler(async (req, res) => {
     // MongoDB se saare documents fetch karein jinka role 'broker' hai
@@ -69,8 +66,4 @@ const addBroker = asyncHandler(async (req, res) => {
     }
 });
 
-
-module.exports = {
-    getBrokers,
-    addBroker,
-};
+export { addBroker, getBrokers };

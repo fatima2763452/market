@@ -1,10 +1,10 @@
+import express from 'express';
+import { getStockName, getAllStockNames } from '../Controllers/instrumentStockNameControllers.js';
 
-const express = require('express');
 const router = express.Router();
-const {getStockName} = require('../Controllers/instrumentStockNameControllers');
-
 
 // ✅ Properly bind controller to route
 router.get('/instrumentGetName', getStockName);
+router.get('/instrumentGetAllNames', getAllStockNames);
 
-module.exports = router;
+export default router;

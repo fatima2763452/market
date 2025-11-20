@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 // Helper function to generate a unique 10-digit ID
@@ -43,4 +43,4 @@ const CustomerSchema = new Schema({
     // NOTE: 'timestamps: true' set hai, jo automatic 'createdAt' aur 'updatedAt' field banata hai.
 }, { timestamps: true }); // <--- Yeh 'createdAt' field provide karega
 
-module.exports = mongoose.model('Customer', CustomerSchema);
+export default mongoose.model('Customer', CustomerSchema);

@@ -1,8 +1,10 @@
-import React from 'react';
-import { Wallet, DollarSign, XCircle, Zap } from 'lucide-react';
-import { FundMetric } from '../FundHelpers';
+// src/page/Funds/intraday_fund/IntradayFund.jsx
 
-function IntradayFund({ intradayMaxLimit, intradayUsedMargin }) {
+import React from "react";
+import { Wallet, DollarSign, XCircle, Zap } from "lucide-react";
+import { FundMetric } from "../FundHelpers.jsx";
+
+export default function IntradayFund({ intradayMaxLimit, intradayUsedMargin }) {
   const max = Number(intradayMaxLimit ?? 0);
   const used = Number(intradayUsedMargin ?? 0);
   const free = Math.max(0, max - used);
@@ -13,28 +15,9 @@ function IntradayFund({ intradayMaxLimit, intradayUsedMargin }) {
         Intraday Trading Margin
       </h3>
 
-      <FundMetric
-        label="Available Limit"
-        value={max}
-        icon={Wallet}
-        valueColorClass="text-yellow-400"
-      />
-
-      <FundMetric
-        label="Free Limit (Unused)"
-        value={free}
-        icon={DollarSign}
-        valueColorClass="text-green-400"
-      />
-
-      <FundMetric
-        label="Used Limit (Blocked)"
-        value={used}
-        icon={XCircle}
-        valueColorClass="text-red-400"
-      />
+      <FundMetric label="Available Limit" value={max} icon={Wallet} valueColorClass="text-yellow-400" />
+      <FundMetric label="Free Limit (Unused)" value={free} icon={DollarSign} valueColorClass="text-green-400" />
+      <FundMetric label="Used Limit (Blocked)" value={used} icon={XCircle} valueColorClass="text-red-400" />
     </div>
   );
 }
-
-export default IntradayFund;

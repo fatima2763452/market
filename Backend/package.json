@@ -1,10 +1,14 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "node --watch server.js",
+    "seed:csv": "node scripts/fetch_master_csv.js",
+    "seed:load": "node scripts/load_dhan_master_detailed.js data/master-detailed.csv",
+    "seed": "npm run seed:csv && npm run seed:load"
   },
   "dependencies": {
     "axios": "^1.12.2",
@@ -18,7 +22,9 @@
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.3",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

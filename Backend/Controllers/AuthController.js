@@ -1,10 +1,34 @@
 // Controllers/userAuthController.js
-const asyncHandler = require('express-async-handler');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+import asyncHandler from 'express-async-handler';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
-const BrokerModel = require('../Model/BrokerModel');
-const CustomerModel = require('../Model/CustomerModel');
+import BrokerModel from '../Model/BrokerModel.js';
+import CustomerModel from '../Model/CustomerModel.js';
+
+// ------------------ TOKEN BLACKLIST (in-memory) ------------------
+// NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
+const tokenBlacklist = new Map(); // token -> expiresAt(ms)
+
+const addToBlacklist = (token, expUnixSeconds) => {
+  const expiresAtMs = expUnixSeconds * 1000;
+  tokenBlacklist.set(token, expiresAtMs);
+
+  // auto cleanup when token naturally expires
+  const delay = Math.max(0, expiresAtMs - Date.now());
+  setTimeout(() => tokenBlacklist.delete(token), delay);
+};
+
+const isTokenBlacklisted = (token) => {
+  const ts = tokenBlacklist.get(token);
+  if (!ts) return false;
+  if (Date.now() > ts) {
+    tokenBlacklist.delete(token);
+    return false;
+  }
+  return true;
+};
+// -----------------------------------------------------------------
 
 // ------------------ TOKEN BLACKLIST (in-memory) ------------------
 // NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
@@ -144,8 +168,4 @@ const handleLogout = asyncHandler(async (req, res) => {
 // (optional) export helper for your auth middleware
 const isBlacklisted = (token) => isTokenBlacklisted(token);
 
-module.exports = {
-  handleUserLogin,
-  handleLogout,
-  isBlacklisted,
-};
+export { handleUserLogin, handleLogout, isBlacklisted };

@@ -1,10 +1,12 @@
-import React from 'react';
-import { TrendingUp, Wallet, Clock } from 'lucide-react';
-import { FundMetric } from '../FundHelpers';
+// src/page/Funds/overnight_fund/OvernightFund.jsx
 
-function OvernightFund({ availableBalance, holdingsValue }) {
-  const overnightAvailableLimit = Number(availableBalance ?? 0);
-  const holdings = Number(holdingsValue ?? 0);
+import React from "react";
+import { TrendingUp, Wallet, Clock } from "lucide-react";
+import { FundMetric } from "../FundHelpers.jsx";
+
+export default function OvernightFund({ availableBalance, holdingsValue }) {
+  const cash = Number(availableBalance ?? 0);
+  const stock = Number(holdingsValue ?? 0);
 
   return (
     <div className="bg-[#121a2b] p-4 rounded-xl shadow-inner space-y-2">
@@ -12,10 +14,8 @@ function OvernightFund({ availableBalance, holdingsValue }) {
         <Clock className="w-5 h-5 mr-2 text-blue-400" /> Overnight / Delivery Limit
       </h3>
 
-      <FundMetric label="Available Limit" value={overnightAvailableLimit} icon={Wallet} />
-      <FundMetric label="Stock Holdings Value" value={holdings} icon={TrendingUp} />
+      <FundMetric label="Available Limit (Cash)" value={cash} icon={Wallet} />
+      <FundMetric label="Stock Holdings Value" value={stock} icon={TrendingUp} />
     </div>
   );
 }
-
-export default OvernightFund;

@@ -1,59 +1,61 @@
-require("dotenv").config();
-const WatchlistQuoteRoute = require("./Routes/WatchlistQuoteRoute");
-const InstrumentBulkImportRoute = require("./Routes/InstrumentBulkImportRoute");
-const express = require("express");
-const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const cookieParser = require("cookie-parser");
+import 'dotenv/config';
+import http from "http";
+import mongoose from "mongoose";
+import { createApp } from "./app.js";
+import { createIO, setFeedSubscriber } from "./sockets/io.js";
+import { initializeDhanLMF, renewAccessToken } from './services/dhanAuth.js';
+import { startTokenRenewalCron } from './cron/renewDhanToken.js';
+import { startMasterRefreshCron } from './cron/masterRefresh.js';
+import { setFeedInstance } from "./services/feedState.js";
+import { loadDhanConfig, config } from "./config.js";
 
-const authRouter = require("./Routes/AuthRoute");
-const UpstoxAuthRouter = require("./Routes/UpstoxAuthRoute");
-const quoteRouter = require("./Routes/upstox");
-const instrumentStockNameRoute = require('./Routes/instrumentStockNameRoute');
-const optionChainRoute = require("./Routes/optionChainRoute");
-const chartRoute = require('./Routes/ChartRoute');
+import { getDhanCredentials } from './services/dhanCredentialService.js';
 
-const app = express();
-const PORT = process.env.PORT;
-const MONGO_URL = process.env.MONGO_URL;
+const app = createApp();
+const server = http.createServer(app);
 
-// ------------------ MIDDLEWARE -------------------
-app.use(bodyParser.json());
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      // "https://devakibrockrage.onrender.com"
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
-app.use(cookieParser());
-app.use(express.json());
+// createIO now returns { io, market } (market = namespace)
+const { io, market } = createIO(server);
 
-// ------------------ ROUTES -----------------------
+// Initialize the DhanLMF service via the new auth module
+const lmf = initializeDhanLMF();
 
-app.use("/api/auth", authRouter);
-app.use("/", UpstoxAuthRouter); 
-app.use("/upstox", quoteRouter);
-app.use('/api', instrumentStockNameRoute);
-app.use('/api', InstrumentBulkImportRoute);
-app.use('/api', WatchlistQuoteRoute);
-app.use("/api", optionChainRoute);
-app.use('/api', chartRoute)
+// allow sockets layer to forward client "subscribe" to LMF
+setFeedSubscriber((list, subscriptionType) => lmf.subscribe(list, subscriptionType));
 
+// make it accessible to routes
+setFeedInstance(lmf);
 
-// ------------------ SERVER START ---------------------
-mongoose
-  .connect(MONGO_URL)
-  .then(() => {
-    console.log("MongoDB is connected successfully");
-    app.listen(PORT, () => {
-      console.log(`Server is listening on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("MongoDB connection failed", err);
-  });
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URL;
+await mongoose.connect(MONGODB_URI);
+console.log("✅ Mongo connected");
+
+// Load Dhan config from DB before starting the server
+await loadDhanConfig();
+
+const PORT = Number(config?.port || process.env.PORT || 8081);
+server.listen(PORT, async () => {
+  console.log("🚀 Server listening on", PORT);
+
+  // Check if the token needs renewal on startup.
+  console.log("Checking token validity on startup...");
+  const credentials = await getDhanCredentials();
+  if (credentials) {
+    const tokenUpdatedAt = new Date(credentials.updatedAt);
+    const now = new Date();
+    const hoursSinceLastUpdate = (now - tokenUpdatedAt) / (1000 * 60 * 60);
+
+    if (hoursSinceLastUpdate > 23) {
+      console.log("Token is old, performing initial renewal...");
+      await renewAccessToken();
+    } else {
+      console.log("Token is recent, skipping initial renewal.");
+    }
+  }
+
+  // Start the cron job for automatic token renewal
+  startTokenRenewalCron();
+
+  // Start the cron job for automatic master data refresh
+  startMasterRefreshCron();
+});

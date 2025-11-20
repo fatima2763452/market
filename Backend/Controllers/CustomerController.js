@@ -1,8 +1,8 @@
 // Controllers/CustomerController.js
-const asyncHandler = require('express-async-handler');
-const bcrypt = require('bcryptjs');
-const CustomerModel = require('../Model/CustomerModel'); 
-const BrokerModel = require('../Model/BrokerModel'); 
+import asyncHandler from 'express-async-handler';
+import bcrypt from 'bcryptjs';
+import CustomerModel from '../Model/CustomerModel.js';
+import BrokerModel from '../Model/BrokerModel.js';
 
 // Utility function to format date (e.g., to YYYY-MM-DD)
 const formatDate = (date) => {
@@ -101,8 +101,4 @@ const deleteCustomer = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = {
-  addCustomer,
-  getBrokerCustomers,
-  deleteCustomer,
-};
+export { addCustomer, getBrokerCustomers, deleteCustomer };

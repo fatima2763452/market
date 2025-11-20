@@ -1,5 +1,5 @@
 // models/ListModel.js
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
 const listSchema = new mongoose.Schema({
   name: String,
@@ -8,6 +8,6 @@ const listSchema = new mongoose.Schema({
   isDown: Boolean,
 });
 
-const ListModel = mongoose.model("List", listSchema); // Use "List" as collection name
+const ListModel = mongoose.model('List', listSchema); // Use "List" as collection name
 
-module.exports = ListModel;
+export default ListModel;

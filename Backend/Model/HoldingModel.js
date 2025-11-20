@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 const HoldingSchemas = new Schema({
@@ -33,4 +33,4 @@ const HoldingSchemas = new Schema({
     },
 });
 
-module.exports = mongoose.model('Holding', HoldingSchemas);
+export default mongoose.model('Holding', HoldingSchemas);

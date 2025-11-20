@@ -13,7 +13,8 @@ import {
   DollarSign as BidAskIcon,
   TrendingDown,
   ClipboardList,
-  ArrowLeft
+  ArrowLeft,
+  Plus
 } from 'lucide-react';
 
 
@@ -40,6 +41,8 @@ function BottomWindow({
   orderPrice,
   setOrderPrice,
   setSelectedStock,
+  onAddToWatchlist,
+  subscriptionType = 'full', // Optional: 'quote' or 'full' - shows data quality badge
 }) {
  
   const [viewMode, setViewMode] = useState('Summary'); // Default tab
@@ -138,17 +141,43 @@ function BottomWindow({
       {/*Bottom Sheet Window */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#2A314A] shadow-2xl z-50 rounded-t-xl transition-all duration-300 ease-in-out md:max-w-xs md:left-auto md:right-4 md:bottom-4 md:rounded-xl flex flex-col max-h-[95vh]">
 
+
         {/* Header */}
         <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3 flex-shrink-0">
-          <h3 className="text-white text-xl font-bold truncate">
-            {selectedStock.name}
-          </h3>
-          <button
-            className="text-gray-400 hover:text-white transition"
-            onClick={() => setSelectedStock(null)}
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center space-x-2 flex-1 min-w-0">
+            <h3 className="text-white text-xl font-bold truncate">
+              {selectedStock.name || selectedStock.tradingSymbol}
+            </h3>
+            {/* Data Quality Badge */}
+            {subscriptionType && (
+              <span
+                className={`text-xs px-2 py-0.5 rounded ${
+                  subscriptionType === 'full' 
+                    ? 'bg-green-600/20 text-green-400 border border-green-600/30' 
+                    : 'bg-yellow-600/20 text-yellow-400 border border-yellow-600/30'
+                }`}
+                title={subscriptionType === 'full' ? 'Full data with market depth' : 'Quote data only'}
+              >
+                {subscriptionType === 'full' ? 'FULL' : 'QUOTE'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            {onAddToWatchlist && (
+              <button
+                className="text-gray-400 hover:text-white transition"
+                onClick={() => onAddToWatchlist(selectedStock)}
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            )}
+            <button
+              className="text-gray-400 hover:text-white transition"
+              onClick={() => setSelectedStock(null)}
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Main View Area */}
