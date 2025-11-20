@@ -21,3 +21,5 @@ router.get('/getCustomers', protect, getBrokerCustomers);
 router.delete('/deleteCustomer/:id', protect, deleteCustomer);
 
 export default router;
+
+                                                    
