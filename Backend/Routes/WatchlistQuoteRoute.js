@@ -1,8 +1,8 @@
 // routes/watchlistQuotes.js
-const express = require('express');
-const axios = require('axios');
-const Instrument = require('../Model/InstrumentModel');
-const { ensureAccessToken } = require('../Controllers/upstoxController');
+import express from 'express';
+import axios from 'axios';
+import Instrument from '../Model/InstrumentModel.js';
+import { ensureAccessToken } from '../Controllers/upstoxController.js';
 
 const router = express.Router();
 
@@ -69,4 +69,4 @@ router.post('/watchlist-quotes', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

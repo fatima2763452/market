@@ -1,7 +1,7 @@
-const express = require("express");
+import express from 'express';
+import { getOptionChain } from '../Controllers/optionChainController.js';
+
 const router = express.Router();
-const { getOptionChain } = require("../Controllers/optionChainController");
+router.get('/option-chain', getOptionChain);
 
-router.get("/option-chain", getOptionChain);
-
-module.exports = router;
+export default router;

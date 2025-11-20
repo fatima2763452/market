@@ -1,8 +1,8 @@
 // Routes/ChartRoute.js
-const express = require("express");
+import express from 'express';
+import { getChartData } from '../Controllers/ChartController.js';
+
 const router = express.Router();
-const { getChartData } = require("../Controllers/ChartController");
+router.get('/getChartData', getChartData);
 
-router.get("/getChartData", getChartData);
-
-module.exports = router;
+export default router;

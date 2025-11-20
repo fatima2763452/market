@@ -1,9 +1,9 @@
 // Routes/upstox.js
-const express = require("express");
+import express from 'express';
+import { getQuote } from '../Controllers/quoteController.js';
+
 const router = express.Router();
-const { getQuote } = require("../Controllers/quoteController");
-
 // Example: GET /upstox/quote?symbol=NSE_EQ:INFY
-router.get("/quote", getQuote);
+router.get('/quote', getQuote);
 
-module.exports = router;
+export default router;

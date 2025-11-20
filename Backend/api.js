@@ -1,19 +1,18 @@
 // ✅ Final: Handles NSE's new Tuesday expiry rule (from 1 Sep 2025)
 // Automatically picks next monthly expiry (NSE_FO -> Tuesday, NSE_COM -> commodity-specific)
 
-const axios = require("axios");
-const zlib = require("zlib");
-const mongoose = require("mongoose");
-const Instrument = require("./Model/InstrumentModel");
-const { promisify } = require("util");
+import axios from 'axios';
+import zlib from 'zlib';
+import mongoose from 'mongoose';
+import Instrument from './Model/InstrumentModel.js';
+import { promisify } from 'util';
+import 'dotenv/config';
+import { fileURLToPath } from 'url';
 const GUNZIP = promisify(zlib.gunzip);
-require("dotenv").config();
 
 const JSON_URL =
   "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz";
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  "mongodb+srv://jaypalsinghchouhan2008_db_user:0dtzYkJZ93UQuqow@stockmarket.dzn8shd.mongodb.net/?retryWrites=true&w=majority";
+const MONGO_URI = process.env.MONGO_URL;
 
 const OVERRIDE_TARGET = process.argv[2]; // optional YYYY-MM-DD
 
@@ -147,7 +146,7 @@ async function run() {
       const e = normalizeExpiryValue(r.expiry);
       return {
         updateOne: {
-          filter: { instrument_key: r.instrument_key },
+          filter: { canon_key: r.canon_key },
           update: {
             $set: {
               ...r,
@@ -181,4 +180,5 @@ async function run() {
   }
 }
 
-if (require.main === module) run();
+// Run when called directly: node api.js
+if (fileURLToPath(import.meta.url) === process.argv[1]) run();

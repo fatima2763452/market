@@ -1,12 +1,13 @@
 // routes/Auth.js
-const express = require('express');
-const router = express.Router();
-const { handleUserLogin , handleLogout} = require('../Controllers/AuthController');
-const { getBrokers, addBroker } = require('../Controllers/SuperBrocker');
+import express from 'express';
+import { handleUserLogin, handleLogout } from '../Controllers/AuthController.js';
+import { getBrokers, addBroker } from '../Controllers/SuperBrocker.js';
 // getBrokerCustomers को CustomerController.js से इम्पोर्ट करें
-const { getBrokerCustomers, addCustomer , deleteCustomer } = require('../Controllers/CustomerController'); 
+import { getBrokerCustomers, addCustomer, deleteCustomer } from '../Controllers/CustomerController.js';
 // IMPORTANT: JWT verification ke liye
-const { protect } = require('../Middleware/authMiddleware'); 
+import { protect } from '../Middleware/authMiddleware.js';
+
+const router = express.Router();
 
 // --- PUBLIC ROUTES ---
 router.post('/login', handleUserLogin); 
@@ -19,4 +20,4 @@ router.post('/addCustomer', protect, addCustomer);
 router.get('/getCustomers', protect, getBrokerCustomers);
 router.delete('/deleteCustomer/:id', protect, deleteCustomer);
 
-module.exports = router;
+export default router;

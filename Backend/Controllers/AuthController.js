@@ -1,10 +1,10 @@
 // Controllers/userAuthController.js
-const asyncHandler = require('express-async-handler');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+import asyncHandler from 'express-async-handler';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
-const BrokerModel = require('../Model/BrokerModel');
-const CustomerModel = require('../Model/CustomerModel');
+import BrokerModel from '../Model/BrokerModel.js';
+import CustomerModel from '../Model/CustomerModel.js';
 
 // ------------------ TOKEN BLACKLIST (in-memory) ------------------
 // NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
@@ -144,8 +144,4 @@ const handleLogout = asyncHandler(async (req, res) => {
 // (optional) export helper for your auth middleware
 const isBlacklisted = (token) => isTokenBlacklisted(token);
 
-module.exports = {
-  handleUserLogin,
-  handleLogout,
-  isBlacklisted,
-};
+export { handleUserLogin, handleLogout, isBlacklisted };

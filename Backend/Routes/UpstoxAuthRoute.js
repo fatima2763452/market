@@ -1,9 +1,8 @@
 // Routes/UpstoxAuthRoute.js (Final Workaround)
-
-const express = require("express");
-const axios = require("axios");
-const { URLSearchParams } = require("url");
-const { tokenState, saveToken } = require("../Controllers/upstoxController"); 
+import express from 'express';
+import axios from 'axios';
+import { URLSearchParams } from 'url';
+import { tokenState, saveToken } from '../Controllers/upstoxController.js';
 
 const router = express.Router();
 
@@ -57,4 +56,4 @@ router.get("/callback", async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

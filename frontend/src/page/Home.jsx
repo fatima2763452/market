@@ -9,7 +9,6 @@ import Order from './Orders/Order';
 const Home = () => {
     return (
         <Layout>
-            <Watchlist />
             <Portfolio/>
             <Dashboard />
             <Order/>

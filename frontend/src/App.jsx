@@ -11,11 +11,14 @@ import Portfolio from './page/Portfolio/Portfolio.jsx';
 import FundPage from "./page/Funds/FundView.jsx";
 import Orders from './page/Orders/Order.jsx';
 import Profile from './page/Profile/Profile.jsx';
+import SearchPage from './page/Search/SearchPage.jsx';
+import { MarketDataProvider } from './contexts/MarketDataContext.jsx';
 
 function App() {
     return (
         <BrowserRouter>
-            <Routes>
+            <MarketDataProvider>
+                <Routes>
                 <Route path="/" element={<LoginForm />} />
                 <Route path="/brockerDetail" element={<BrockerDetailPage />} />
                 <Route path="/customerDetail" element={<CustomerDetailsPage />} />
@@ -70,7 +73,17 @@ function App() {
                         </Layout>
                     }
                 />
+
+                <Route
+                    path="/search"
+                    element={
+                        <Layout>
+                            <SearchPage />
+                        </Layout>
+                    }
+                />
             </Routes>
+            </MarketDataProvider>
         </BrowserRouter>
     );
 }

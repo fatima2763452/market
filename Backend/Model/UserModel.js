@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 // Helper function to generate a unique 10-digit customer ID
@@ -48,4 +48,4 @@ const UserSchemas = new Schema({
 });
 
 // Model ko export karte hain
-module.exports = mongoose.model('User', UserSchemas);
+export default mongoose.model('User', UserSchemas);

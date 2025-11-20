@@ -1,9 +1,9 @@
-const express = require("express");
-const ListModel = require("../Model/List");
-const verifyToken = require("../Middleware/authMiddleware");
+import express from 'express';
+import ListModel from '../Model/List.js';
+import { protect } from '../Middleware/authMiddleware.js';
 const router = express.Router();
 
-router.get("/allLists", verifyToken ,async(req, res)=>{
+router.get('/allLists', protect ,async(req, res)=>{
     try{
         const allList = await ListModel.find({});
         res.json(allList);
@@ -14,7 +14,7 @@ router.get("/allLists", verifyToken ,async(req, res)=>{
   };
 });
 
-module.exports = router;
+export default router;
 
 //find stock as search
 

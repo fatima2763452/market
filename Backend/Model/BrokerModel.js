@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 // Helper function to generate a unique 10-digit ID for login
@@ -38,4 +38,5 @@ const BrokerSchema = new Schema({
     },
 });
 
-module.exports = mongoose.model('Broker', BrokerSchema);
+    const BrokerModel = mongoose.model('Broker', BrokerSchema);
+    export default BrokerModel;

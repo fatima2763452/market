@@ -10,8 +10,6 @@ __pycache__/
 *.pyc
 
 # Env/Secrets/Logs
-.env
-.env.*
 *.log
 logs/
 token.json

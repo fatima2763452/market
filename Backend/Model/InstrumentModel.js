@@ -1,30 +1,29 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const InstrumentSchema = new mongoose.Schema({
-  instrument_key: { type: String, required: true, unique: true },
-  exchange_token: String,
-  tradingsymbol: String,
-  name: String,
-  last_price: String,
-  expiry: String,
-  strike: String,
-  tick_size: String,
-  lot_size: String,
-  instrument_type: String,
-  option_type: String,
-  exchange: String,
-  segment: String,
-  asset_symbol: String,
-  underlying_symbol: String,
-  lot_size: String,
-  qty_multiplier: String,
-  isin: String,
-  security_type: String,
-  asset_key: String,
-  underlying_key: String,
-  mtf_enabled: String,
-  mtf_bracket: String,
-  // Add any other fields present in your data
-}, { strict: false }); // strict: false allows extra fields
+  canon_key: { type: String, unique: true, index: true }, // e.g. NSE|NSE_FNO|49081
+  exchange: { type: String, index: true },
+  segment: { type: String, index: true },         // NSE_FNO / MCX_COMM
+  securityId: { type: String, index: true },
+  tradingsymbol: { type: String, index: true },
+  symbol_name: { type: String, index: true },
+  display_name: String,
+  underlying_symbol: { type: String, index: true },
+  underlying_security_id: String,
+  instrumentType: { type: String, index: true },  // FUT/OPT/EQ/CMDTY
+  optionType: String,                              // CE/PE
+  series: String,
+  strike: Number,
+  expiry: { type: Date, index: true },
+  lotSize: Number,
+  tickSize: Number,
+  isin: { type: String, index: true },
+  cross_broker: { upstox_instrument_key: { type: String, index: true } },
+  meta: mongoose.Schema.Types.Mixed,
+}, { timestamps: true });
 
-module.exports = mongoose.model('Instrument', InstrumentSchema);
+InstrumentSchema.index({ segment: 1, underlying_symbol: 1, expiry: 1, strike: 1, optionType: 1 });
+InstrumentSchema.index({ segment: 1, tradingsymbol: 1 });
+
+const Instrument = mongoose.model("Instrument", InstrumentSchema, "instruments");
+export default Instrument;
