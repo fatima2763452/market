@@ -125,10 +125,6 @@ function Summery({
     propagateQtyToParent();
   };
 
-const activeContextString = localStorage.getItem('activeContext')
-const activeContext = JSON.parse(activeContextString);
-const brokerId = activeContext.brokerId;
-const customerId = activeContext.customerId;
 
 const handleConfirm = async () => {
 
@@ -140,6 +136,12 @@ const handleConfirm = async () => {
       return;
     }
 
+    // Parse activeContext safely
+    const activeContextString = localStorage.getItem('activeContext');
+    const activeContext = activeContextString ? JSON.parse(activeContextString) : null;
+    const brokerId = activeContext?.brokerId || '';
+    const customerId = activeContext?.customerId || '';
+
     const side = actionTab === 'Buy' ? 'BUY' : 'SELL';
     const product = productType === 'Intraday' ? 'MIS' : 'NRML';
 
@@ -147,8 +149,8 @@ const handleConfirm = async () => {
     // console.log(`-------------------------${jobbin_price}-----------------------------`)
 
     const payload = {
-      broker_id_str:  brokerId || '',
-      customer_id_str: customerId || '',
+      broker_id_str:  brokerId,
+      customer_id_str: customerId,
       security_Id: selectedStock?.securityId || '',
       symbol: selectedStock?.tradingSymbol || '',
       segment : selectedStock?.segment || '',

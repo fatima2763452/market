@@ -1,8 +1,6 @@
 // Routes/quotes.js (or part of it)
 import express from "express";
-import fetch from "node-fetch";
-import { config } from "../config.js";
-import { getFeedInstance } from "../services/feedState.js"; // you said you have setFeedInstance
+import { getFeedInstance } from "../services/feedState.js";
 
 const router = express.Router();
 
@@ -42,47 +40,27 @@ router.post("/snapshot", async (req, res) => {
         }
     }
 
-    // 2) find ids that are missing or appear empty -> try provider snapshot for them
+    // 2) find ids that are missing or appear empty
     const missing = securityIds.filter(id => {
       const v = out[String(id)];
       return !v || (v.ltp == null && v.close == null && v.netChange == null && v.percentChange == null);
     });
 
-    if (missing.length && config.dhan?.token) {
-      try {
-        // provider snapshot endpoint (HTTPS)
-        // NOTE: Dhan feed snapshot docs may require a different body shape. Use this only as fallback.
-        const url = `https://api-feed.dhan.co/market/snapshot?clientId=${encodeURIComponent(config.dhan.clientId||"")}`;
-        const body = { items: missing.map(id => ({ SecurityId: String(id) })) };
-
-        const r = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "access-token": config.dhan.token,
-          },
-          body: JSON.stringify(body),
-          timeout: 5000,
-        });
-
-        if (r.ok) {
-          const provider = await r.json();
-          console.log("[Backend Snapshot] Dhan API response for missing items:", provider);
-          // provider likely returns a map of securityId => data
-          for (const id of missing) {
-            if (provider[String(id)]) {
-              out[String(id)] = provider[String(id)];
-            }
-          }
-        } else {
-          const txt = await r.text().catch(() => "");
-          out.__snapshot_error = `provider responded ${r.status}: ${txt}`;
+    // If data is missing, it means these instruments haven't been subscribed to the WebSocket feed yet.
+    // The frontend should call subscribe() before fetching snapshot.
+    if (missing.length) {
+      console.log(`[Snapshot] ${missing.length} instruments not found in cache. They may not be subscribed to the feed yet.`);
+      // Initialize empty objects for missing items so frontend can handle gracefully
+      for (const id of missing) {
+        if (!out[String(id)]) {
+          out[String(id)] = {
+            ltp: null, open: null, high: null, low: null, close: null, volume: null, oi: null,
+            bestBidPrice: null, bestBidQuantity: null, bestAskPrice: null, bestAskQuantity: null,
+            lastTradeQty: null, lastTradeTime: null, avgPrice: null, netChange: null, percentChange: null,
+          };
         }
-      } catch (e) {
-        out.__snapshot_error = `provider fetch failed: ${e?.message || e}`;
       }
-    } else if (missing.length) {
-      out.__snapshot_info = "missing items; no server token available to query provider snapshot.";
+      out.__snapshot_info = `${missing.length} instruments not in cache. Ensure they are subscribed via WebSocket.`;
     }
 
     return res.json(out);

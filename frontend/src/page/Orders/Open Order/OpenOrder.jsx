@@ -1,6 +1,7 @@
 // OpenOrder.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { MOCK_ORDERS } from "../mockData";
+import { useMarketData } from "../../../contexts/MarketDataContext.jsx";
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -13,6 +14,9 @@ export default function OpenOrder() {
   const [loader , setLoader] = useState(true);
   const [error, setError] = useState(null);
 
+  // Add WebSocket connection
+  const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
+
   const activeContextString = localStorage.getItem('activeContext');
   const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
   const brokerId = activeContext.brokerId;
@@ -21,6 +25,16 @@ export default function OpenOrder() {
 
   const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
   const token = localStorage.getItem("token") || null;
+
+  // Segment mapping for tick key generation
+  const segmentStringToNumberMap = useMemo(() => ({
+    "NSE_EQ": 1,
+    "NSE_FNO": 2,
+    "MCX_COMM": 5,
+    "BSE_EQ": 4,
+    "NSE_INDEX": 0,
+    "IDX_I": 0,
+  }), []);
 
   // get instrumentData
   useEffect(() => {
@@ -60,19 +74,17 @@ export default function OpenOrder() {
     })();
   }, [brokerId, customerId, apiBase, token]);
 
-  // fetch snapshot when instrumentData ready
+  // Subscribe to WebSocket and fetch snapshot when instrumentData ready
   useEffect(() => {
-    console.log("instrument (raw object):", instrumentData);
+    console.log("[OpenOrder] instrument (raw object):", instrumentData);
     if (!Array.isArray(instrumentData) || instrumentData.length === 0) {
-      console.log("instrument is not array or is empty");
+      console.log("[OpenOrder] instrument is not array or is empty");
       setOrders({});
       return;  
     }
 
     (async () => {
       try {
-        const url = `${apiBase.replace(/\/$/, "")}/api/quotes/snapshot`;
-
         // Normalize: accept either securityId or security_Id (defensive)
         const items = instrumentData
           .map(item => {
@@ -84,14 +96,25 @@ export default function OpenOrder() {
           })
           .filter(Boolean);
 
-        console.log("snapshot items (to send):", items);
+        console.log("[OpenOrder] snapshot items (to send):", items);
 
         if (items.length === 0) {
-          console.log("items array empty");
+          console.log("[OpenOrder] items array empty");
           setOrders({});
           return;
         }
 
+        // 1️⃣ SUBSCRIBE TO WEBSOCKET FIRST (Critical!)
+        try {
+          console.log(`[OpenOrder] Subscribing to ${items.length} instruments via WebSocket...`);
+          await subscribe(items, 'quote'); // Use 'quote' for lightweight live data
+          console.log("[OpenOrder] ✅ WebSocket subscription successful");
+        } catch (e) {
+          console.warn("[OpenOrder] ⚠️ WebSocket subscribe failed:", e?.message || e);
+        }
+
+        // 2️⃣ THEN FETCH SNAPSHOT
+        const url = `${apiBase.replace(/\/$/, "")}/api/quotes/snapshot`;
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -102,15 +125,14 @@ export default function OpenOrder() {
         if (!res.ok) {
           let text = "<no-body>";
           try { text = await res.text(); } catch (e) {}
-          console.error("snapshot fetch failed:", res.status, res.statusText, text);
+          console.error("[OpenOrder] snapshot fetch failed:", res.status, res.statusText, text);
           setOrders({});
           return;
         }
 
         const snapshotData = await res.json();
-        console.log("Snapshot (raw):", snapshotData);
+        console.log("[OpenOrder] Snapshot (raw):", snapshotData);
 
-       
         let snapshotMap = {};
         if (snapshotData && typeof snapshotData === "object" && !Array.isArray(snapshotData)) {
           snapshotMap = snapshotData;
@@ -118,7 +140,6 @@ export default function OpenOrder() {
           snapshotData.forEach(it => {
             const id = String(it.securityId ?? it.security_Id ?? it.id ?? "");
             if (id) snapshotMap[id] = it;
-           
             if (it.segment && id) snapshotMap[`${it.segment}|${id}`] = it;
           });
         }
@@ -126,13 +147,28 @@ export default function OpenOrder() {
         setOrders(snapshotMap);
 
       } catch (err) {
-        console.error("snapshot fetch exception:", err);
+        console.error("[OpenOrder] snapshot fetch exception:", err);
         setOrders({});
       }
     })();
-  }, [instrumentData, apiBase, token]);
 
-  // Merge instrument snapshot data 
+    // 3️⃣ CLEANUP: Unsubscribe when component unmounts or instruments change
+    return () => {
+      const items = instrumentData
+        .map(item => ({
+          segment: item.segment ?? item.exchange ?? null,
+          securityId: String(item.securityId ?? item.security_Id ?? item.id ?? null),
+        }))
+        .filter(i => i.segment && i.securityId);
+
+      if (items.length > 0) {
+        console.log(`[OpenOrder] Unsubscribing from ${items.length} instruments...`);
+        unsubscribe(items, 'quote').catch(e => console.warn("[OpenOrder] Unsubscribe failed:", e));
+      }
+    };
+  }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
+
+  // Merge instrument + snapshot + real-time tick data
   useEffect(() => {
     if (!instrumentData || instrumentData.length === 0) {
       setAllData([]);
@@ -143,6 +179,7 @@ export default function OpenOrder() {
       const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
       let snapshot = null;
 
+      // Get snapshot data from API
       if (orders && typeof orders === 'object') {
         // try direct id
         snapshot = orders[securityKey] ?? orders[String(inst.securityId ?? "")] ?? null;
@@ -164,12 +201,20 @@ export default function OpenOrder() {
         }
       }
 
-      return { ...inst, snapshot };
+      // Get real-time tick data from WebSocket
+      const numericSegment = segmentStringToNumberMap[inst.segment];
+      const tickKey = `${numericSegment}-${securityKey}`;
+      const tick = ticks.get(tickKey) || {};
+
+      // Merge: ticks override snapshot (ticks are more recent)
+      const combined = { ...snapshot, ...tick };
+
+      return { ...inst, snapshot: combined };
     });
 
     setAllData(merged);
-    console.log('Merged allData:', merged);
-  }, [instrumentData, orders]);
+    console.log('[OpenOrder] Merged allData (snapshot + ticks):', merged);
+  }, [instrumentData, orders, ticks, segmentStringToNumberMap]);
 
   const displayList = (Array.isArray(allData) && allData.length > 0) ? allData : list;
   return (
