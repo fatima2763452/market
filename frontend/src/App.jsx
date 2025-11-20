@@ -1,4 +1,3 @@
-// App.jsx
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
@@ -22,12 +21,7 @@ function App() {
                 <Route path="/" element={<LoginForm />} />
                 <Route path="/brockerDetail" element={<BrockerDetailPage />} />
                 <Route path="/customerDetail" element={<CustomerDetailsPage />} />
-
-
                 <Route path="/broker/:brokerId/customerDetail" element={<CustomerDetailsPage />} />
-
-
-
 
                 <Route
                     path="/watchlist"

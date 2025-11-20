@@ -30,6 +30,30 @@ const isTokenBlacklisted = (token) => {
 };
 // -----------------------------------------------------------------
 
+// ------------------ TOKEN BLACKLIST (in-memory) ------------------
+// NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
+const tokenBlacklist = new Map(); // token -> expiresAt(ms)
+
+const addToBlacklist = (token, expUnixSeconds) => {
+  const expiresAtMs = expUnixSeconds * 1000;
+  tokenBlacklist.set(token, expiresAtMs);
+
+  // auto cleanup when token naturally expires
+  const delay = Math.max(0, expiresAtMs - Date.now());
+  setTimeout(() => tokenBlacklist.delete(token), delay);
+};
+
+const isTokenBlacklisted = (token) => {
+  const ts = tokenBlacklist.get(token);
+  if (!ts) return false;
+  if (Date.now() > ts) {
+    tokenBlacklist.delete(token);
+    return false;
+  }
+  return true;
+};
+// -----------------------------------------------------------------
+
 // Utility: Generate JWT with 4 args (userId, role, mongoBrokerId, stringBrokerId)
 const generateToken = (id, role, mongoBrokerId = null, stringBrokerId = null) => {
   const payload = { id, role, mongoBrokerId, stringBrokerId };

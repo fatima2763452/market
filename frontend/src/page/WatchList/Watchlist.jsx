@@ -418,7 +418,7 @@ function Watchlist() {
           change={nifty50Price?.percentChange?.toFixed(2) || "—"} 
           isPositive={nifty50Price?.isPositive} 
         />
-      </div>
+      </div> */}
 
       <ul className="space-y-2 text-sm md:text-base p-2 flex-grow overflow-y-auto">
         {stocks.map((stock) => {
