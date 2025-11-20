@@ -2,7 +2,7 @@
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-
+import { addToBlacklist, isTokenBlacklisted } from '../Utils/tokenBlacklist.js';
 import BrokerModel from '../Model/BrokerModel.js';
 import CustomerModel from '../Model/CustomerModel.js';
 
