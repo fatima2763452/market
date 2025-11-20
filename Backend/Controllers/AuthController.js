@@ -1,25 +1,33 @@
-// Controllers/userAuthController.js
+// src/Backend/Controllers/AuthController.js
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { addToBlacklist, isTokenBlacklisted } from '../Utils/tokenBlacklist.js';
+
 import BrokerModel from '../Model/BrokerModel.js';
 import CustomerModel from '../Model/CustomerModel.js';
 
-// ------------------ TOKEN BLACKLIST (in-memory) ------------------
-// NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
+
 const tokenBlack = new Map(); // token -> expiresAt(ms)
 
 const addToBlacklist = (token, expUnixSeconds) => {
-  const expiresAtMs = expUnixSeconds * 1000;
-  tokenBlack.set(token, expiresAtMs);
+  try {
+    const expiresAtMs = Number(expUnixSeconds) * 1000;
+    tokenBlack.set(token, expiresAtMs);
 
-  // auto cleanup when token naturally expires
-  const delay = Math.max(0, expiresAtMs - Date.now());
-  setTimeout(() => tokenBlack.delete(token), delay);
+    // auto cleanup when token naturally expires
+    const delay = Math.max(0, expiresAtMs - Date.now());
+    // ensure delay is not absurdly large for setTimeout
+    setTimeout(() => {
+      try { tokenBlack.delete(token); } catch (e) { /* ignore */ }
+    }, delay);
+  } catch (e) {
+    // defensive: don't break the app if invalid exp provided
+    console.warn('addToBlacklist: invalid exp', e?.message ?? e);
+  }
 };
 
 const isTokenBlacklisted = (token) => {
+  if (!token) return false;
   const ts = tokenBlack.get(token);
   if (!ts) return false;
   if (Date.now() > ts) {
@@ -28,33 +36,9 @@ const isTokenBlacklisted = (token) => {
   }
   return true;
 };
-// -----------------------------------------------------------------
+// -------------------------------------------------------------------------------
 
-// ------------------ TOKEN BLACKLIST (in-memory) ------------------
-// NOTE: Prod me Redis/Mongo TTL use karein. Yeh in-memory server restart par reset ho jayega.
-const tokenBlacklist = new Map(); // token -> expiresAt(ms)
-
-const addToBlacklist = (token, expUnixSeconds) => {
-  const expiresAtMs = expUnixSeconds * 1000;
-  tokenBlacklist.set(token, expiresAtMs);
-
-  // auto cleanup when token naturally expires
-  const delay = Math.max(0, expiresAtMs - Date.now());
-  setTimeout(() => tokenBlacklist.delete(token), delay);
-};
-
-const isTokenBlacklisted = (token) => {
-  const ts = tokenBlacklist.get(token);
-  if (!ts) return false;
-  if (Date.now() > ts) {
-    tokenBlacklist.delete(token);
-    return false;
-  }
-  return true;
-};
-// -----------------------------------------------------------------
-
-// Utility: Generate JWT with 4 args (userId, role, mongoBrokerId, stringBrokerId)
+// Utility: Generate JWT with payload: user id, role, broker ids
 const generateToken = (id, role, mongoBrokerId = null, stringBrokerId = null) => {
   const payload = { id, role, mongoBrokerId, stringBrokerId };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -150,22 +134,26 @@ const handleLogout = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'No token provided.' });
   }
 
-  try {
-    // verify to read exp
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (isTokenBlacklisted(token)) {
-      return res.status(200).json({ success: true, message: 'Already logged out.' });
-    }
+  // If already blacklisted, return OK (idempotent)
+  if (isTokenBlacklisted(token)) {
+    return res.status(200).json({ success: true, message: 'Already logged out.' });
+  }
 
+  try {
+    // verify to read exp; if token expired, jwt.verify will throw
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // decoded.exp is in seconds since epoch
     addToBlacklist(token, decoded.exp);
     return res.status(200).json({ success: true, message: 'Logged out successfully.' });
   } catch (err) {
     // If token already expired/invalid, still return OK (idempotent UX)
+    // We don't add expired tokens (no need), just respond OK.
     return res.status(200).json({ success: true, message: 'Logged out.' });
   }
 });
 
-// (optional) export helper for your auth middleware
+// Optional helper for other modules (middleware) to check blacklist
 const isBlacklisted = (token) => isTokenBlacklisted(token);
 
 export { handleUserLogin, handleLogout, isBlacklisted };
+export default { handleUserLogin, handleLogout, isBlacklisted };
