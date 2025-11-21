@@ -108,7 +108,7 @@ function SearchPage() {
       // Cleanup previous search subscriptions
       if (searchSubscriptionsRef.current.length > 0) {
         try {
-          console.log("[SearchPage] Unsubscribing previous search results (quote):", searchSubscriptionsRef.current.length);
+          // Removed spamming log: Unsubscribing previous search results
           await unsubscribe(searchSubscriptionsRef.current, 'quote');
           searchSubscriptionsRef.current = [];
         } catch (e) {
@@ -128,7 +128,7 @@ function SearchPage() {
 
       // Subscribe to 'quote' packet for lightweight live data
       try {
-        console.log(`[SearchPage] Subscribing ${subs.length} search results to 'quote'`);
+        // Removed spamming log: Subscribing search results to 'quote'
         await subscribe(subs, 'quote');
         searchSubscriptionsRef.current = subs;
       } catch (e) {
@@ -163,7 +163,7 @@ function SearchPage() {
       // Unsubscribe previous instrument first (SearchPage: only 1 active at a time)
       if (currentSubscriptionRef.current) {
         try {
-          console.log("[SearchPage] Unsubscribing previous (full):", currentSubscriptionRef.current);
+          // Removed spamming log: Unsubscribing previous
           await unsubscribe([currentSubscriptionRef.current], 'full');
         } catch (e) {
           console.warn("[SearchPage] unsubscribe failed:", e?.message || e);
@@ -177,7 +177,7 @@ function SearchPage() {
 
       // Subscribe to new instrument with specified type
       try {
-        console.log(`[SearchPage] Subscribing to '${subscriptionType}':`, subs[0]);
+        // Removed spamming log: Subscribing to subscriptionType
         await subscribe(subs, subscriptionType);
         // Track current subscription for cleanup
         currentSubscriptionRef.current = subs[0];
@@ -214,7 +214,7 @@ function SearchPage() {
       if (currentSubscriptionRef.current) {
         (async () => {
           try {
-            console.log("[SearchPage] User closed details, unsubscribing (full):", currentSubscriptionRef.current);
+            // Removed spamming log: User closed details, unsubscribing
             await unsubscribe([currentSubscriptionRef.current], 'full');
             currentSubscriptionRef.current = null;
           } catch (e) {
@@ -231,13 +231,13 @@ function SearchPage() {
   useEffect(() => {
     return () => {
       if (currentSubscriptionRef.current) {
-        console.log("[SearchPage] Component unmounting, cleaning up detail subscription (full)");
+        // Removed spamming log: Component unmounting, cleaning up detail subscription
         unsubscribe([currentSubscriptionRef.current], 'full').catch(e =>
           console.warn("[SearchPage] unmount cleanup failed:", e?.message || e)
         );
       }
       if (searchSubscriptionsRef.current.length > 0) {
-        console.log("[SearchPage] Component unmounting, cleaning up search subscriptions (quote)");
+        // Removed spamming log: Component unmounting, cleaning up search subscriptions
         unsubscribe(searchSubscriptionsRef.current, 'quote').catch(e =>
           console.warn("[SearchPage] search unmount cleanup failed:", e?.message || e)
         );

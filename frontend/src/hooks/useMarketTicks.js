@@ -6,9 +6,11 @@ export function useMarketTicks(url, opts = {}) {
   const [ticks, setTicks] = useState(new Map());
   const [isConnected, setIsConnected] = useState(false);
 
-  // Stabilize opts to prevent infinite loop - only recreate when actual values change
-  const optsString = useMemo(() => JSON.stringify(opts), [opts]);
-  const stableOpts = useMemo(() => JSON.parse(optsString), [optsString]);
+  // Store opts in ref to avoid recreating socket on every render
+  const optsRef = useRef(opts);
+  useEffect(() => {
+    optsRef.current = opts;
+  }, [opts]);
 
   // Simplified subscribe function. Assumes component checks for connection.
   async function subscribe(list, subscriptionType = 'full') {
@@ -30,7 +32,7 @@ export function useMarketTicks(url, opts = {}) {
     console.log("[useMarketTicks] useEffect RUNNING. Creating new socket...");
 
     const newSocket = io(url, {
-      ...stableOpts,
+      ...optsRef.current,
       path: "/socket.io",
       transports: ["websocket"],
     });
@@ -83,7 +85,7 @@ export function useMarketTicks(url, opts = {}) {
       newSocket.disconnect();
       socket.current = null;
     };
-  }, [url, stableOpts]);
+  }, [url]);
 
   return { ticks, subscribe, unsubscribe, isConnected };
 }

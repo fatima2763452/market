@@ -11,6 +11,7 @@ import FundPage from "./page/Funds/FundView.jsx";
 import Orders from './page/Orders/Order.jsx';
 import Profile from './page/Profile/Profile.jsx';
 import SearchPage from './page/Search/SearchPage.jsx';
+import ChartPage from './page/Chart/ChartPage.jsx';
 import { MarketDataProvider } from './contexts/MarketDataContext.jsx';
 
 function App() {
@@ -75,6 +76,11 @@ function App() {
                             <SearchPage />
                         </Layout>
                     }
+                />
+
+                <Route
+                    path="/chart/:segment/:securityId"
+                    element={<ChartPage />}
                 />
             </Routes>
             </MarketDataProvider>

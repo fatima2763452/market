@@ -37,20 +37,37 @@ const PORT = Number(config?.port || process.env.PORT || 8081);
 server.listen(PORT, async () => {
   console.log("🚀 Server listening on", PORT);
 
-  // Check if the token needs renewal on startup.
+  // Check if the token needs renewal on startup by checking JWT expiry
   console.log("Checking token validity on startup...");
   const credentials = await getDhanCredentials();
-  if (credentials) {
-    const tokenUpdatedAt = new Date(credentials.updatedAt);
-    const now = new Date();
-    const hoursSinceLastUpdate = (now - tokenUpdatedAt) / (1000 * 60 * 60);
+  if (credentials && credentials.accessToken) {
+    try {
+      // Decode JWT to get actual expiry
+      const payload = JSON.parse(Buffer.from(credentials.accessToken.split('.')[1], 'base64').toString());
+      const expiryTime = new Date(payload.exp * 1000);
+      const now = new Date();
+      const hoursUntilExpiry = (expiryTime - now) / (1000 * 60 * 60);
 
-    if (hoursSinceLastUpdate > 23) {
-      console.log("Token is old, performing initial renewal...");
-      await renewAccessToken();
-    } else {
-      console.log("Token is recent, skipping initial renewal.");
+      console.log(`Token expires at: ${expiryTime.toISOString()} (${hoursUntilExpiry.toFixed(2)} hours remaining)`);
+
+      // Renew if less than 2 hours remaining
+      if (hoursUntilExpiry < 2) {
+        if (hoursUntilExpiry <= 0) {
+          console.error("❌ Token has EXPIRED! Cannot renew. Please generate fresh token from Dhan Web.");
+          console.error("   Go to: https://web.dhan.co → My Profile → Access DhanHQ APIs");
+          console.error("   Then run: node scripts/init-dhan-credentials.js");
+        } else {
+          console.log(`⏰ Token expires in ${hoursUntilExpiry.toFixed(2)} hours. Performing initial renewal...`);
+          await renewAccessToken();
+        }
+      } else {
+        console.log(`✅ Token is still valid for ${hoursUntilExpiry.toFixed(2)} hours. Skipping initial renewal.`);
+      }
+    } catch (e) {
+      console.error("⚠️  Failed to decode token expiry:", e.message);
     }
+  } else {
+    console.warn("⚠️  No credentials found in database.");
   }
 
   // Start the cron job for automatic token renewal

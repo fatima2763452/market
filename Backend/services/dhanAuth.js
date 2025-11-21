@@ -53,13 +53,13 @@ export async function renewAccessToken() {
     console.log('🔍 DEBUG: Sending renewal request with:');
     console.log('   URL: https://api.dhan.co/v2/RenewToken');
     console.log('   access-token:', config.dhan.token ? `${config.dhan.token.substring(0, 10)}...` : '(missing)');
-    console.log('   client-id:', config.dhan.clientId);
+    console.log('   dhanClientId:', config.dhan.clientId);
 
-    // Dhan API requires lowercase 'client-id' header (not 'dhanClientId')
+    // Dhan API requires 'dhanClientId' header (camelCase, as per official docs)
     const response = await axios.post('https://api.dhan.co/v2/RenewToken', {}, {
       headers: {
         'access-token': config.dhan.token,
-        'client-id': config.dhan.clientId,  // ← Fixed: lowercase with hyphen
+        'dhanClientId': config.dhan.clientId,  // ← Fixed: camelCase per official docs
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       }

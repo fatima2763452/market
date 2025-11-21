@@ -7,7 +7,9 @@ const MarketDataContext = createContext(null);
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const MarketDataProvider = ({ children }) => {
-  const token = (typeof window !== "undefined" && localStorage.getItem("token")) || null;
+  const [token] = React.useState(() => 
+    (typeof window !== "undefined" && localStorage.getItem("token")) || null
+  );
   
   const socketOpts = React.useMemo(() => ({
     auth: token ? { token } : undefined,

@@ -72,7 +72,7 @@ export function createApp() {
   app.use("/api/auth", authStrict, authRouter);
   app.use("/api", instrumentStockNameRoute);
   app.use("/api", optionChainRoute);
-  app.use("/api", chartRoute);
+  app.use("/api/chart", chartRoute);  // Changed from "/api" to "/api/chart"
   app.use("/api/instruments", instrumentsRoute);
   app.use("/api/quotes", authQuotes, quotesRoute);
   app.use("/api/watchlist", userWatchlistRoute);

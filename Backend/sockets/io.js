@@ -32,8 +32,6 @@ export function createIO(server) {
     console.log("📡 Market client connected:", socket.id);
 
     socket.on("subscribe", (list, subscriptionType = 'full') => {
-      // --- DIAGNOSTIC LOG ADDED HERE ---
-      console.log(`Received 'subscribe' event from frontend with type '${subscriptionType}' for list:`, list);
 
       if (feedSubscriber) feedSubscriber(list, subscriptionType);
       for (const it of list || []) {
