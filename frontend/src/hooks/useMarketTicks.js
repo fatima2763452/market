@@ -34,7 +34,7 @@ export function useMarketTicks(url, opts = {}) {
     const newSocket = io(url, {
       ...optsRef.current,
       path: "/socket.io",
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
     });
     socket.current = newSocket;
 

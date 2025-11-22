@@ -146,7 +146,8 @@ function Watchlist() {
   const handleUpgradeToFull = useCallback(async (instrument) => {
     if (!instrument) return;
 
-    // Removed spamming log: Upgrading subscription to 'full'
+    console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.tradingSymbol);
+    // console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.lotSize);
 
     const sub = [{
       segment: instrument.segment,
@@ -156,7 +157,7 @@ function Watchlist() {
     // Step 1: Unsubscribe from 'quote'
     try {
       await unsubscribe(sub, 'quote');
-      // Removed spamming log: Unsubscribed from 'quote'
+      console.log("[Watchlist] Unsubscribed from 'quote'");
     } catch (e) {
       console.warn("[Watchlist] Failed to unsubscribe from quote:", e?.message || e);
     }
@@ -164,7 +165,7 @@ function Watchlist() {
     // Step 2: Subscribe to 'full'
     try {
       await subscribe(sub, 'full');
-      // Removed spamming log: Subscribed to 'full'
+      console.log("[Watchlist] Subscribed to 'full'");
       openedInstrumentRef.current = instrument;
     } catch (e) {
       console.warn("[Watchlist] Failed to subscribe to full:", e?.message || e);
@@ -193,7 +194,7 @@ function Watchlist() {
     const instrument = openedInstrumentRef.current;
     if (!instrument) return;
 
-    // Removed spamming log: Downgrading subscription to 'quote'
+    console.log("[Watchlist] Downgrading subscription to 'quote' for:", instrument.tradingSymbol);
 
     const sub = [{
       segment: instrument.segment,
@@ -203,7 +204,7 @@ function Watchlist() {
     // Step 1: Unsubscribe from 'full'
     try {
       await unsubscribe(sub, 'full');
-      // Removed spamming log: Unsubscribed from 'full'
+      console.log("[Watchlist] Unsubscribed from 'full'");
     } catch (e) {
       console.warn("[Watchlist] Failed to unsubscribe from full:", e?.message || e);
     }
@@ -211,7 +212,7 @@ function Watchlist() {
     // Step 2: Re-subscribe to 'quote'
     try {
       await subscribe(sub, 'quote');
-      // Removed spamming log: Re-subscribed to 'quote'
+      console.log("[Watchlist] Re-subscribed to 'quote'");
       openedInstrumentRef.current = null;
     } catch (e) {
       console.warn("[Watchlist] Failed to re-subscribe to quote:", e?.message || e);
@@ -241,7 +242,7 @@ function Watchlist() {
             Authorization: `Bearer ${token}`,
           },
         });
-        if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
+ if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
         const instrumentsFromDb = await response.json();
         const formattedWatchlist = formatInstruments(instrumentsFromDb);
         const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(p => [p.id, p])).values());
@@ -346,8 +347,7 @@ function Watchlist() {
         handleDowngradeToQuote();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStock]);
+  }, [selectedStock, handleUpgradeToFull, handleDowngradeToQuote]);
 
   const sheetData = selectedStock ? prices[selectedStock.id] || {} : {};
 
@@ -419,11 +419,13 @@ function Watchlist() {
           change={nifty50Price?.percentChange?.toFixed(2) || "—"} 
           isPositive={nifty50Price?.isPositive} 
         />
-      </div>
+      </div> */
 
       <ul className="space-y-2 text-sm md:text-base p-2 flex-grow overflow-y-auto">
         {stocks.map((stock) => {
+          // console.log(`lot size in ------------ ${stock.lotSize}`)
           const p = prices[stock.id] || {};
+          
           return (
             <WatchlistItem
               key={stock.id}
@@ -436,6 +438,7 @@ function Watchlist() {
               volume={p.volume}
               close={p.close}
               onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
+
             />
           );
         })}
@@ -446,6 +449,7 @@ function Watchlist() {
           </p>
         )}
       </ul>
+
 
       <BottomWindow
         selectedStock={selectedStock}

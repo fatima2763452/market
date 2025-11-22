@@ -35,7 +35,7 @@ await loadDhanConfig();
 
 const PORT = Number(config?.port || process.env.PORT || 8081);
 server.listen(PORT, async () => {
-  console.log("🚀 Server listening on", PORT);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 
   // Check if the token needs renewal on startup by checking JWT expiry
   console.log("Checking token validity on startup...");

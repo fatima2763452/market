@@ -19,21 +19,31 @@ import orderRoute from "./Routes/orderRoute.js";
 export function createApp() {
   const app = express();
 
+  // ----- CORS SETUP (UPDATED) -----
+  // We explicitly define the allowed public and local origins here
+  const defaultOrigins = [
+    "https://app.wolfkrypt.me", // Your Public Cloudflare Frontend
+    "http://localhost:5173"     // Your Local Vite Frontend
+  ];
 
-  // ----- CORS -----
-  const origins = (config.origin || "http://localhost:5173")
-    .split(",").map(s => s.trim()).filter(Boolean);
+  // If you have extra origins in your config file, we add them too
+  const configOrigins = (config.origin || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
 
   const corsOpts = {
-    origin: origins,
+    origin: [...defaultOrigins, ...configOrigins], // Merge lists
     credentials: true,
-    methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-    allowedHeaders: ["Content-Type","Authorization"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 204,
   };
+  
   app.use(cors(corsOpts));
+  // -------------------------------
 
-  app.set("trust proxy", 1);
+  app.set("trust proxy", 1); // Essential for Cloudflare Tunnel to pass correct IPs
   app.use(cookieParser());
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true, limit: "2mb" }));
@@ -72,7 +82,7 @@ export function createApp() {
   app.use("/api/auth", authStrict, authRouter);
   app.use("/api", instrumentStockNameRoute);
   app.use("/api", optionChainRoute);
-  app.use("/api/chart", chartRoute);  // Changed from "/api" to "/api/chart"
+  app.use("/api/chart", chartRoute);
   app.use("/api/instruments", instrumentsRoute);
   app.use("/api/quotes", authQuotes, quotesRoute);
   app.use("/api/watchlist", userWatchlistRoute);

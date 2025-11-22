@@ -11,7 +11,7 @@ export async function getDhanOptionChain(params) {
   const { underlyingScrip, underlyingSeg, expiry } = params;
   
   try {
-    console.log('[DhanOptionChain] Fetching data:', { underlyingScrip, underlyingSeg, expiry });
+    // console.log('[DhanOptionChain] Fetching data:', { underlyingScrip, underlyingSeg, expiry });
     
     // Dhan API endpoint for option chain
     const url = 'https://api.dhan.co/v2/optionchain';
@@ -22,7 +22,7 @@ export async function getDhanOptionChain(params) {
       Expiry: expiry  // Format: "YYYY-MM-DD"
     };
     
-    console.log('[DhanOptionChain] Sending request to Dhan API:', JSON.stringify(payload, null, 2));
+    // console.log('[DhanOptionChain] Sending request to Dhan API:', JSON.stringify(payload, null, 2));
     
     const response = await axios.post(url, payload, {
       headers: {
@@ -34,7 +34,7 @@ export async function getDhanOptionChain(params) {
       timeout: 4000 // 4 second timeout
     });
     
-    console.log('[DhanOptionChain] Received response status:', response.status);
+    // console.log('[DhanOptionChain] Received response status:', response.status);
 
     // Transform Dhan response to frontend-friendly format
     return transformOptionChainData(response.data);
@@ -69,7 +69,7 @@ export async function getDhanOptionChain(params) {
  * @returns {Object} Formatted option chain data
  */
 function transformOptionChainData(dhanData) {
-  console.log('[DhanOptionChain] Transforming data');
+  // console.log('[DhanOptionChain] Transforming data');
 
   if (!dhanData || !dhanData.data) {
     throw new Error('Invalid response from Dhan API - missing data field');
@@ -151,9 +151,9 @@ function transformOptionChainData(dhanData) {
   // Sort by strike price
   chainArray.sort((a, b) => a.strike - b.strike);
 
-  console.log('[DhanOptionChain] Transformed', chainArray.length, 'strikes');
-  console.log('[DhanOptionChain] First strike:', chainArray[0]?.strike);
-  console.log('[DhanOptionChain] Last strike:', chainArray[chainArray.length - 1]?.strike);
+  // console.log('[DhanOptionChain] Transformed', chainArray.length, 'strikes');
+  // console.log('[DhanOptionChain] First strike:', chainArray[0]?.strike);
+  // console.log('[DhanOptionChain] Last strike:', chainArray[chainArray.length - 1]?.strike);
 
   return {
     underlyingLtp: last_price,
@@ -171,7 +171,7 @@ export async function getDhanExpiryList(params) {
   const { underlyingScrip, underlyingSeg } = params;
   
   try {
-    console.log('[DhanExpiryList] Fetching expiries:', { underlyingScrip, underlyingSeg });
+    // console.log('[DhanExpiryList] Fetching expiries:', { underlyingScrip, underlyingSeg });
     
     const url = 'https://api.dhan.co/v2/optionchain/expirylist';
     
@@ -180,7 +180,7 @@ export async function getDhanExpiryList(params) {
       UnderlyingSeg: underlyingSeg
     };
     
-    console.log('[DhanExpiryList] Sending request:', JSON.stringify(payload, null, 2));
+    // console.log('[DhanExpiryList] Sending request:', JSON.stringify(payload, null, 2));
     
     const response = await axios.post(url, payload, {
       headers: {
@@ -192,14 +192,14 @@ export async function getDhanExpiryList(params) {
       timeout: 5000
     });
     
-    console.log('[DhanExpiryList] Received response status:', response.status);
+    // console.log('[DhanExpiryList] Received response status:', response.status);
 
     if (!response.data?.data || !Array.isArray(response.data.data)) {
       throw new Error('Invalid response format from Dhan API');
     }
 
     const expiries = response.data.data;
-    console.log('[DhanExpiryList] Found', expiries.length, 'expiries');
+    // console.log('[DhanExpiryList] Found', expiries.length, 'expiries');
 
     return expiries;
     

@@ -22,7 +22,7 @@ const INTERVALS = [
   { label: '1D', value: 'daily', type: 'daily', days: 90, maxCandles: 90 },     // Changed from 365 to 90 days
 ];
 
-function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initialTo, onStateChange }) {
+function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initialTo }) {
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,13 +69,6 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
       setIsInitialized(true);
     }
   }, [isInitialized, currentInterval, getDefaultDateRange, initialFrom, initialTo]);
-  
-  // Notify parent of state changes for URL sync
-  useEffect(() => {
-    if (isInitialized && onStateChange) {
-      onStateChange(selectedInterval, dateRange.from, dateRange.to);
-    }
-  }, [selectedInterval, dateRange.from, dateRange.to, isInitialized, onStateChange]);
 
   // Format date for API based on interval type
   const formatDateForAPI = (date, isStartDate = false) => {
@@ -133,7 +126,7 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
         const toDate = formatDateForAPI(dateRange.to, false);
 
         let url;
-        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || '';
+        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'https://api.wolfkrypt.me';
         
         if (currentInterval.type === 'intraday') {
           // Use intraday endpoint

@@ -47,7 +47,7 @@ function SearchPage() {
 
   // Use shared socket connection from context
   const { ticks, subscribe, unsubscribe } = useMarketData();
-  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "https://api.wolfkrypt.me";
 
   const searchApi = useMemo(
     () => ({

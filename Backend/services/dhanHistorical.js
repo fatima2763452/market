@@ -11,7 +11,7 @@ export async function getDhanHistoricalData(params) {
   const { securityId, exchangeSegment, instrument, fromDate, toDate, expiryCode, oi } = params;
   
   try {
-    console.log('[DhanHistorical] Fetching data:', { securityId, exchangeSegment, instrument, fromDate, toDate });
+    // console.log('[DhanHistorical] Fetching data:', { securityId, exchangeSegment, instrument, fromDate, toDate });
     
     // Dhan API endpoint for historical data
     const url = 'https://api.dhan.co/v2/charts/historical';
@@ -34,7 +34,7 @@ export async function getDhanHistoricalData(params) {
       payload.oi = oi;
     }
     
-    console.log('[DhanHistorical] Sending request to Dhan API:', payload);
+    // console.log('[DhanHistorical] Sending request to Dhan API:', payload);
     
     const response = await axios.post(url, payload, {
       headers: {
@@ -46,10 +46,10 @@ export async function getDhanHistoricalData(params) {
       timeout: 10000 // 10 second timeout
     });
     
-    console.log('[DhanHistorical] Received response status:', response.status);
-    console.log('[DhanHistorical] Full response structure:', JSON.stringify(response.data, null, 2));
-    console.log('[DhanHistorical] Response data keys:', Object.keys(response.data || {}));
-    console.log('[DhanHistorical] Response data.data keys:', Object.keys(response.data?.data || {}));
+    // console.log('[DhanHistorical] Received response status:', response.status);
+    // console.log('[DhanHistorical] Full response structure:', JSON.stringify(response.data, null, 2));
+    // console.log('[DhanHistorical] Response data keys:', Object.keys(response.data || {}));
+    // console.log('[DhanHistorical] Response data.data keys:', Object.keys(response.data?.data || {}));
 
     // Transform Dhan response to ApexCharts format
     return transformDhanToCandles(response.data);
@@ -82,8 +82,8 @@ export async function getDhanHistoricalData(params) {
  * @returns {Array} Array of [timestamp, open, high, low, close, volume]
  */
 function transformDhanToCandles(dhanData) {
-  console.log('[DhanHistorical] Transforming data. Type:', typeof dhanData);
-  console.log('[DhanHistorical] Data structure:', JSON.stringify(dhanData).substring(0, 500));
+  // console.log('[DhanHistorical] Transforming data. Type:', typeof dhanData);
+  // console.log('[DhanHistorical] Data structure:', JSON.stringify(dhanData).substring(0, 500));
 
   // Validate response structure - Dhan API returns object with parallel arrays
   if (!dhanData || typeof dhanData !== 'object') {
@@ -121,15 +121,15 @@ function transformDhanToCandles(dhanData) {
     throw new Error('No historical data available for the specified period');
   }
   
-  console.log('[DhanHistorical] Processing', length, 'data points');
-  console.log('[DhanHistorical] First data point:', {
-    timestamp: timestamp[0],
-    open: open[0],
-    high: high[0],
-    low: low[0],
-    close: close[0],
-    volume: volume[0]
-  });
+  // console.log('[DhanHistorical] Processing', length, 'data points');
+  // console.log('[DhanHistorical] First data point:', {
+  //   timestamp: timestamp[0],
+  //   open: open[0],
+  //   high: high[0],
+  //   low: low[0],
+  //   close: close[0],
+  //   volume: volume[0]
+  // });
 
   const candles = [];
   
@@ -146,9 +146,9 @@ function transformDhanToCandles(dhanData) {
     ]);
   }
   
-  console.log('[DhanHistorical] Transformed', candles.length, 'candles');
-  console.log('[DhanHistorical] First candle:', candles[0]);
-  console.log('[DhanHistorical] Last candle:', candles[candles.length - 1]);
+  // console.log('[DhanHistorical] Transformed', candles.length, 'candles');
+  // console.log('[DhanHistorical] First candle:', candles[0]);
+  // console.log('[DhanHistorical] Last candle:', candles[candles.length - 1]);
   
   return candles;
 }
@@ -174,25 +174,25 @@ export function mapSegmentToInstrumentType(segment, instrumentType) {
 
   // If instrumentType is already a valid Dhan type, return it directly
   if (validDhanTypes.includes(instrumentType)) {
-    console.log('[DhanHistorical] Using instrumentType from database:', instrumentType);
+    // console.log('[DhanHistorical] Using instrumentType from database:', instrumentType);
     return instrumentType;
   }
 
   // Handle legacy EQ type → EQUITY
   if (instrumentType === 'EQ') {
-    console.log('[DhanHistorical] Converting EQ → EQUITY');
+    // console.log('[DhanHistorical] Converting EQ → EQUITY');
     return 'EQUITY';
   }
 
   // For equity segments, default to EQUITY
   if (segment === 'NSE_EQ' || segment === 'BSE_EQ') {
-    console.log('[DhanHistorical] Equity segment, using EQUITY');
+    // console.log('[DhanHistorical] Equity segment, using EQUITY');
     return 'EQUITY';
   }
 
   // For index segment without type
   if ((segment === 'NSE_INDEX' || segment === 'IDX_I') && !instrumentType) {
-    console.log('[DhanHistorical] Index segment without type, using EQUITY');
+    // console.log('[DhanHistorical] Index segment without type, using EQUITY');
     return 'EQUITY';
   }
 
@@ -212,7 +212,7 @@ export async function getDhanIntradayData(params) {
   const { securityId, exchangeSegment, instrument, interval, fromDate, toDate, oi } = params;
   
   try {
-    console.log('[DhanIntraday] Fetching data:', { securityId, exchangeSegment, instrument, interval, fromDate, toDate });
+    // console.log('[DhanIntraday] Fetching data:', { securityId, exchangeSegment, instrument, interval, fromDate, toDate });
     
     // Validate interval
     const validIntervals = [1, 5, 15, 25, 60];
@@ -238,8 +238,8 @@ export async function getDhanIntradayData(params) {
       payload.oi = oi;
     }
     
-    console.log('[DhanIntraday] Sending request to Dhan API:', JSON.stringify(payload, null, 2));
-    console.log('[DhanIntraday] Request URL:', url);
+    // console.log('[DhanIntraday] Sending request to Dhan API:', JSON.stringify(payload, null, 2));
+    // console.log('[DhanIntraday] Request URL:', url);
     
     const response = await axios.post(url, payload, {
       headers: {
@@ -251,8 +251,8 @@ export async function getDhanIntradayData(params) {
       timeout: 15000 // 15 second timeout (intraday data can be large)
     });
     
-    console.log('[DhanIntraday] Received response status:', response.status);
-    console.log('[DhanIntraday] Data points received:', response.data?.timestamp?.length || 0);
+    // console.log('[DhanIntraday] Received response status:', response.status);
+    // console.log('[DhanIntraday] Data points received:', response.data?.timestamp?.length || 0);
 
     // Transform Dhan response to ApexCharts format
     return transformDhanToCandles(response.data);
