@@ -1,44 +1,35 @@
-// MarketDepthView.jsx (या MarketDepth.jsx)
+// Market Depth View - 5 Level Order Book
 import React from 'react';
-import { Layers, Zap, TrendingUp, BarChart } from 'lucide-react';
+import { Layers } from 'lucide-react';
 
-// --- Price Row Helper Component ---
-// Renders a single row of the order book
+// Single row component for order book
 const DepthRow = ({ price, quantity, orders, type, maxQty }) => {
     const isBuy = type === 'buy';
-    const priceColor = isBuy ? 'text-green-400' : 'text-red-400';
-    const barWidth = (quantity / maxQty) * 100;
+    const barWidth = maxQty > 0 ? (quantity / maxQty) * 100 : 0;
 
     return (
-        <div className={`flex justify-between items-center text-sm py-0.5 relative transition`}>
-            
-            {/* Background Bar (Visualizing Depth/Volume) */}
-            {/* The bar shows the volume relative to the max quantity seen */}
+        <div className="relative flex items-center text-xs py-1 hover:bg-white/5 transition-colors">
+            {/* Background bar showing volume */}
             <div 
-                className={`absolute h-full ${isBuy ? 'bg-green-900/40 right-0' : 'bg-red-900/40 left-0'} transition-all duration-300`} 
+                className={`absolute h-full ${isBuy ? 'bg-green-500/20 right-0' : 'bg-red-500/20 left-0'}`} 
                 style={{ width: `${barWidth}%` }}
-            ></div>
-
-            {/* Content: Always on top of the bar */}
-            <div className="relative z-10 flex w-full justify-between px-1 font-mono text-xs">
-                
-                {/* BUY SIDE (Orders | Quantity) - Aligned to Left */}
-                {isBuy && (
-                    <div className="flex w-full justify-between pr-4">
-                        <span className="text-gray-400">{orders}</span> 
-                        <span className="font-bold text-white">{quantity.toLocaleString()}</span>
-                    </div>
-                )}
-                
-                {/* PRICE (CENTER) */}
-                <span className={`font-bold ${priceColor}`}>{Number(price).toFixed(2)}</span>
-                
-                {/* SELL SIDE (Quantity | Orders) - Aligned to Right */}
-                {!isBuy && (
-                    <div className="flex w-full justify-between pl-4">
-                         <span className="font-bold text-white">{quantity.toLocaleString()}</span>
-                         <span className="text-gray-400">{orders}</span>
-                    </div>
+            />
+            
+            {/* Content */}
+            <div className="relative z-10 flex w-full items-center px-2 font-mono">
+                {/* BUY SIDE - Left aligned */}
+                {isBuy ? (
+                    <>
+                        <span className="w-1/4 text-gray-400">{orders}</span>
+                        <span className="w-1/4 text-right text-white font-medium">{quantity.toLocaleString()}</span>
+                        <span className="w-1/2 text-right text-green-400 font-semibold">{Number(price).toFixed(2)}</span>
+                    </>
+                ) : (
+                    <>
+                        <span className="w-1/2 text-left text-red-400 font-semibold">{Number(price).toFixed(2)}</span>
+                        <span className="w-1/4 text-left text-white font-medium">{quantity.toLocaleString()}</span>
+                        <span className="w-1/4 text-right text-gray-400">{orders}</span>
+                    </>
                 )}
             </div>
         </div>
@@ -47,70 +38,116 @@ const DepthRow = ({ price, quantity, orders, type, maxQty }) => {
 
 
 function MarketDepthView({ stockName, sheetData }) {
-    // Assuming sheetData contains the raw depth object: sheetData.depth
-    const depth = sheetData.depth;
-    const ltp = sheetData.ltp;
+    const depth = sheetData?.depth;
+    const ltp = sheetData?.ltp;
+    const bestBidPrice = sheetData?.bestBidPrice;
+    const bestAskPrice = sheetData?.bestAskPrice;
 
-    if (!depth || !depth.buy || !depth.sell || !ltp) {
+    if (!depth || !depth.buy || !depth.sell) {
         return (
-            <div className="p-4 text-center text-gray-500 bg-[#1A1F30] rounded-lg">
-                <Layers className="w-6 h-6 mx-auto mb-2" />
-                <p>Market Depth Data Not Available / Market Closed.</p>
+            <div className="flex flex-col items-center justify-center p-8 text-gray-500 bg-[#1A1F30] rounded-lg">
+                <Layers className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">Market Depth Not Available</p>
+                <p className="text-xs text-gray-600 mt-1">Subscribe to full data mode</p>
             </div>
         );
     }
     
-    // Sort and process data
-    const buyDepth = [...depth.buy].sort((a, b) => b.price - a.price); // Best price first
-    const sellDepth = [...depth.sell].sort((a, b) => a.price - b.price); // Best price first
+    // Sort depth data - take only 5 levels
+    const buyDepth = [...depth.buy]
+        .sort((a, b) => b.price - a.price)
+        .slice(0, 5);
+    const sellDepth = [...depth.sell]
+        .sort((a, b) => a.price - b.price)
+        .slice(0, 5)
+        .reverse(); // Reverse to show highest sell at bottom
 
-    // Calculate maximum quantity for scaling the bar widths
-    const allQuantities = [...buyDepth.map(i => i.quantity), ...sellDepth.map(i => i.quantity)];
-    const maxQty = Math.max(...allQuantities);
+    // Calculate max quantity for bar width scaling
+    const allQuantities = [
+        ...buyDepth.map(i => i.quantity), 
+        ...sellDepth.map(i => i.quantity)
+    ];
+    const maxQty = Math.max(...allQuantities, 1);
     
     // Calculate totals
-    const totalBuyQty = depth.buy.reduce((sum, item) => sum + item.quantity, 0);
-    const totalSellQty = depth.sell.reduce((sum, item) => sum + item.quantity, 0);
+    const totalBuyQty = buyDepth.reduce((sum, item) => sum + item.quantity, 0);
+    const totalSellQty = sellDepth.reduce((sum, item) => sum + item.quantity, 0);
+    
+    // Calculate spread
+    const spread = bestAskPrice && bestBidPrice ? (bestAskPrice - bestBidPrice).toFixed(2) : '--';
 
     return (
-        <div className="w-full bg-[#1F2028] rounded-lg shadow-xl text-white">
+        <div className="w-full h-full bg-[#0F1419] text-white overflow-hidden">
             
-            {/* Header / Titles */}
-            <div className="flex justify-between text-xs text-gray-400 font-medium pt-3 px-3">
-                <span className="w-1/2 text-left">Buy Orders | Qty</span>
-                <span className="w-1/4 text-center">Price</span>
-                <span className="w-1/4 text-right">Qty | Sell Orders</span>
-            </div>
-
-            {/* --- SELL SIDE (Top of the Book - Ascending Price) --- */}
-            <div className="max-h-40 overflow-y-auto mt-1 border-b border-white/10">
-                {sellDepth.map((item, index) => (
-                    <DepthRow key={`s-${index}`} {...item} type="sell" maxQty={maxQty} />
-                ))}
-            </div>
-
-            {/* --- LTP / Spread Line --- */}
-            <div className="flex justify-center items-center text-md font-bold py-1 bg-[#333846] rounded-sm my-1">
-                <span className="text-yellow-400 mr-2">LTP: {Number(ltp).toFixed(2)}</span>
-            </div>
-
-            {/* --- BUY SIDE (Bottom of the Book - Descending Price) --- */}
-            <div className="max-h-40 overflow-y-auto border-t border-white/10">
-                 {/* Reversing the order to display best bids at the top of this section */}
-                {buyDepth.map((item, index) => (
-                    <DepthRow key={`b-${index}`} {...item} type="buy" maxQty={maxQty} />
-                ))}
-            </div>
-            
-            {/* --- Total Quantity Summary --- */}
-            <div className="p-3 border-t border-white/10 mt-2 text-sm font-semibold bg-[#2A314A]">
-                <div className="flex justify-between text-gray-400 mb-1">
-                    <span>Total Buy Qty:</span>
-                    <span className="text-green-400">{totalBuyQty.toLocaleString()}</span>
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 bg-[#1A1F2E] border-b border-gray-700">
+                <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-semibold">Market Depth</span>
+                    <span className="text-xs text-gray-500">({stockName || 'N/A'})</span>
                 </div>
-                <div className="flex justify-between text-gray-400">
-                    <span>Total Sell Qty:</span>
-                    <span className="text-red-400">{totalSellQty.toLocaleString()}</span>
+                <div className="text-xs text-gray-400">
+                    5 Levels
+                </div>
+            </div>
+
+            {/* Column Headers */}
+            <div className="flex items-center px-2 py-1.5 bg-[#1A1F2E] border-b border-gray-800 text-[10px] font-medium text-gray-500">
+                <span className="w-1/4">Orders</span>
+                <span className="w-1/4 text-right">Qty</span>
+                <span className="w-1/2 text-right">Bid</span>
+            </div>
+
+            {/* BUY SIDE (5 levels) */}
+            <div className="border-b border-gray-800">
+                {buyDepth.length > 0 ? (
+                    buyDepth.map((item, index) => (
+                        <DepthRow key={`b-${index}`} {...item} type="buy" maxQty={maxQty} />
+                    ))
+                ) : (
+                    <div className="py-8 text-center text-gray-600 text-xs">No buy orders</div>
+                )}
+            </div>
+
+            {/* LTP / SPREAD Section */}
+            <div className="flex items-center justify-between px-2 py-2 bg-[#1A1F2E] border-y border-gray-700">
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-gray-500">LTP</span>
+                    <span className="text-sm font-bold text-yellow-400">{ltp ? Number(ltp).toFixed(2) : '--'}</span>
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-gray-500">Spread</span>
+                    <span className="text-sm font-semibold text-gray-300">{spread}</span>
+                </div>
+            </div>
+
+            {/* Column Headers for SELL */}
+            <div className="flex items-center px-2 py-1.5 bg-[#1A1F2E] border-b border-gray-800 text-[10px] font-medium text-gray-500">
+                <span className="w-1/2">Ask</span>
+                <span className="w-1/4 text-left">Qty</span>
+                <span className="w-1/4 text-right">Orders</span>
+            </div>
+
+            {/* SELL SIDE (5 levels) */}
+            <div className="border-b border-gray-800">
+                {sellDepth.length > 0 ? (
+                    sellDepth.map((item, index) => (
+                        <DepthRow key={`s-${index}`} {...item} type="sell" maxQty={maxQty} />
+                    ))
+                ) : (
+                    <div className="py-8 text-center text-gray-600 text-xs">No sell orders</div>
+                )}
+            </div>
+            
+            {/* Footer Summary */}
+            <div className="px-3 py-2 bg-[#1A1F2E] border-t border-gray-700">
+                <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-500">Total Bid Qty:</span>
+                    <span className="text-green-400 font-semibold">{totalBuyQty.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Total Ask Qty:</span>
+                    <span className="text-red-400 font-semibold">{totalSellQty.toLocaleString()}</span>
                 </div>
             </div>
 

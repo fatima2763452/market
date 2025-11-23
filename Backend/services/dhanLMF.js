@@ -298,32 +298,38 @@ export class DhanLMF {
             let offset = 8;
 
             // --- Main Packet Parsing ---
-            const ltp = buf.readFloatLE(offset); offset += 4;
-            const lastTradedQuantity = buf.readInt16LE(offset); offset += 2;
-            const lastTradedTime = new Date(buf.readInt32LE(offset) * 1000); offset += 4;
-            const avgTradePrice = buf.readFloatLE(offset); offset += 4;
-            const volume = buf.readInt32LE(offset); offset += 4;
-            const totalSellQuantity = buf.readInt32LE(offset); offset += 4;
-            const totalBuyQuantity = buf.readInt32LE(offset); offset += 4;
-            const openInterest = buf.readInt32LE(offset); offset += 4;
-            offset += 8; // Skip Highest and Lowest OI for now
-            const openPrice = buf.readFloatLE(offset); offset += 4;
-            const closePrice = buf.readFloatLE(offset); offset += 4;
-            const highPrice = buf.readFloatLE(offset); offset += 4;
-            const lowPrice = buf.readFloatLE(offset); offset += 4;
+            const ltp = buf.readFloatLE(offset); offset += 4;                     // Bytes 9-12
+            const lastTradedQuantity = buf.readInt16LE(offset); offset += 2;       // Bytes 13-14
+            const lastTradedTime = new Date(buf.readInt32LE(offset) * 1000); offset += 4; // Bytes 15-18
+            const avgTradePrice = buf.readFloatLE(offset); offset += 4;            // Bytes 19-22
+            const volume = buf.readInt32LE(offset); offset += 4;                   // Bytes 23-26
+            const totalSellQuantity = buf.readInt32LE(offset); offset += 4;        // Bytes 27-30
+            const totalBuyQuantity = buf.readInt32LE(offset); offset += 4;         // Bytes 31-34
+            const openInterest = buf.readInt32LE(offset); offset += 4;             // Bytes 35-38
+            const highestOI = buf.readInt32LE(offset); offset += 4;                // Bytes 39-42
+            const lowestOI = buf.readInt32LE(offset); offset += 4;                 // Bytes 43-46            
+            const openPrice = buf.readFloatLE(offset); offset += 4;                // Bytes 47-50
+            const closePrice = buf.readFloatLE(offset); offset += 4;               // Bytes 51-54
+            const highPrice = buf.readFloatLE(offset); offset += 4;                // Bytes 55-58
+            const lowPrice = buf.readFloatLE(offset); offset += 4;                 // Bytes 59-62
 
-            // --- Market Depth Parsing ---
+            // --- Market Depth Parsing (Bytes 63-162: 5 levels × 20 bytes) ---
             const depth = { buy: [], sell: [] };
             for (let i = 0; i < 5; i++) {
-                const bidQty = buf.readInt32LE(offset); offset += 4;
-                const askQty = buf.readInt32LE(offset); offset += 4;
-                const bidOrders = buf.readInt16LE(offset); offset += 2;
-                const askOrders = buf.readInt16LE(offset); offset += 2;
-                const bidPrice = buf.readFloatLE(offset); offset += 4;
-                const askPrice = buf.readFloatLE(offset); offset += 4;
+                const bidQty = buf.readInt32LE(offset); offset += 4;               // Bytes 1-4
+                const askQty = buf.readInt32LE(offset); offset += 4;               // Bytes 5-8
+                const bidOrders = buf.readInt16LE(offset); offset += 2;            // Bytes 9-10
+                const askOrders = buf.readInt16LE(offset); offset += 2;            // Bytes 11-12
+                const bidPrice = buf.readFloatLE(offset); offset += 4;             // Bytes 13-16
+                const askPrice = buf.readFloatLE(offset); offset += 4;             // Bytes 17-20
                 
-                if (bidPrice > 0) depth.buy.push({ price: bidPrice, quantity: bidQty, orders: bidOrders });
-                if (askPrice > 0) depth.sell.push({ price: askPrice, quantity: askQty, orders: askOrders });
+                // Only add if price is valid (> 0)
+                if (bidPrice > 0) {
+                  depth.buy.push({ price: bidPrice, quantity: bidQty, orders: bidOrders });
+                }
+                if (askPrice > 0) {
+                  depth.sell.push({ price: askPrice, quantity: askQty, orders: askOrders });
+                }
             }
 
             const payload = {

@@ -23,17 +23,20 @@ const INTERVALS = [
 ];
 
 function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initialTo }) {
-  const [candles, setCandles] = useState([]);
+  const [candles, setCandles] = useState([]); // Historical candles (stable)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedInterval, setSelectedInterval] = useState(initialInterval || '5'); // Default: 5 minutes or URL param
+  const [selectedInterval, setSelectedInterval] = useState(initialInterval || '5');
   const [dateRange, setDateRange] = useState({ from: initialFrom || '', to: initialTo || '' });
   const [isInitialized, setIsInitialized] = useState(false);
-  const [liveCandle, setLiveCandle] = useState(null); // Current candle being built from live ticks
+  const [liveConnectionStatus, setLiveConnectionStatus] = useState('disconnected');
+  const [liveCandle, setLiveCandle] = useState(null); // Current live candle being built
+  const [livePrice, setLivePrice] = useState(null); // Current price for horizontal line
   
   // Refs for tracking
-  const lastCandleTimeRef = useRef(null);
   const isSubscribedRef = useRef(false);
+  const candlesLoadedRef = useRef(false);
+  const lastUpdateTimeRef = useRef(0); // Throttle live updates to 1 per second
   
   // Get live market data
   const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
@@ -165,6 +168,7 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
         const formatted = formatCandles(candleData);
         if (!isCancelled) {
           setCandles(formatted);
+          candlesLoadedRef.current = true; // Mark as loaded
           console.log('[StockChart] Loaded', formatted.length, 'candles');
         }
       } catch (err) {
@@ -190,10 +194,18 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
   // Subscribe to live market data for this symbol (only for intraday charts)
   useEffect(() => {
     // Only subscribe for intraday intervals, not daily
-    if (!isConnected || !symbol || currentInterval.type !== 'intraday') return;
+    if (!isConnected || !symbol || currentInterval.type !== 'intraday') {
+      setLiveConnectionStatus('disconnected');
+      return;
+    }
     
     // Don't subscribe until we have initial data loaded
-    if (loading || candles.length === 0) return;
+    if (loading) return;
+    
+    // Use ref to check if candles were loaded (avoids dependency on candles state)
+    if (!candlesLoadedRef.current) {
+      return;
+    }
 
     const [segment, securityId] = symbol.split('|');
     if (!segment || !securityId) return;
@@ -206,40 +218,51 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
       securityId: securityId
     }];
     
+    // Set connecting status
+    setLiveConnectionStatus('connecting');
+    
     // Subscribe to live ticks
-    subscribe(subscription, 'full').catch(err => {
-      console.warn('[StockChart] Subscribe failed:', err);
-    });
-
-    isSubscribedRef.current = true;
+    subscribe(subscription, 'full')
+      .then(() => {
+        console.log('[StockChart] Successfully subscribed to live feed');
+        setLiveConnectionStatus('connected');
+        isSubscribedRef.current = true;
+      })
+      .catch(err => {
+        console.warn('[StockChart] Subscribe failed:', err);
+        setLiveConnectionStatus('error');
+        isSubscribedRef.current = false;
+      });
 
     return () => {
       if (isSubscribedRef.current) {
+        console.log('[StockChart] Cleaning up subscription');
         unsubscribe(subscription, 'full').catch(err => {
           console.warn('[StockChart] Unsubscribe failed:', err);
         });
         isSubscribedRef.current = false;
+        setLiveConnectionStatus('disconnected');
       }
     };
-  }, [symbol, isConnected, subscribe, unsubscribe, currentInterval.type, loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, isConnected, currentInterval.type, loading]); // subscribe/unsubscribe are stable now
 
-  // Process live ticks and update current candle
+  // Process live ticks and update live candle (THROTTLED to prevent loops)
   useEffect(() => {
-    if (currentInterval.type === 'daily' || !candles || candles.length === 0) return;
+    // Only process for intraday, when we have historical data
+    if (currentInterval.type === 'daily' || !candles || candles.length === 0) {
+      setLiveCandle(null);
+      setLivePrice(null);
+      return;
+    }
 
     const [segment, securityId] = symbol.split('|');
     if (!segment || !securityId) return;
 
-    // Map segment to numeric format for ticks
+    // Map segment to numeric format
     const segmentMap = {
-      "IDX_I": 0,
-      "NSE_EQ": 1,
-      "NSE_FNO": 2,
-      "NSE_CURRENCY": 3,
-      "BSE_EQ": 4,
-      "BSE_CURRENCY": 5,
-      "MCX_COMM": 5,
-      "NSE_INDEX": 0,
+      "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3,
+      "BSE_EQ": 4, "BSE_CURRENCY": 5, "MCX_COMM": 5, "NSE_INDEX": 0,
     };
 
     const numericSegment = segmentMap[segment];
@@ -248,85 +271,76 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
 
     if (!tick || !tick.ltp) return;
 
+    // CRITICAL: Throttle updates to max 1 per second
+    const now = Date.now();
+    if (now - lastUpdateTimeRef.current < 1000) {
+      return; // Skip this update
+    }
+    lastUpdateTimeRef.current = now;
+
+    // Update live price for annotation line
+    setLivePrice(tick.ltp);
+
     const lastCandle = candles[candles.length - 1];
     if (!lastCandle) return;
 
     const lastCandleTime = lastCandle.x.getTime();
-    const intervalMs = Number(selectedInterval) * 60 * 1000; // Convert minutes to milliseconds
-    const now = Date.now();
-
-    // Check if this tick belongs to the last candle or a new one
+    const intervalMs = Number(selectedInterval) * 60 * 1000;
     const timeSinceLastCandle = now - lastCandleTime;
     
     if (timeSinceLastCandle < intervalMs) {
       // Update existing candle
-      const updatedCandle = {
+      setLiveCandle({
         x: lastCandle.x,
         y: [
           lastCandle.y[0], // Keep original open
           Math.max(lastCandle.y[1], tick.ltp), // Update high
           Math.min(lastCandle.y[2], tick.ltp), // Update low
-          tick.ltp // Update close to current LTP
+          tick.ltp // Update close
         ],
         volume: tick.volume || lastCandle.volume
-      };
-      
-      setLiveCandle(updatedCandle);
+      });
     } else if (timeSinceLastCandle >= intervalMs && timeSinceLastCandle < intervalMs * 2) {
-      // Create new candle for current interval
+      // Create new candle and append to historical
       const newCandleTime = new Date(lastCandleTime + intervalMs);
       const newCandle = {
         x: newCandleTime,
-        y: [tick.ltp, tick.ltp, tick.ltp, tick.ltp], // Open, High, Low, Close all start at LTP
+        y: [tick.ltp, tick.ltp, tick.ltp, tick.ltp],
         volume: tick.volume || 0
       };
       
-      setLiveCandle(newCandle);
-      lastCandleTimeRef.current = newCandleTime.getTime();
+      console.log('[StockChart] New interval started, appending completed candle');
+      setCandles(prev => [...prev, newCandle]);
+      setLiveCandle(null); // Reset live candle
     }
   }, [ticks, candles, symbol, selectedInterval, currentInterval.type]);
 
-  // Merge live candle with historical candles
-  const displayCandles = React.useMemo(() => {
+  // Merge live candle with historical data (smart merging to avoid duplicates)
+  const displayCandles = useMemo(() => {
     if (!liveCandle || candles.length === 0) return candles;
     
-    // Check if live candle is updating the last candle or adding a new one
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.x.getTime();
     const liveCandleTime = liveCandle.x.getTime();
     
+    // If live candle updates the last historical candle (same timestamp)
     if (liveCandleTime === lastCandleTime) {
-      // Update last candle
       return [...candles.slice(0, -1), liveCandle];
-    } else if (liveCandleTime > lastCandleTime) {
-      // Append new candle
-      return [...candles, liveCandle];
+    }
+    
+    // If live candle is a new interval (shouldn't happen as we append directly)
+    if (liveCandleTime > lastCandleTime) {
+      return candles; // Already appended to state
     }
     
     return candles;
   }, [candles, liveCandle]);
 
-  // Separate volume for secondary chart with color coding (Memoized)
-  const volumeSeries = useMemo(() => {
-    return displayCandles.map((c, idx) => {
-      // Compare close with open for current candle color
-      const isUp = c.y[3] >= c.y[0]; // close >= open
-      return {
-        x: c.x,
-        y: c.volume,
-        fillColor: isUp ? '#00B746' : '#EF403C'
-      };
-    });
-  }, [displayCandles]);
-
   // --- ApexCharts Config (Memoized to prevent zoom reset) ---
   const candleOptions = useMemo(() => {
-    // Determine if we're showing live indicator (but don't let it cause recreations)
-    const isLive = currentInterval.type === 'intraday' && liveCandle !== null;
-    
-    return {
+    const options = {
     chart: {
-      id: 'stock-candlestick-chart', // Stable ID to preserve zoom state
+      id: 'stock-candlestick-chart',
       type: "candlestick",
       background: "#1A1F30",
       foreColor: "#ccc",
@@ -346,6 +360,15 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
         enabled: true,
         type: 'x',
         autoScaleYaxis: true
+      },
+      selection: {
+        enabled: true,
+        type: 'x'
+      },
+      events: {
+        beforeZoom: function(chartContext, { xaxis }) {
+          return { xaxis };
+        }
       },
       animations: {
         enabled: false,
@@ -380,10 +403,38 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
         style: { colors: "#aaa" },
         formatter: (val) => `₹${val?.toFixed(2) || 0}`
       },
+      opposite: true // Price labels on right side
+    },
+    tooltip: {
+      enabled: true,
+      theme: 'dark',
+      custom: function({ seriesIndex, dataPointIndex, w }) {
+        const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+        if (!data) return '';
+        
+        const o = data.y[0];
+        const h = data.y[1];
+        const l = data.y[2];
+        const c = data.y[3];
+        const isUp = c >= o;
+        const color = isUp ? '#00B746' : '#EF403C';
+        
+        return `
+          <div class="bg-[#1A1F30] border border-gray-700 rounded p-2 text-xs">
+            <div class="font-semibold mb-1" style="color: ${color}">${new Date(data.x).toLocaleString()}</div>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+              <span class="text-gray-400">Open:</span><span class="text-white">₹${o.toFixed(2)}</span>
+              <span class="text-gray-400">High:</span><span class="text-green-400">₹${h.toFixed(2)}</span>
+              <span class="text-gray-400">Low:</span><span class="text-red-400">₹${l.toFixed(2)}</span>
+              <span class="text-gray-400">Close:</span><span class="text-white">₹${c.toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+      }
     },
     grid: {
       borderColor: "#333",
-      strokeDashArray: 3,
+      strokeDashArray: 2
     },
     plotOptions: {
       candlestick: {
@@ -396,16 +447,6 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
         }
       }
     },
-    tooltip: {
-      theme: "dark",
-      x: { 
-        show: true,
-        format: currentInterval.type === 'intraday' ? 'dd MMM HH:mm' : 'dd MMM yyyy'
-      },
-      y: {
-        formatter: (val) => `₹${val?.toFixed(2) || 0}`
-      }
-    },
     states: {
       active: {
         filter: {
@@ -414,71 +455,9 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
       }
     }
   };
-  }, [displayName, currentInterval.label, currentInterval.type]);
-
-  const volumeOptions = useMemo(() => ({
-    chart: {
-      id: 'stock-volume-chart', // Stable ID to preserve state
-      type: "bar",
-      background: "#1A1F30",
-      foreColor: "#ccc",
-      height: 150,
-      toolbar: { show: false },
-      animations: { 
-        enabled: false,
-        dynamicAnimation: {
-          enabled: false
-        }
-      },
-    },
-    plotOptions: {
-      bar: { 
-        columnWidth: candles.length > 100 ? "95%" : candles.length > 50 ? "90%" : "80%",
-        borderRadius: 2,
-        colors: {
-          ranges: [{
-            from: -Infinity,
-            to: Infinity,
-            color: undefined // Will use fillColor from data
-          }]
-        }
-      },
-    },
-    dataLabels: {
-      enabled: false
-    },
-    xaxis: {
-      type: "datetime",
-      labels: { show: false },
-    },
-    yaxis: {
-      labels: { 
-        style: { colors: "#aaa" },
-        formatter: (val) => {
-          if (val >= 10000000) return `${(val / 10000000).toFixed(1)}Cr`;
-          if (val >= 100000) return `${(val / 100000).toFixed(1)}L`;
-          if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
-          return val?.toFixed(0) || 0;
-        }
-      },
-    },
-    grid: {
-      borderColor: "#333",
-    },
-    tooltip: {
-      theme: "dark",
-      y: {
-        formatter: (val) => val?.toLocaleString() || 0
-      }
-    },
-    states: {
-      active: {
-        filter: {
-          type: 'none'
-        }
-      }
-    }
-  }), [candles.length]);
+  
+  return options;
+}, [displayName, currentInterval.label, currentInterval.type]);
 
   // Handle interval change
   const handleIntervalChange = (interval) => {
@@ -486,6 +465,9 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
     
     setSelectedInterval(interval);
     setCandles([]); // Clear old candles immediately
+    setLiveCandle(null); // Clear live candle
+    setLivePrice(null); // Clear live price line
+    candlesLoadedRef.current = false; // Reset loaded flag
     setLoading(true);
     
     // Get new interval config and set appropriate date range
@@ -604,13 +586,33 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
 
       {/* Chart Container with fullscreen support */}
       <div className="chart-container space-y-3">
-      {/* Live Indicator Badge */}
-      {liveCandle && currentInterval.type === 'intraday' && (
+      {/* Live Connection Status Badge */}
+      {currentInterval.type === 'intraday' && (
         <div className="flex items-center justify-center gap-2 py-1">
-          <div className="flex items-center gap-1.5 text-xs text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-400/30">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-            <span className="font-semibold">LIVE</span>
-          </div>
+          {liveConnectionStatus === 'connected' && (
+            <div className="flex items-center gap-1.5 text-xs text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-400/30">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              <span className="font-semibold">LIVE</span>
+            </div>
+          )}
+          {liveConnectionStatus === 'connecting' && (
+            <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full border border-yellow-400/30">
+              <span className="w-2 h-2 bg-yellow-400 rounded-full animate-spin"></span>
+              <span className="font-semibold">CONNECTING...</span>
+            </div>
+          )}
+          {liveConnectionStatus === 'error' && (
+            <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-400/10 px-3 py-1 rounded-full border border-red-400/30">
+              <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+              <span className="font-semibold">CONNECTION ERROR</span>
+            </div>
+          )}
+          {liveConnectionStatus === 'disconnected' && isConnected && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-400/10 px-3 py-1 rounded-full border border-gray-400/30">
+              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+              <span className="font-semibold">HISTORICAL DATA</span>
+            </div>
+          )}
         </div>
       )}
       {/* Candlestick Chart */}
@@ -622,18 +624,12 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
         height={400}
       />
 
-      {/* Volume Chart */}
-      <Chart
-        key={`volume-${symbol}-${selectedInterval}`}
-        options={volumeOptions}
-        series={[{ name: "Volume", data: volumeSeries }]}
-        type="bar"
-        height={150}
-      />
-
       {/* Data Info */}
       <div className="text-xs text-gray-500 text-center pt-2 border-t border-white/10">
         Showing {displayCandles.length} candles • {currentInterval.label} interval
+        {liveCandle && currentInterval.type === 'intraday' && (
+          <span className="text-green-400 ml-2">• Live updating</span>
+        )}
         {candles.length >= currentInterval.maxCandles && (
           <span className="text-yellow-400 ml-2">
             ⚠️ Large dataset may affect performance

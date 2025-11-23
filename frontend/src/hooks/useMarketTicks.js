@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 
 export function useMarketTicks(url, opts = {}) {
   const socket = useRef(null);
@@ -12,20 +12,21 @@ export function useMarketTicks(url, opts = {}) {
     optsRef.current = opts;
   }, [opts]);
 
-  // Simplified subscribe function. Assumes component checks for connection.
-  async function subscribe(list, subscriptionType = 'full') {
+  // Stable subscribe function (wrapped in useCallback)
+  const subscribe = useCallback(async (list, subscriptionType = 'full') => {
     if (socket.current?.connected) {
       socket.current.emit("subscribe", list, subscriptionType);
     } else {
       console.warn("[useMarketTicks] Subscribe called while socket is not connected.");
     }
-  }
+  }, []); // No dependencies - uses socket.current which is a ref
 
-  async function unsubscribe(list, subscriptionType = 'full') {
+  // Stable unsubscribe function (wrapped in useCallback)
+  const unsubscribe = useCallback(async (list, subscriptionType = 'full') => {
     if (socket.current?.connected) {
       socket.current.emit("unsubscribe", list, subscriptionType);
     }
-  }
+  }, []); // No dependencies - uses socket.current which is a ref
 
   // Effect for socket setup and cleanup
   useEffect(() => {

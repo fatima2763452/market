@@ -22,7 +22,8 @@ import {
 
 import SummaryView from './Summery'; 
 import MarketDepthView from './marketDepth';
-import OptionChainView from './OptionChain'; 
+import OptionChainView from './OptionChain';
+import OptionChainFullscreen from './OptionChainFullscreen'; 
 
 
 const navItems = [
@@ -48,6 +49,7 @@ function BottomWindow({
  
   const [viewMode, setViewMode] = useState('Summary'); // Default tab
   const [productType, setProductType] = useState('Intraday');
+  const [showFullscreenOptionChain, setShowFullscreenOptionChain] = useState(false);
   const navigate = useNavigate();
 
   
@@ -111,7 +113,13 @@ function BottomWindow({
         );
 
       case 'OptionChain':
-        return <OptionChainView {...commonProps} />;
+        // Just show a placeholder, actual modal is rendered separately
+        return (
+          <div className="p-8 text-center text-white/70">
+            <TrendingDown className="w-12 h-12 inline mb-4 text-indigo-400" />
+            <p className="text-sm text-gray-400">Click to open fullscreen option chain</p>
+          </div>
+        );
 
       case 'Chart':
         return (
@@ -139,6 +147,17 @@ function BottomWindow({
 
   return (
     <>
+      {/* Fullscreen Option Chain Modal */}
+      {showFullscreenOptionChain && (
+        <OptionChainFullscreen
+          selectedStock={selectedStock}
+          sheetData={sheetData}
+          onClose={() => {
+            setShowFullscreenOptionChain(false);
+            setViewMode('Summary'); // Reset to summary when closing
+          }}
+        />
+      )}
      
       <div
         className="fixed inset-0 bg-black/70 z-40"
@@ -195,7 +214,13 @@ function BottomWindow({
           {navItems.map((item) => (
             <button
               key={item.mode}
-              onClick={() => setViewMode(item.mode)}
+              onClick={() => {
+                if (item.mode === 'OptionChain') {
+                  setShowFullscreenOptionChain(true);
+                } else {
+                  setViewMode(item.mode);
+                }
+              }}
               title={item.label}
               className={`flex-1 flex flex-col items-center p-2 rounded-lg transition text-xs font-semibold ${
                 viewMode === item.mode
