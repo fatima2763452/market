@@ -15,14 +15,31 @@ export function getIO() {
 }
 
 export function createIO(server) {
-  const origins = (config.origin || "http://127.0.0.1:5173,http://localhost:5173")
-    .split(",").map(s => s.trim()).filter(Boolean);
+  // --- CORS SETUP (UPDATED) ---
+  const defaultOrigins = [
+    "https://app.wolfkrypt.me", // Allow your public frontend
+    "http://localhost:5173",    // Allow local frontend
+    "http://127.0.0.1:5173"     // Allow local IP
+  ];
+
+  const configOrigins = (config.origin || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  // Merge default and config origins
+  const allOrigins = [...defaultOrigins, ...configOrigins];
 
   const io = new Server(server, {
     path: "/socket.io",
-    cors: { origin: origins, credentials: true, methods: ["GET","POST","OPTIONS"] },
+    cors: { 
+        origin: allOrigins, 
+        credentials: true, 
+        methods: ["GET", "POST", "OPTIONS"] 
+    },
     transports: ["websocket", "polling"],
   });
+  // ---------------------------
 
   ioInstance = io;
 
@@ -32,8 +49,6 @@ export function createIO(server) {
     console.log("📡 Market client connected:", socket.id);
 
     socket.on("subscribe", (list, subscriptionType = 'full') => {
-      // --- DIAGNOSTIC LOG ADDED HERE ---
-      console.log(`Received 'subscribe' event from frontend with type '${subscriptionType}' for list:`, list);
 
       if (feedSubscriber) feedSubscriber(list, subscriptionType);
       for (const it of list || []) {

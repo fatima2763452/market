@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   TrendingUp,
@@ -14,14 +15,15 @@ import {
   TrendingDown,
   ClipboardList,
   ArrowLeft,
-  Plus
+  Plus,
+  ExternalLink
 } from 'lucide-react';
 
 
 import SummaryView from './Summery'; 
 import MarketDepthView from './marketDepth';
-import OptionChainView from './OptionChain'; 
-import StockChart from './StockChart'; 
+import OptionChainView from './OptionChain';
+import OptionChainFullscreen from './OptionChainFullscreen'; 
 
 
 const navItems = [
@@ -47,7 +49,8 @@ function BottomWindow({
  
   const [viewMode, setViewMode] = useState('Summary'); // Default tab
   const [productType, setProductType] = useState('Intraday');
-  const [showChart, setShowChart] = useState(false); // Fullscreen chart state
+  const [showFullscreenOptionChain, setShowFullscreenOptionChain] = useState(false);
+  const navigate = useNavigate();
 
   
   const placeFakeOrder = async () => {
@@ -110,17 +113,29 @@ function BottomWindow({
         );
 
       case 'OptionChain':
-        return <OptionChainView {...commonProps} />;
+        // Just show a placeholder, actual modal is rendered separately
+        return (
+          <div className="p-8 text-center text-white/70">
+            <TrendingDown className="w-12 h-12 inline mb-4 text-indigo-400" />
+            <p className="text-sm text-gray-400">Click to open fullscreen option chain</p>
+          </div>
+        );
 
       case 'Chart':
         return (
           <div className="p-4 text-center text-white/70 bg-[#1A1F30] rounded-lg h-96 flex flex-col items-center justify-center">
-            <p className="mb-3 text-sm text-gray-400">Live Market Chart</p>
+            <p className="mb-3 text-sm text-gray-400">View detailed chart with full controls</p>
             <button
-              onClick={() => setShowChart(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition"
+              onClick={() => {
+                const segment = selectedStock.segment;
+                const securityId = selectedStock.securityId;
+                navigate(`/chart/${segment}/${securityId}`);
+              }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition flex items-center gap-2"
             >
-              <BarChart className="w-4 h-4 inline mr-2" /> Open Full Chart
+              <BarChart className="w-4 h-4" /> 
+              Open Full Chart
+              <ExternalLink className="w-4 h-4" />
             </button>
           </div>
         );
@@ -132,6 +147,17 @@ function BottomWindow({
 
   return (
     <>
+      {/* Fullscreen Option Chain Modal */}
+      {showFullscreenOptionChain && (
+        <OptionChainFullscreen
+          selectedStock={selectedStock}
+          sheetData={sheetData}
+          onClose={() => {
+            setShowFullscreenOptionChain(false);
+            setViewMode('Summary'); // Reset to summary when closing
+          }}
+        />
+      )}
      
       <div
         className="fixed inset-0 bg-black/70 z-40"
@@ -188,7 +214,13 @@ function BottomWindow({
           {navItems.map((item) => (
             <button
               key={item.mode}
-              onClick={() => setViewMode(item.mode)}
+              onClick={() => {
+                if (item.mode === 'OptionChain') {
+                  setShowFullscreenOptionChain(true);
+                } else {
+                  setViewMode(item.mode);
+                }
+              }}
               title={item.label}
               className={`flex-1 flex flex-col items-center p-2 rounded-lg transition text-xs font-semibold ${
                 viewMode === item.mode
@@ -202,32 +234,6 @@ function BottomWindow({
           ))}
         </div>
       </div>
-
-      {/*FULLSCREEN CHART OVERLAY */}
-      {showChart && (
-        <div className="fixed inset-0 bg-[#0E1324] text-white z-[100] flex flex-col transition-all duration-300">
-          <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#1A1F30]">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setShowChart(false)}
-                className="text-gray-400 hover:text-white transition"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <h2 className="text-lg font-bold">
-                Detailed Chart — {selectedStock.name}
-              </h2>
-            </div>
-          </div>
-
-          {/* Chart Display */}
-          <div className="flex-grow overflow-y-auto p-3">
-            <StockChart
-              symbol={selectedStock.instrument_key || selectedStock.tradingSymbol}
-            />
-          </div>
-        </div>
-      )}
     </>
   );
 }

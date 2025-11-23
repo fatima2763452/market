@@ -93,6 +93,7 @@ function Watchlist() {
 
   // Track the instrument that's currently opened in BottomWindow for subscription upgrade/downgrade
   const openedInstrumentRef = useRef(null);
+  const isUpgradingRef = useRef(false); // Prevent multiple upgrades
 
 
 
@@ -144,8 +145,16 @@ function Watchlist() {
 
   // Upgrade subscription from 'quote' to 'full' when BottomWindow opens
   const handleUpgradeToFull = useCallback(async (instrument) => {
-    if (!instrument) return;
+    if (!instrument || isUpgradingRef.current) return;
+    
+    // Prevent duplicate calls
+    const instrumentKey = `${instrument.segment}-${instrument.securityId}`;
+    if (openedInstrumentRef.current?.key === instrumentKey) {
+      console.log("[Watchlist] Already upgraded, skipping");
+      return;
+    }
 
+    isUpgradingRef.current = true;
     console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.tradingSymbol);
     // console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.lotSize);
 
@@ -166,7 +175,7 @@ function Watchlist() {
     try {
       await subscribe(sub, 'full');
       console.log("[Watchlist] Subscribed to 'full'");
-      openedInstrumentRef.current = instrument;
+      openedInstrumentRef.current = { ...instrument, key: instrumentKey };
     } catch (e) {
       console.warn("[Watchlist] Failed to subscribe to full:", e?.message || e);
     }
@@ -186,6 +195,8 @@ function Watchlist() {
       setSnapshots(prev => ({ ...prev, ...map }));
     } catch (e) {
       console.warn("[Watchlist] snapshot fetch failed:", e?.message || e);
+    } finally {
+      isUpgradingRef.current = false;
     }
   }, [subscribe, unsubscribe, apiBase, token]);
 
@@ -324,6 +335,9 @@ function Watchlist() {
         bestAskQuantity: num(combined.bestAskQuantity),
         lastTradeQty: num(combined.lastTradeQty),
         lastTradeTime: combined.lastTradeTime,
+        
+        // Include depth data for Market Depth view (from Full Packet)
+        depth: combined.depth || null,
       };
     });
     return byId;
@@ -347,7 +361,8 @@ function Watchlist() {
         handleDowngradeToQuote();
       }
     }
-  }, [selectedStock, handleUpgradeToFull, handleDowngradeToQuote]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStock]); // Only depend on selectedStock, not the functions
 
   const sheetData = selectedStock ? prices[selectedStock.id] || {} : {};
 

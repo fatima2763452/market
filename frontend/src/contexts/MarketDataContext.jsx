@@ -7,15 +7,23 @@ const MarketDataContext = createContext(null);
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const MarketDataProvider = ({ children }) => {
-  const token = (typeof window !== "undefined" && localStorage.getItem("token")) || null;
+  const [token] = React.useState(() => 
+    (typeof window !== "undefined" && localStorage.getItem("token")) || null
+  );
   
   const socketOpts = React.useMemo(() => ({
     auth: token ? { token } : undefined,
     withCredentials: true,
   }), [token]);
 
+  // Get the API URL from environment variables
+  const socketUrl = React.useMemo(() => {
+    const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || 'https://api.wolfkrypt.me';
+    return `${apiUrl}/market`;
+  }, []);
+
   // Single shared socket connection for the entire app
-  const marketData = useMarketTicks("/market", socketOpts);
+  const marketData = useMarketTicks(socketUrl, socketOpts);
 
   return (
     <MarketDataContext.Provider value={marketData}>

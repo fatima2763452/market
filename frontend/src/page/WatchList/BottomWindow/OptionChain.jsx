@@ -1,41 +1,73 @@
-// OptionChainView.jsx (FINAL STABLE VERSION - Fixes White Screen)
-import React, { useEffect, useState } from 'react';
-import { TrendingDown, Loader, Zap } from 'lucide-react';
-
-// --- DUMMY DATA FOR VISUALIZATION ---
-const DUMMY_CHAIN_DATA = [
-    // ... (Your existing DUMMY_CHAIN_DATA remains the same) ...
-    { strike: 820, call: { oi: 0.10, ltp: 187.35, net_change_pct: 6.36, oi_chg: 11000, vol: 50000 }, put: { oi: 0.29, ltp: 0.10, net_change_pct: 4.00, oi_chg: 11000, vol: 20000 }, pcr: 2.89 },
-    { strike: 840, call: { oi: 0.14, ltp: 121.00, net_change_pct: -7.14, oi_chg: -11000, vol: 80000 }, put: { oi: 0.54, ltp: 0.15, net_change_pct: 0.00, oi_chg: 0, vol: 15000 }, pcr: 3.77 },
-    { strike: 850, call: { oi: 0.16, ltp: 146.80, net_change_pct: 7.14, oi_chg: 11000, vol: 95000 }, put: { oi: 2.78, ltp: 0.15, net_change_pct: -2.69, oi_chg: -7700, vol: 180000 }, pcr: 16.87 },
-    { strike: 860, call: { oi: 0.01, ltp: 98.60, net_change_pct: -50.00, oi_chg: -1100, vol: 20000 }, put: { oi: 0.95, ltp: 0.15, net_change_pct: -5.49, oi_chg: -5500, vol: 10000 }, pcr: 86.00 },
-    { strike: 880, call: { oi: 0.13, ltp: 105.00, net_change_pct: 0.00, oi_chg: 0, vol: 40000 }, put: { oi: 6.19, ltp: 0.25, net_change_pct: -2.09, oi_chg: -13200, vol: 220000 }, pcr: 46.92 },
-    { strike: 900, call: { oi: 0.10, ltp: 80.00, net_change_pct: 0.00, oi_chg: 0, vol: 30000 }, put: { oi: 8.50, ltp: 0.35, net_change_pct: -5.00, oi_chg: -28600, vol: 300000 }, pcr: 85.00 },
-];
-// ---------------------------------------------
-
+// OptionChainView.jsx - Real API Integration with Live Updates
+import React, { useState } from 'react';
+import { TrendingDown, Loader, Zap, RefreshCw, AlertCircle } from 'lucide-react';
+import { useOptionChain } from '../../../hooks/useOptionChain';
 
 const OptionChainView = ({ selectedStock, sheetData }) => {
+    const [selectedExpiry, setSelectedExpiry] = useState(null);
     
-    const [chainData, setChainData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    // Fetch option chain data with live updates
+    const { 
+        chainData, 
+        spotPrice, 
+        expiries, 
+        loading, 
+        error,
+        refetch 
+    } = useOptionChain({
+        segment: selectedStock?.segment,
+        securityId: selectedStock?.securityId,
+        expiry: selectedExpiry
+    }); 
 
-    // Mock data injection (runs once on load)
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setChainData(DUMMY_CHAIN_DATA);
-            setLoading(false);
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [selectedStock]); 
-
-    if (loading) return <p className="p-8 text-center text-indigo-400"><Loader className="w-4 h-4 inline animate-spin mr-2"/> Loading...</p>;
-    if (!chainData || chainData.length === 0) {
-        return <div className="p-8 text-center text-red-400">No Option Chain data available.</div>;
+    // Loading state
+    if (loading) {
+        return (
+            <div className="p-8 text-center">
+                <Loader className="w-8 h-8 inline animate-spin text-indigo-400 mb-2" />
+                <p className="text-gray-400 text-sm">Loading option chain...</p>
+            </div>
+        );
     }
 
-    const currentPrice = sheetData.ltp || 865.00; // Using 865.00 as mock spot price
-    const expiry = "28 Oct"; // Mock expiry
+    // Error state
+    if (error) {
+        return (
+            <div className="p-8 text-center">
+                <AlertCircle className="w-8 h-8 inline text-red-400 mb-2" />
+                <p className="text-red-400 text-sm mb-3">{error}</p>
+                <button 
+                    onClick={refetch}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition flex items-center gap-2 mx-auto"
+                >
+                    <RefreshCw className="w-4 h-4" /> Retry
+                </button>
+            </div>
+        );
+    }
+
+    // No data state
+    if (!chainData || chainData.length === 0) {
+        return (
+            <div className="p-8 text-center text-gray-400">
+                <TrendingDown className="w-8 h-8 inline mb-2 opacity-50" />
+                <p className="text-sm">No option chain data available for this instrument.</p>
+                <p className="text-xs mt-2">This may not be an options-enabled security.</p>
+            </div>
+        );
+    }
+
+    // Use live spot price from hook, fallback to sheetData
+    const currentPrice = spotPrice || sheetData.ltp || 0;
+    
+    // Format expiry date if available
+    const formatExpiry = (dateStr) => {
+        if (!dateStr) return 'N/A';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+    };
+    
+    const displayExpiry = selectedExpiry || expiries[0] || 'N/A';
 
     const getChangeClass = (value) => value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-500';
     const formatChange = (pct) => {
@@ -43,19 +75,48 @@ const OptionChainView = ({ selectedStock, sheetData }) => {
         const sign = pct > 0 ? '+' : '';
         return `${sign}${Number(pct).toFixed(2)}%`;
     };
-    const formatValue = (value) => value !== undefined ? Number(value).toFixed(2) : '—';
-    const formatOIData = (value) => value !== undefined ? (Number(value) / 100000).toFixed(2) : '—'; // Display in Lakhs
+    const formatValue = (value) => value !== undefined && value !== null ? Number(value).toFixed(2) : '—';
+    const formatOIData = (value) => value !== undefined && value !== null ? (Number(value) / 100000).toFixed(2) : '—'; // Display in Lakhs
 
     // --- RENDER LOGIC ---
     return (
-        <div className="w-full text-white overflow-hidden flex flex-col h-full"> {/* h-full for better vertical fit */}
+        <div className="w-full text-white overflow-hidden flex flex-col h-full">
             
-            {/* Top Bar (Spot Price and Expiry) */}
-            <div className="bg-[#1A1F30] p-2 flex justify-between items-center text-xs font-medium flex-shrink-0 shadow-md">
-                <span className="text-gray-400">Expiry: <span className="text-white">{expiry}</span></span>
-                <span className="text-yellow-400 flex items-center">
-                    Spot Price: ₹{Number(currentPrice).toFixed(2)}
-                </span>
+            {/* Top Bar (Spot Price, Expiry Selector, Refresh) */}
+            <div className="bg-[#1A1F30] p-2 flex justify-between items-center text-xs font-medium flex-shrink-0 shadow-md gap-2">
+                {/* Expiry Selector */}
+                <div className="flex items-center gap-2">
+                    <span className="text-gray-400">Expiry:</span>
+                    {expiries.length > 0 ? (
+                        <select 
+                            value={selectedExpiry || expiries[0]} 
+                            onChange={(e) => setSelectedExpiry(e.target.value)}
+                            className="bg-[#2A314A] text-white px-2 py-1 rounded border border-white/20 text-xs focus:outline-none focus:border-indigo-500"
+                        >
+                            {expiries.map(exp => (
+                                <option key={exp} value={exp}>
+                                    {formatExpiry(exp)}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <span className="text-white">{formatExpiry(displayExpiry)}</span>
+                    )}
+                </div>
+
+                {/* Spot Price */}
+                <div className="flex items-center gap-2">
+                    <span className="text-yellow-400 flex items-center">
+                        Spot: ₹{Number(currentPrice).toFixed(2)}
+                    </span>
+                    <button 
+                        onClick={refetch}
+                        className="p-1 hover:bg-white/10 rounded transition"
+                        title="Refresh"
+                    >
+                        <RefreshCw className="w-3 h-3 text-gray-400 hover:text-white" />
+                    </button>
+                </div>
             </div>
 
             {/* --- MAIN DUAL-SCROLL CONTAINER --- */}
@@ -146,10 +207,14 @@ const OptionChainView = ({ selectedStock, sheetData }) => {
             </div>
             {/* End Main Dual-Scroll Container */}
             
-            {/* Spot Price Footer */}
-            <div className="bg-[#1A1F30] p-1.5 text-center text-xs font-semibold mt-auto flex-shrink-0">
-                <span className="text-gray-400">Spot price: </span> 
+            {/* Spot Price Footer with Live Indicator */}
+            <div className="bg-[#1A1F30] p-1.5 text-center text-xs font-semibold mt-auto flex-shrink-0 flex items-center justify-center gap-2">
+                <span className="text-gray-400">Spot: </span> 
                 <span className="text-yellow-400">₹{Number(currentPrice).toFixed(2)}</span>
+                <span className="flex items-center gap-1 text-green-400">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                    <span className="text-[10px]">LIVE</span>
+                </span>
             </div>
 
         </div>

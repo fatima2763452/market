@@ -53,21 +53,23 @@ export async function renewAccessToken() {
     console.log('🔍 DEBUG: Sending renewal request with:');
     console.log('   URL: https://api.dhan.co/v2/RenewToken');
     console.log('   access-token:', config.dhan.token ? `${config.dhan.token.substring(0, 10)}...` : '(missing)');
-    console.log('   client-id:', config.dhan.clientId);
+    console.log('   dhanClientId:', config.dhan.clientId);
 
-    // Dhan API requires lowercase 'client-id' header (not 'dhanClientId')
-    const response = await axios.post('https://api.dhan.co/v2/RenewToken', {}, {
+    // Dhan API requires 'dhanClientId' header (camelCase, as per official docs)
+    // IMPORTANT: RenewToken is a GET request, not POST (as per official API docs)
+    const response = await axios.get('https://api.dhan.co/v2/RenewToken', {
       headers: {
         'access-token': config.dhan.token,
-        'client-id': config.dhan.clientId,  // ← Fixed: lowercase with hyphen
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'dhanClientId': config.dhan.clientId,  // ← camelCase per official docs
+        'Accept': 'application/json'
       }
     });
 
-    if (response.data && response.data.accessToken) {
-      const newToken = response.data.accessToken;
+    // Response contains "token" field (not "accessToken")
+    if (response.data && response.data.token) {
+      const newToken = response.data.token;
       console.log('✅ Successfully renewed Dhan access token.');
+      console.log(`   New token expires: ${response.data.expiryTime}`);
 
       // Update the token in the database (with clientId filter)
       const updated = await updateDhanAccessToken(config.dhan.clientId, newToken);

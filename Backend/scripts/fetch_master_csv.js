@@ -8,6 +8,18 @@ const dest = "data/master-detailed.csv";
 
 fs.mkdirSync(path.dirname(dest), { recursive: true });
 
+// Check if old file exists and delete it before downloading new one
+if (fs.existsSync(dest)) {
+    console.log("🗑️  Found existing file, deleting:", dest);
+    try {
+        fs.unlinkSync(dest);
+        console.log("✅ Old file deleted successfully");
+    } catch (err) {
+        console.error("❌ Failed to delete old file:", err.message);
+        process.exit(1);
+    }
+}
+
 function download(u, outFile) {
     return new Promise((resolve, reject) => {
         https.get(u, (res) => {

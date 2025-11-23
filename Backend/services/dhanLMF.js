@@ -33,10 +33,10 @@ export class DhanLMF {
   subscribe(list, subscriptionType = 'full') {
     if (!Array.isArray(list) || !list.length) return;
 
-    console.log(`[LMF] Subscription request received for ${list.length} items with type: ${subscriptionType}`);
+    // Removed spamming log: Subscription request received
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log("[LMF] WebSocket not open. Queuing subscription and initiating connection.");
+      // Removed spamming log: WebSocket not open
       this.subscriptionQueue.push({ list, subscriptionType });
       if (this.ws?.readyState !== WebSocket.CONNECTING) {
         this.connect();
@@ -49,11 +49,11 @@ export class DhanLMF {
 
   sendSubscription(list, subscriptionType = 'full') {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log("[LMF] WS not open, subscription cannot be sent.");
+      // Removed spamming log: WS not open
       return;
     }
     if (!list?.length) {
-        console.log("[LMF] No instruments to subscribe to.");
+        // Removed spamming log: No instruments to subscribe
         return;
     }
 
@@ -82,7 +82,7 @@ export class DhanLMF {
 
         try {
             this.ws.send(JSON.stringify(subscriptionPacket));
-            console.log(`[LMF] Sent JSON subscription for ${chunk.length} instruments with type ${subscriptionType}.`);
+            // Removed spamming log: Sent JSON subscription
         } catch (e) {
             console.warn("[LMF] JSON subscription send failed:", e?.message || e);
         }
@@ -92,10 +92,10 @@ export class DhanLMF {
   unsubscribe(list, subscriptionType = 'full') {
     if (!Array.isArray(list) || !list.length) return;
 
-    console.log(`[LMF] Unsubscription request received for ${list.length} items with type: ${subscriptionType}`);
+    // Removed spamming log: Unsubscription request received
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log("[LMF] WebSocket not open. Unsubscription cannot be sent.");
+      // Removed spamming log: WebSocket not open
       return;
     }
     
@@ -104,11 +104,11 @@ export class DhanLMF {
 
   sendUnsubscription(list, subscriptionType = 'full') {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log("[LMF] WS not open, unsubscription cannot be sent.");
+      // Removed spamming log: WS not open
       return;
     }
     if (!list?.length) {
-        console.log("[LMF] No instruments to unsubscribe from.");
+        // Removed spamming log: No instruments to unsubscribe
         return;
     }
 
@@ -137,7 +137,7 @@ export class DhanLMF {
 
         try {
             this.ws.send(JSON.stringify(unsubscriptionPacket));
-            console.log(`[LMF] Sent JSON unsubscription for ${chunk.length} instruments with type ${subscriptionType}.`);
+            // Removed spamming log: Sent JSON unsubscription
         } catch (e) {
             console.warn("[LMF] JSON unsubscription send failed:", e?.message || e);
         }
@@ -205,19 +205,18 @@ export class DhanLMF {
         return;
       }
 
-      // --- UNIVERSAL DIAGNOSTIC LOG ---
+      // Parse packet header
       const responseCode = buf.readUInt8(0);
       const exchangeSegment = buf.readUInt8(3);
       const securityId = buf.readUInt32LE(4);
-      console.log(`[LMF RAW] Received Packet: ResponseCode=${responseCode}, ExchangeSegment=${exchangeSegment}, SecurityID=${securityId}`);
-      // --- END UNIVERSAL LOG ---
+      // Removed spamming log: [LMF RAW] Received Packet
 
       const messageLength = buf.readUInt16LE(1);
 
       try {
         switch (responseCode) {
           case 1: { // Index Packet
-            console.log(`[LMF DEBUG] Received Index Packet (1) for ${securityId}. Buffer:`, buf.toString('hex'));
+            // Removed spamming debug logs
             if (buf.length < 20) {
               console.warn(`[LMF] Received Index Packet (1) for ${securityId} with insufficient length: ${buf.length}`);
               return;
@@ -228,7 +227,6 @@ export class DhanLMF {
             const low = buf.readFloatLE(offset); offset += 4;
             const close = buf.readFloatLE(offset); offset += 4;
 
-            console.log(`[LMF DEBUG] Parsed Index Packet for ${securityId}: LTP=${ltp}, High=${high}, Low=${low}, Close=${close}`);
 
             const payload = { securityId: String(securityId), exchangeSegment, ltp, high, low, close };
             this.last.set(String(securityId), payload);
@@ -300,32 +298,38 @@ export class DhanLMF {
             let offset = 8;
 
             // --- Main Packet Parsing ---
-            const ltp = buf.readFloatLE(offset); offset += 4;
-            const lastTradedQuantity = buf.readInt16LE(offset); offset += 2;
-            const lastTradedTime = new Date(buf.readInt32LE(offset) * 1000); offset += 4;
-            const avgTradePrice = buf.readFloatLE(offset); offset += 4;
-            const volume = buf.readInt32LE(offset); offset += 4;
-            const totalSellQuantity = buf.readInt32LE(offset); offset += 4;
-            const totalBuyQuantity = buf.readInt32LE(offset); offset += 4;
-            const openInterest = buf.readInt32LE(offset); offset += 4;
-            offset += 8; // Skip Highest and Lowest OI for now
-            const openPrice = buf.readFloatLE(offset); offset += 4;
-            const closePrice = buf.readFloatLE(offset); offset += 4;
-            const highPrice = buf.readFloatLE(offset); offset += 4;
-            const lowPrice = buf.readFloatLE(offset); offset += 4;
+            const ltp = buf.readFloatLE(offset); offset += 4;                     // Bytes 9-12
+            const lastTradedQuantity = buf.readInt16LE(offset); offset += 2;       // Bytes 13-14
+            const lastTradedTime = new Date(buf.readInt32LE(offset) * 1000); offset += 4; // Bytes 15-18
+            const avgTradePrice = buf.readFloatLE(offset); offset += 4;            // Bytes 19-22
+            const volume = buf.readInt32LE(offset); offset += 4;                   // Bytes 23-26
+            const totalSellQuantity = buf.readInt32LE(offset); offset += 4;        // Bytes 27-30
+            const totalBuyQuantity = buf.readInt32LE(offset); offset += 4;         // Bytes 31-34
+            const openInterest = buf.readInt32LE(offset); offset += 4;             // Bytes 35-38
+            const highestOI = buf.readInt32LE(offset); offset += 4;                // Bytes 39-42
+            const lowestOI = buf.readInt32LE(offset); offset += 4;                 // Bytes 43-46            
+            const openPrice = buf.readFloatLE(offset); offset += 4;                // Bytes 47-50
+            const closePrice = buf.readFloatLE(offset); offset += 4;               // Bytes 51-54
+            const highPrice = buf.readFloatLE(offset); offset += 4;                // Bytes 55-58
+            const lowPrice = buf.readFloatLE(offset); offset += 4;                 // Bytes 59-62
 
-            // --- Market Depth Parsing ---
+            // --- Market Depth Parsing (Bytes 63-162: 5 levels × 20 bytes) ---
             const depth = { buy: [], sell: [] };
             for (let i = 0; i < 5; i++) {
-                const bidQty = buf.readInt32LE(offset); offset += 4;
-                const askQty = buf.readInt32LE(offset); offset += 4;
-                const bidOrders = buf.readInt16LE(offset); offset += 2;
-                const askOrders = buf.readInt16LE(offset); offset += 2;
-                const bidPrice = buf.readFloatLE(offset); offset += 4;
-                const askPrice = buf.readFloatLE(offset); offset += 4;
+                const bidQty = buf.readInt32LE(offset); offset += 4;               // Bytes 1-4
+                const askQty = buf.readInt32LE(offset); offset += 4;               // Bytes 5-8
+                const bidOrders = buf.readInt16LE(offset); offset += 2;            // Bytes 9-10
+                const askOrders = buf.readInt16LE(offset); offset += 2;            // Bytes 11-12
+                const bidPrice = buf.readFloatLE(offset); offset += 4;             // Bytes 13-16
+                const askPrice = buf.readFloatLE(offset); offset += 4;             // Bytes 17-20
                 
-                if (bidPrice > 0) depth.buy.push({ price: bidPrice, quantity: bidQty, orders: bidOrders });
-                if (askPrice > 0) depth.sell.push({ price: askPrice, quantity: askQty, orders: askOrders });
+                // Only add if price is valid (> 0)
+                if (bidPrice > 0) {
+                  depth.buy.push({ price: bidPrice, quantity: bidQty, orders: bidOrders });
+                }
+                if (askPrice > 0) {
+                  depth.sell.push({ price: askPrice, quantity: askQty, orders: askOrders });
+                }
             }
 
             const payload = {

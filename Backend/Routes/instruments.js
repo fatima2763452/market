@@ -225,4 +225,31 @@ router.get("/resolve", async (req, res) => {
     }
 });
 
+// /api/instruments/lookup - Get instrument details by securityId and segment
+router.get("/lookup", async (req, res) => {
+    try {
+        const { securityId, segment } = req.query;
+        
+        if (!securityId || !segment) {
+            return res.status(400).json({ error: "securityId and segment are required" });
+        }
+
+        const instrument = await Instrument.findOne({
+            securityId: String(securityId),
+            segment: segment
+        })
+        .select("securityId segment tradingsymbol symbol_name display_name instrumentType")
+        .lean();
+
+        if (!instrument) {
+            return res.status(404).json({ error: "Instrument not found" });
+        }
+
+        res.json(instrument);
+    } catch (e) {
+        console.error("instruments/lookup error:", e);
+        res.status(500).json({ error: "failed" });
+    }
+});
+
 export default router;
