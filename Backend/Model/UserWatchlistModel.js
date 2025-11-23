@@ -9,8 +9,7 @@ const UserWatchlistSchema = new Schema({
     unique: true, // Each user has only one watchlist
   },
   instruments: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Instrument',
+    type: String, // canon_key format: "NSE|NSE_FNO|49081"
   }],
 }, { timestamps: true });
 

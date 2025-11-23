@@ -147,6 +147,7 @@ function Watchlist() {
     if (!instrument) return;
 
     console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.tradingSymbol);
+    // console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.lotSize);
 
     const sub = [{
       segment: instrument.segment,
@@ -241,7 +242,7 @@ function Watchlist() {
             Authorization: `Bearer ${token}`,
           },
         });
-        if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
+ if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
         const instrumentsFromDb = await response.json();
         const formattedWatchlist = formatInstruments(instrumentsFromDb);
         const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(p => [p.id, p])).values());
@@ -418,11 +419,13 @@ function Watchlist() {
           change={nifty50Price?.percentChange?.toFixed(2) || "—"} 
           isPositive={nifty50Price?.isPositive} 
         />
-      </div> */}
+      </div> */
 
       <ul className="space-y-2 text-sm md:text-base p-2 flex-grow overflow-y-auto">
         {stocks.map((stock) => {
+          // console.log(`lot size in ------------ ${stock.lotSize}`)
           const p = prices[stock.id] || {};
+          
           return (
             <WatchlistItem
               key={stock.id}
@@ -435,6 +438,7 @@ function Watchlist() {
               volume={p.volume}
               close={p.close}
               onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
+
             />
           );
         })}
@@ -445,6 +449,7 @@ function Watchlist() {
           </p>
         )}
       </ul>
+
 
       <BottomWindow
         selectedStock={selectedStock}

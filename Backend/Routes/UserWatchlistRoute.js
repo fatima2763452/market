@@ -10,13 +10,17 @@ const router = express.Router();
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const watchlist = await UserWatchlist.findOne({ user: req.user._id }).populate('instruments');
+    const watchlist = await UserWatchlist.findOne({ user: req.user._id });
     if (watchlist) {
-      res.json(watchlist.instruments);
+      // Lookup instruments by canon_key
+      const instruments = await Instrument.find({
+        canon_key: { $in: watchlist.instruments }
+      });
+      res.json(instruments);
     } else {
       // If no watchlist, create one for the user
-      const newWatchlist = await UserWatchlist.create({ user: req.user._id, instruments: [] });
-      res.json(newWatchlist.instruments);
+      await UserWatchlist.create({ user: req.user._id, instruments: [] });
+      res.json([]);
     }
   } catch (error) {
     console.error(error);
@@ -28,14 +32,23 @@ router.get('/', protect, async (req, res) => {
 // @route   POST /api/watchlist
 // @access  Private
 router.post('/', protect, async (req, res) => {
-  const { instrumentId } = req.body; // Expecting the ObjectId of the instrument
+  const { instrumentId } = req.body; // Expecting the ObjectId or canon_key of the instrument
 
   if (!instrumentId) {
     return res.status(400).json({ message: 'Instrument ID is required' });
   }
 
   try {
-    const instrument = await Instrument.findById(instrumentId);
+    // Find instrument by ObjectId or canon_key
+    let instrument;
+    if (instrumentId.includes('|')) {
+      // canon_key format: "NSE|NSE_FNO|49081"
+      instrument = await Instrument.findOne({ canon_key: instrumentId });
+    } else {
+      // ObjectId format
+      instrument = await Instrument.findById(instrumentId);
+    }
+
     if (!instrument) {
       return res.status(404).json({ message: 'Instrument not found' });
     }
@@ -46,20 +59,21 @@ router.post('/', protect, async (req, res) => {
       watchlist = await UserWatchlist.create({ user: req.user._id, instruments: [] });
     }
 
-    // Check if instrument is already in the watchlist
-    const alreadyAdded = watchlist.instruments.some(
-      (inst) => inst.toString() === instrumentId
-    );
+    // Check if instrument is already in the watchlist using canon_key
+    const alreadyAdded = watchlist.instruments.includes(instrument.canon_key);
 
     if (alreadyAdded) {
       return res.status(400).json({ message: 'Instrument already in watchlist' });
     }
 
-    watchlist.instruments.push(instrumentId);
+    watchlist.instruments.push(instrument.canon_key);
     await watchlist.save();
 
-    const populatedWatchlist = await UserWatchlist.findById(watchlist._id).populate('instruments');
-    res.status(201).json(populatedWatchlist.instruments);
+    // Return all instruments
+    const instruments = await Instrument.find({
+      canon_key: { $in: watchlist.instruments }
+    });
+    res.status(201).json(instruments);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server Error' });
@@ -79,14 +93,31 @@ router.delete('/:instrumentId', protect, async (req, res) => {
       return res.status(404).json({ message: 'Watchlist not found' });
     }
 
-    watchlist.instruments = watchlist.instruments.filter(
-      (inst) => inst.toString() !== instrumentId
-    );
+    // Find instrument to get its canon_key
+    let canonKeyToRemove;
+    if (instrumentId.includes('|')) {
+      // Already canon_key format
+      canonKeyToRemove = instrumentId;
+    } else {
+      // ObjectId format - lookup canon_key
+      const instrument = await Instrument.findById(instrumentId);
+      if (instrument) {
+        canonKeyToRemove = instrument.canon_key;
+      }
+    }
 
-    await watchlist.save();
-    
-    const populatedWatchlist = await UserWatchlist.findById(watchlist._id).populate('instruments');
-    res.json(populatedWatchlist.instruments);
+    if (canonKeyToRemove) {
+      watchlist.instruments = watchlist.instruments.filter(
+        (canonKey) => canonKey !== canonKeyToRemove
+      );
+      await watchlist.save();
+    }
+
+    // Return updated watchlist
+    const instruments = await Instrument.find({
+      canon_key: { $in: watchlist.instruments }
+    });
+    res.json(instruments);
 
   } catch (error) {
     console.error(error);
