@@ -156,6 +156,7 @@ function Watchlist() {
 
     isUpgradingRef.current = true;
     console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.tradingSymbol);
+    // console.log("[Watchlist] Upgrading subscription to 'full' for:", instrument.lotSize);
 
     const sub = [{
       segment: instrument.segment,

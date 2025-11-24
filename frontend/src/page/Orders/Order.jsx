@@ -66,7 +66,7 @@ export default function Order() {
                   ${isActive ? "bg-fuchsia-600 text-white" : "bg-[#111827] text-gray-300 hover:bg-[#1a2337]"}`}
               >
                 {t.icon && <span className="mr-1">{t.icon}</span>}
-                {t.label} <span className="ml-1 opacity-90">({counts[t.key]})</span>
+                {t.label} <span className="ml-1 opacity-90"></span>
               </button>
             );
           })}
