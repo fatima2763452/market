@@ -44,6 +44,7 @@ function BottomWindow({
   setOrderPrice,
   setSelectedStock,
   onAddToWatchlist,
+  onRemoveFromWatchlist,
   subscriptionType = 'full', // Optional: 'quote' or 'full' - shows data quality badge
 }) {
  
@@ -193,8 +194,18 @@ function BottomWindow({
               <button
                 className="text-gray-400 hover:text-white transition"
                 onClick={() => onAddToWatchlist(selectedStock)}
+                title="Add to watchlist"
               >
                 <Plus className="w-6 h-6" />
+              </button>
+            )}
+            {onRemoveFromWatchlist && (
+              <button
+                className="text-red-400 hover:text-red-300 transition"
+                onClick={() => onRemoveFromWatchlist(selectedStock)}
+                title="Remove from watchlist"
+              >
+                <Trash2 className="w-5 h-5" />
               </button>
             )}
             <button
@@ -217,6 +228,11 @@ function BottomWindow({
               onClick={() => {
                 if (item.mode === 'OptionChain') {
                   setShowFullscreenOptionChain(true);
+                } else if (item.mode === 'Chart') {
+                  // Navigate directly to chart page
+                  const segment = selectedStock.segment;
+                  const securityId = selectedStock.securityId;
+                  navigate(`/chart/${segment}/${securityId}`);
                 } else {
                   setViewMode(item.mode);
                 }

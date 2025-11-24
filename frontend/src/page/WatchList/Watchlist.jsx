@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import BottomWindow from "./BottomWindow/BottomWindow";
 import { useMarketData } from "../../contexts/MarketDataContext.jsx";
 
@@ -89,6 +89,7 @@ function Watchlist() {
   const [quantity, setQuantity] = useState(1);
   const [orderPrice, setOrderPrice] = useState("");
   const [indexInstruments, setIndexInstruments] = useState([]);
+  const [isLoading, setIsLoading] = useState(true); // Track loading state
   const loadingRef = useRef(false);
 
   // Track the instrument that's currently opened in BottomWindow for subscription upgrade/downgrade
@@ -107,6 +108,7 @@ function Watchlist() {
       securityId: String(one.securityId),
       expiry: one.expiry || null,
       lotSize: one.lotSize ?? null,
+      canonKey: one.canon_key, // Store canon_key for deletion
     }));
   };
 
@@ -230,6 +232,56 @@ function Watchlist() {
     }
   }, [subscribe, unsubscribe]);
 
+  // Handle removing stock from watchlist
+  const handleRemoveFromWatchlist = useCallback(async (stock) => {
+    if (!stock || !stock.securityId) {
+      console.error("Cannot remove stock, securityId is missing.");
+      return;
+    }
+
+    try {
+      // Use canon_key if available, otherwise construct it
+      // canon_key format from backend: exchange|segment|securityId (e.g., "NSE|NSE_FNO|49081")
+      const canonKey = stock.canonKey || `${stock.exchange}|${stock.segment}|${stock.securityId}`;
+      console.log('[Watchlist] Removing stock with canonKey:', canonKey);
+      
+      const response = await fetch(`${apiBase}/api/watchlist/${encodeURIComponent(canonKey)}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        console.log(`${stock.tradingSymbol} removed from watchlist!`);
+        
+        // Unsubscribe from this instrument
+        const sub = [{
+          segment: stock.segment,
+          securityId: stock.securityId
+        }];
+        try {
+          await unsubscribe(sub, 'quote');
+        } catch (e) {
+          console.warn("Failed to unsubscribe:", e);
+        }
+        
+        // Remove from local state
+        setStocks(prev => prev.filter(s => s.id !== stock.id));
+        
+        // Close BottomWindow if this stock was selected
+        if (selectedStock?.id === stock.id) {
+          setSelectedStock(null);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error(`Failed to remove from watchlist: ${errorData.message}`);
+      }
+    } catch (error) {
+      console.error("Failed to remove from watchlist:", error);
+    }
+  }, [apiBase, token, unsubscribe, selectedStock]);
+
   // initial load (wait for socket connection)
   useEffect(() => {
     if (!isConnected || loadingRef.current) return;
@@ -237,6 +289,8 @@ function Watchlist() {
 
     const loadAllInstruments = async () => {
       try {
+        setIsLoading(true); // Start loading
+        
         // Index instruments
         const nifty50Res = await fetch(`${apiBase}/api/instruments/search?q=Nifty 50&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
         const bankNiftyRes = await fetch(`${apiBase}/api/instruments/search?q=Nifty Bank&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
@@ -253,7 +307,7 @@ function Watchlist() {
             Authorization: `Bearer ${token}`,
           },
         });
- if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
+        if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
         const instrumentsFromDb = await response.json();
         const formattedWatchlist = formatInstruments(instrumentsFromDb);
         const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(p => [p.id, p])).values());
@@ -268,6 +322,8 @@ function Watchlist() {
         }
       } catch (e) {
         console.error("Failed to load initial instruments:", e);
+      } finally {
+        setIsLoading(false); // Done loading
       }
     };
 
@@ -453,15 +509,33 @@ function Watchlist() {
               volume={p.volume}
               close={p.close}
               onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
-
             />
           );
         })}
 
         {(stocks.length === 0) && (
-          <p className="text-center text-gray-500 pt-4">
-            {"Loading instruments…"}
-          </p>
+          <div className="flex flex-col items-center justify-center pt-8 px-4 text-center">
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3"></div>
+                <p className="text-gray-400">Loading instruments…</p>
+              </>
+            ) : (
+              <>
+                <Search className="w-12 h-12 text-gray-600 mb-3" />
+                <h3 className="text-white font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  Search and add your favourite stocks to get started
+                </p>
+                <Link 
+                  to="/search"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+                >
+                  Add Stocks
+                </Link>
+              </>
+            )}
+          </div>
         )}
       </ul>
 
@@ -476,6 +550,7 @@ function Watchlist() {
         orderPrice={orderPrice}
         setOrderPrice={setOrderPrice}
         setSelectedStock={setSelectedStock}
+        onRemoveFromWatchlist={handleRemoveFromWatchlist}
         subscriptionType="full"
       />
     </div>

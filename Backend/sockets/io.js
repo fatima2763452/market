@@ -17,7 +17,7 @@ export function getIO() {
 export function createIO(server) {
   // --- CORS SETUP (UPDATED) ---
   const defaultOrigins = [
-    "https://app.wolfkrypt.me", // Allow your public frontend
+    "http://localhost:5173", // Local development frontend
     "http://localhost:5173",    // Allow local frontend
     "http://127.0.0.1:5173"     // Allow local IP
   ];

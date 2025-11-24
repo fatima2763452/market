@@ -84,10 +84,9 @@ function MarketDepthView({ stockName, sheetData }) {
                 <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-blue-400" />
                     <span className="text-sm font-semibold">Market Depth</span>
-                    <span className="text-xs text-gray-500">({stockName || 'N/A'})</span>
                 </div>
                 <div className="text-xs text-gray-400">
-                    5 Levels
+                    Top 5 Orders
                 </div>
             </div>
 

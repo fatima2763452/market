@@ -19,7 +19,7 @@ export default defineConfig({
         // Allow Cloudflare tunnels
         allowedHosts: [
             ".trycloudflare.com",
-            "app.wolfkrypt.me",
+            "localhost",
             "localhost"
         ],
         hmr: {

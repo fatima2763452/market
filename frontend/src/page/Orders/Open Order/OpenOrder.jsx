@@ -27,7 +27,7 @@ export default function OpenOrder() {
 	// Use uppercase to match backend values
 	const orderStatus = "OPEN";
 
-  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "https://api.wolfkrypt.me";
+  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
   const token = localStorage.getItem("token") || null;
 
   // Segment mapping for tick key generation

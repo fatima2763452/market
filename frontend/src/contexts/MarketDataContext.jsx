@@ -18,7 +18,7 @@ export const MarketDataProvider = ({ children }) => {
 
   // Get the API URL from environment variables
   const socketUrl = React.useMemo(() => {
-    const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || 'https://api.wolfkrypt.me';
+    const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
     return `${apiUrl}/market`;
   }, []);
 

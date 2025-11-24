@@ -17,7 +17,7 @@ function ChartPage() {
   useEffect(() => {
     const fetchInstrumentName = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'https://api.wolfkrypt.me';
+        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
         const url = `${baseUrl}/api/instruments/lookup?securityId=${securityId}&segment=${segment}`;
         
         console.log('[ChartPage] Fetching instrument from:', url);

@@ -23,7 +23,7 @@ export function createApp() {
   // ----- CORS SETUP (UPDATED) -----
   // We explicitly define the allowed public and local origins here
   const defaultOrigins = [
-    "https://app.wolfkrypt.me", // Your Public Cloudflare Frontend
+    "http://localhost:5173", // Local development frontend
     "http://localhost:5173"     // Your Local Vite Frontend
   ];
 
@@ -67,10 +67,9 @@ export function createApp() {
     }
   }
 
-  // Quotes auth: allow if server has DHAN token, or any bearer/cookie present
+  // Quotes auth: allow if server has valid bearer/cookie token present
   function authQuotes(req, res, next) {
     if (!REQUIRE_AUTH) return next();
-    if (process.env.DHAN_ACCESS_TOKEN) return next();
     const bearer = req.headers.authorization || "";
     const m = bearer.match(/^Bearer\s+(.+)$/i);
     const token = m?.[1] || req.cookies?.accessToken;

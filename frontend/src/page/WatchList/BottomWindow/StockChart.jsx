@@ -123,7 +123,7 @@ function StockChart({ symbol, tradingSymbol }) {
         const toDate = formatDateForAPI(dateRange.to, false);
 
         let url;
-        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'https://api.wolfkrypt.me';
+        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
         
         if (currentInterval.type === 'intraday') {
           // Use intraday endpoint
