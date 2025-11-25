@@ -16,16 +16,6 @@ export default defineConfig({
                 ws: true
             }
         },
-        // Allow Cloudflare tunnels
-        allowedHosts: [
-            ".trycloudflare.com",
-            "localhost",
-            "localhost"
-        ],
-        hmr: {
-            // Use the tunnel domain for HMR in production
-            clientPort: 443,
-            protocol: 'wss'
-        }
+      
     }
 });
