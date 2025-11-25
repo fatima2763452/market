@@ -131,62 +131,68 @@ router.post('/', protect, async (req, res) => {
 // router.delete("/:instrumentId", protect, async (req, res) => { ... })
 router.delete("/:instrumentId", protect, async (req, res) => {
   const { instrumentId } = req.params;
-  // broker/customer (if needed) come as query params: ?broker_id_str=...&customer_id_str=...
   const { broker_id_str, customer_id_str } = req.query;
 
-  try {
-    // find user's watchlist
-    const watchlist = await UserWatchlist.findOne({ user: req.user._id });
-    if (!watchlist) {
-      return res.status(404).json({ message: "Watchlist not found" });
-    }
+  // 1. Validate Input Presence
+  if (!instrumentId) {
+    return res.status(400).json({ message: "instrumentId is required" });
+  }
+  if (!broker_id_str || !customer_id_str) {
+    return res.status(400).json({ message: "broker_id_str and customer_id_str are required in query params" });
+  }
 
-    // decide canonKeyToRemove
+  try {
+    // 2. Resolve the canonKeyToRemove
     let canonKeyToRemove = null;
 
-    if (!instrumentId) {
-      return res.status(400).json({ message: "instrumentId is required" });
-    }
-
     if (instrumentId.includes("|")) {
-      // already a canon_key
+      // Case A: It is already a canon_key (e.g., "NSE|26000")
       canonKeyToRemove = instrumentId;
     } else {
-      // treat as ObjectId (instrument _id) -> find instrument and read canon_key
-      // use findById for _id lookup
+      // Case B: It is a Database _id
+      if (!mongoose.isValidObjectId(instrumentId)) {
+        return res.status(400).json({ message: "Invalid Instrument ID format" });
+      }
+
       const instrument = await Instrument.findById(instrumentId).lean();
+      
       if (!instrument) {
-        return res.status(404).json({ message: "Instrument not found" });
+        return res.status(404).json({ message: "Instrument to delete not found in database" });
       }
+      
       canonKeyToRemove = instrument.canon_key || instrument.canonKey;
-      if (!canonKeyToRemove) {
-        return res.status(400).json({ message: "Instrument has no canon_key" });
-      }
     }
 
-    // Optional: verify broker/customer match (if you want to restrict)
-    // if (broker_id_str && broker_id_str !== watchlist.broker_id_str) { ... }
+    if (!canonKeyToRemove) {
+      return res.status(400).json({ message: "Could not resolve a valid key to delete" });
+    }
 
-    // Remove canonKey from watchlist.instruments atomically
-    await UserWatchlist.updateOne(
-      { user: req.user._id },
-      { $pull: { instruments: canonKeyToRemove } }
-    );
+    // 3. Atomically Remove and Return Updated Document
+    // findOneAndUpdate is more efficient here than findOne -> updateOne -> findOne
+    const updatedWatchlist = await UserWatchlist.findOneAndUpdate(
+      { broker_id_str, customer_id_str },
+      { $pull: { instruments: canonKeyToRemove } },
+      { new: true } // Returns the document AFTER the update
+    ).lean();
 
-    // Reload watchlist instruments (fresh)
-    const updatedWatchlist = await UserWatchlist.findOne({ user: req.user._id }).lean();
+    if (!updatedWatchlist) {
+      return res.status(404).json({ message: "Watchlist not found for this user" });
+    }
 
-    // Return instrument details for remaining instruments
+    // 4. Return instrument details for the remaining instruments
+    // Handle case where instruments array might be empty
+    const currentInstrumentsList = updatedWatchlist.instruments || [];
+
     const instruments = await Instrument.find({
-      canon_key: { $in: updatedWatchlist?.instruments || [] },
+      canon_key: { $in: currentInstrumentsList },
     }).lean();
 
     return res.json({ success: true, instruments });
+
   } catch (error) {
     console.error("[watchlist-delete] error:", error);
     return res.status(500).json({ message: "Server Error", error: String(error) });
   }
 });
-
 
 export default router;
