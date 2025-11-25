@@ -201,8 +201,7 @@ export default function Portfolio() {
         if (!brokerId || !customerId) { setLoader(false); return; }
         setLoader(true);
         try {
-            let baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-            baseUrl = baseUrl.replace(/\/$/, "");
+            const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || "";
             const res = await fetch(`${baseUrl}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=CLOSED`, {
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             });

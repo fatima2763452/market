@@ -54,6 +54,8 @@ function BottomWindow({
   const navigate = useNavigate();
 
   
+  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+
   const placeFakeOrder = async () => {
     if (!selectedStock || quantity <= 0 || !orderPrice) return;
 
@@ -68,7 +70,7 @@ function BottomWindow({
     };
 
     try {
-      const res = await fetch('/api/fake-orders', {
+      const res = await fetch(`${apiBase}/api/fake-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
