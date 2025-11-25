@@ -31,7 +31,7 @@ export function createApp() {
   const configOrigins = (config.origin || "")
     .split(",")
     .map(s => s.trim())
-    .filter(Boolean);
+    .filter(Boolean);                             
 
   const corsOpts = {
     origin: [...defaultOrigins, ...configOrigins], // Merge lists
