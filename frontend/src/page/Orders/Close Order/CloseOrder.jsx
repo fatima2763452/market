@@ -1,5 +1,9 @@
+
+
 import React, { useEffect, useState } from "react";
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock, Layers, RefreshCw } from 'lucide-react';
+import ClosedOrderFilter from "./CloseOrderFilter"; // make sure path is correct
+
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -44,16 +48,14 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
 
-    const expireDate = selectedOrder.meta.selectedStock.expiry; // iso formate
+    const expireDate = selectedOrder.meta?.selectedStock?.expiry; // iso formate
 
-    const date = new Date(expireDate);
-    const formattedStockExpireDate =
+    const date = expireDate ? new Date(expireDate) : null;
+    const formattedStockExpireDate = date ? (
         String(date.getDate()).padStart(2, '0') + '-' +
         String(date.getMonth() + 1).padStart(2, '0') + '-' +
-        date.getFullYear();
-
-
-
+        date.getFullYear()
+    ) : "—";
 
     const {
         symbol,
@@ -279,6 +281,7 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
 export default function ClosedOrder() {
 
     const [closedOrders, setClosedOrders] = useState([]);
+    const [filteredOrders, setFilteredOrders] = useState([]);
     const [loader, setLoader] = useState(true);
     const [error, setError] = useState(null);
     const [selectedOrderData, setSelectedOrderData] = useState(null);
@@ -330,6 +333,7 @@ export default function ClosedOrder() {
 
             if (!res.ok) {
                 setClosedOrders([]);
+                setFilteredOrders([]);
                 setError("Failed to load closed orders");
                 return;
             }
@@ -340,10 +344,12 @@ export default function ClosedOrder() {
             const sortedOrders = orders.sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
 
             setClosedOrders(sortedOrders);
+            setFilteredOrders(sortedOrders.slice());
             setError(null);
         } catch (err) {
             console.error("fetchClosedOrders exception:", err);
             setClosedOrders([]);
+            setFilteredOrders([]);
             setError(String(err));
         } finally {
             setLoader(false);
@@ -356,103 +362,115 @@ export default function ClosedOrder() {
         const handler = () => fetchClosedOrders();
         window.addEventListener('orders:changed', handler);
         return () => window.removeEventListener('orders:changed', handler);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [brokerId, customerId, apiBase, token]);
 
 
     return (
         <>
-            <h3 className="text-gray-400 text-sm mb-2">Closed Orders ({closedOrders.length})</h3>
+            <div className="grid md:grid-cols-[320px_1fr] gap-4">
+                <div>
+                    <ClosedOrderFilter
+                        closedOrders={closedOrders}
+                        onFilter={(newList) => setFilteredOrders(newList)}
+                    />
+                </div>
 
-            {loader && closedOrders.length === 0 ? (
-                <div className="text-gray-500 text-center py-4 text-xs">Loading history...</div>
-            ) : (
-                <ul className="space-y-2 pb-24 overflow-auto">
-                    {closedOrders.map((data, idx) => {
-                        const tradingsymbolRaw = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
-                        const tradingsymbol = String(tradingsymbolRaw ?? "");
+                <div>
+                    <h3 className="text-gray-400 text-sm mb-2">Closed Orders ({filteredOrders.length})</h3>
 
-                        // Use helper to get clean numbers
-                        const { qty, entryPrice, exitPrice } = getOrderValues(data);
+                    {loader && filteredOrders.length === 0 ? (
+                        <div className="text-gray-500 text-center py-4 text-xs">Loading history...</div>
+                    ) : (
+                        <ul className="space-y-2 pb-24 overflow-auto">
+                            {filteredOrders.map((data, idx) => {
+                                const tradingsymbolRaw = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
+                                const tradingsymbol = String(tradingsymbolRaw ?? "");
 
-                        const sideUpper = String(data.side ?? "").toUpperCase();
+                                // Use helper to get clean numbers
+                                const { qty, entryPrice, exitPrice } = getOrderValues(data);
 
-                        let diff = 0;
-                        if (sideUpper === "BUY") {
-                            diff = exitPrice - entryPrice;
-                        } else {
-                            diff = entryPrice - exitPrice;
-                        }
+                                const sideUpper = String(data.side ?? "").toUpperCase();
 
-                        // Calculate P&L
-                        const pnl = diff * qty;
+                                let diff = 0;
+                                if (sideUpper === "BUY") {
+                                    diff = exitPrice - entryPrice;
+                                } else {
+                                    diff = entryPrice - exitPrice;
+                                }
 
-                        // Calculate percentage return
-                        const pct = entryPrice ? (diff / entryPrice) * 100 : 0;
+                                // Calculate P&L
+                                const pnl = diff * qty;
 
-                        // Check if effectively zero
-                        const isZero = Math.abs(pnl) < 0.01;
-                        const profit = pnl > 0;
+                                // Calculate percentage return
+                                const pct = entryPrice ? (diff / entryPrice) * 100 : 0;
 
-                        // Color: Green if +, Red if -, Gray if 0
-                        let pnlColor = "text-gray-200";
-                        if (!isZero) {
-                            pnlColor = profit ? "text-green-400" : "text-red-400";
-                        }
+                                // Check if effectively zero
+                                const isZero = Math.abs(pnl) < 0.01;
+                                const profit = pnl > 0;
 
-                        // Format Text
-                        const pctText = `${profit && !isZero ? '+' : ''}${pnl.toFixed(2)} (${profit && !isZero ? '+' : ''}${pct.toFixed(2)}%)`;
+                                // Color: Green if +, Red if -, Gray if 0
+                                let pnlColor = "text-gray-200";
+                                if (!isZero) {
+                                    pnlColor = profit ? "text-green-400" : "text-red-400";
+                                }
 
-                        return (
-                            <li
-                                key={data._id || idx}
-                                className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
-                                onClick={() => handleOrderSelect(data)}
-                            >
-                                <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
+                                // Format Text
+                                const pctText = `${profit && !isZero ? '+' : ''}${pnl.toFixed(2)} (${profit && !isZero ? '+' : ''}${pct.toFixed(2)}%)`;
 
-                                <div className="flex items-start justify-between">
-                                    <h4 className="text-white font-bold tracking-wide text-sm">
-                                        {tradingsymbol || '—'}
-                                    </h4>
-                                    <div className={`text-xs font-bold ${pnlColor}`}>{pctText}</div>
+                                return (
+                                    <li
+                                        key={data._id || idx}
+                                        className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
+                                        onClick={() => handleOrderSelect(data)}
+                                    >
+                                        <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
+
+                                        <div className="flex items-start justify-between">
+                                            <h4 className="text-white font-bold tracking-wide text-sm">
+                                                {tradingsymbol || '—'}
+                                            </h4>
+                                            <div className={`text-xs font-bold ${pnlColor}`}>{pctText}</div>
+                                        </div>
+
+                                        <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
+                                            {/* Qty and Exit */}
+                                            <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
+                                            <div className="text-right text-gray-400">Exit: <span className="text-white font-semibold">{money(exitPrice)}</span></div>
+
+                                            {/* Lots and Avg */}
+                                            <div className="text-gray-400">
+                                                Lots: <span className="text-white">{data.lots ?? '-'}</span>
+                                                <span className="text-gray-500 ml-1 text-[10px]">({data.lot_size ?? '-'})</span>
+                                            </div>
+                                            <div className="text-right text-gray-400">Avg: <span className="text-white">{money(entryPrice)}</span></div>
+
+                                            {/* Total P&L Row */}
+                                            <div className="col-span-2 text-right pt-1 mt-1 border-t border-white/5">
+                                                <span className="text-gray-400 mr-2">Total P&L:</span>
+                                                <span className={`${pnlColor} font-semibold text-sm`}>{money(pnl)}</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+
+                            {!loader && filteredOrders.length === 0 && (
+                                <div className="text-gray-600 text-center py-8 text-sm italic">
+                                    No closed positions found.
                                 </div>
-
-                                <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
-                                    {/* Qty and Exit */}
-                                    <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
-                                    <div className="text-right text-gray-400">Exit: <span className="text-white font-semibold">{money(exitPrice)}</span></div>
-
-                                    {/* Lots and Avg */}
-                                    <div className="text-gray-400">
-                                        Lots: <span className="text-white">{data.lots ?? '-'}</span>
-                                        <span className="text-gray-500 ml-1 text-[10px]">({data.lot_size ?? '-'})</span>
-                                    </div>
-                                    <div className="text-right text-gray-400">Avg: <span className="text-white">{money(entryPrice)}</span></div>
-
-                                    {/* Total P&L Row */}
-                                    <div className="col-span-2 text-right pt-1 mt-1 border-t border-white/5">
-                                        <span className="text-gray-400 mr-2">Total P&L:</span>
-                                        <span className={`${pnlColor} font-semibold text-sm`}>{money(pnl)}</span>
-                                    </div>
-                                </div>
-                            </li>
-                        );
-                    })}
-
-                    {!loader && closedOrders.length === 0 && (
-                        <div className="text-gray-600 text-center py-8 text-sm italic">
-                            No closed positions found.
-                        </div>
+                            )}
+                        </ul>
                     )}
-                </ul>
-            )}
 
-            {selectedOrderData && (
-                <ClosedOrderBottomWindow
-                    selectedOrder={selectedOrderData}
-                    onClose={handleCloseWindow}
-                />
-            )}
+                    {selectedOrderData && (
+                        <ClosedOrderBottomWindow
+                            selectedOrder={selectedOrderData}
+                            onClose={handleCloseWindow}
+                        />
+                    )}
+                </div>
+            </div>
         </>
     );
 }

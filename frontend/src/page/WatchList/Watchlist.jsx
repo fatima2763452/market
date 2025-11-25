@@ -467,94 +467,94 @@ function Watchlist() {
   const nifty50Price = nifty50Inst ? indexPrices[nifty50Inst.id] : {};
 
   return (
-    <div className="w-full h-full bg-[#0b1020] md:w-1/2 lg:w-3/12 md:border-r border-white/10 flex flex-col relative">
-      <div className="p-4 text-white/90 border-b border-white/10 sticky top-0 bg-[#0b1020] z-20 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg md:text-xl font-semibold">Watchlist</h2>
-          <Link to="/search" className="text-white/80 hover:text-white">
-            <Search size={24} />
-          </Link>
-        </div>
+  <div className="w-full h-full bg-[#0b1020] md:w-1/2 lg:w-3/12 md:border-r border-white/10 flex flex-col relative min-h-0">
+    <div className="p-4 text-white/90 border-b border-white/10 sticky top-0 bg-[#0b1020] z-20 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg md:text-xl font-semibold">Watchlist</h2>
+        <Link to="/search" className="text-white/80 hover:text-white">
+          <Search size={24} />
+        </Link>
       </div>
+    </div>
 
-      <div className="p-2 flex sticky top-[88px] bg-[#0b1020] z-10 border-b border-white/10">
-        <IndexCard 
-          name="NIFTY BANK" 
-          price={bankNiftyPrice?.ltp?.toFixed(2) || "—"} 
-          change={bankNiftyPrice?.percentChange?.toFixed(2) || "—"} 
-          isPositive={bankNiftyPrice?.isPositive} 
-        />
-        <IndexCard 
-          name="Nifty" 
-          price={nifty50Price?.ltp?.toFixed(2) || "—"} 
-          change={nifty50Price?.percentChange?.toFixed(2) || "—"} 
-          isPositive={nifty50Price?.isPositive} 
-        />
-      </div> */
-
-      <ul className="space-y-2 text-sm md:text-base p-2 flex-grow overflow-y-auto">
-        {stocks.map((stock) => {
-          // console.log(`lot size in ------------ ${stock.lotSize}`)
-          const p = prices[stock.id] || {};
-          
-          return (
-            <WatchlistItem
-              key={stock.id}
-              name={stock.tradingSymbol}
-              exchange={stock.exchange || "—"}
-              price={p.ltp}
-              netChange={p.netChange}
-              percentChange={p.percentChange}
-              isPositive={p.isPositive}
-              volume={p.volume}
-              close={p.close}
-              onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
-            />
-          );
-        })}
-
-        {(stocks.length === 0) && (
-          <div className="flex flex-col items-center justify-center pt-8 px-4 text-center">
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3"></div>
-                <p className="text-gray-400">Loading instruments…</p>
-              </>
-            ) : (
-              <>
-                <Search className="w-12 h-12 text-gray-600 mb-3" />
-                <h3 className="text-white font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
-                <p className="text-gray-400 text-sm mb-4">
-                  Search and add your favourite stocks to get started
-                </p>
-                <Link 
-                  to="/search"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-                >
-                  Add Stocks
-                </Link>
-              </>
-            )}
-          </div>
-        )}
-      </ul>
-
-
-      <BottomWindow
-        selectedStock={selectedStock}
-        sheetData={sheetData}
-        actionTab={actionTab}
-        setActionTab={setActionTab}
-        quantity={quantity}
-        setQuantity={setQuantity}
-        orderPrice={orderPrice}
-        setOrderPrice={setOrderPrice}
-        setSelectedStock={setSelectedStock}
-        onRemoveFromWatchlist={handleRemoveFromWatchlist}
-        subscriptionType="full"
+    <div className="p-2 flex sticky top-[88px] bg-[#0b1020] z-10 border-b border-white/10">
+      <IndexCard 
+        name="NIFTY BANK" 
+        price={bankNiftyPrice?.ltp?.toFixed(2) || "—"} 
+        change={bankNiftyPrice?.percentChange?.toFixed(2) || "—"} 
+        isPositive={bankNiftyPrice?.isPositive} 
+      />
+      <IndexCard 
+        name="Nifty" 
+        price={nifty50Price?.ltp?.toFixed(2) || "—"} 
+        change={nifty50Price?.percentChange?.toFixed(2) || "—"} 
+        isPositive={nifty50Price?.isPositive} 
       />
     </div>
-  );
+
+    {/* SCROLLABLE LIST: make it flex-1 and give bottom padding so BottomWindow doesn't hide items */}
+    <ul className="space-y-2 text-sm md:text-base p-2 flex-1 overflow-y-auto pb-28 min-h-0">
+      {stocks.map((stock) => {
+        const p = prices[stock.id] || {};
+
+        return (
+          <WatchlistItem
+            key={stock.id}
+            name={stock.tradingSymbol}
+            exchange={stock.exchange || "—"}
+            price={p.ltp}
+            netChange={p.netChange}
+            percentChange={p.percentChange}
+            isPositive={p.isPositive}
+            volume={p.volume}
+            close={p.close}
+            onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
+          />
+        );
+      })}
+
+      {stocks.length === 0 && (
+        <div className="flex flex-col items-center justify-center pt-8 px-4 text-center">
+          {isLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3" />
+              <p className="text-gray-400">Loading instruments…</p>
+            </>
+          ) : (
+            <>
+              <Search className="w-12 h-12 text-gray-600 mb-3" />
+              <h3 className="text-white font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Search and add your favourite stocks to get started
+              </p>
+              <Link 
+                to="/search"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+              >
+                Add Stocks
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+    </ul>
+
+    <BottomWindow
+      selectedStock={selectedStock}
+      sheetData={sheetData}
+      actionTab={actionTab}
+      setActionTab={setActionTab}
+      quantity={quantity}
+      setQuantity={setQuantity}
+      orderPrice={orderPrice}
+      setOrderPrice={setOrderPrice}
+      setSelectedStock={setSelectedStock}
+      onRemoveFromWatchlist={handleRemoveFromWatchlist}
+      subscriptionType="full"
+    />
+  </div>
+);
+
 }
 
 export default Watchlist;
