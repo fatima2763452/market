@@ -318,7 +318,12 @@ function SearchPage() {
   }, [selectedStock, ticks, snapshots, segmentStringToNumberMap]);
 
   const handleAddToWatchlist = async (stock) => {
-    // const 
+
+    const activeContextString = localStorage.getItem('activeContext');
+    const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+    const brokerId = activeContext.brokerId;
+    const customerId = activeContext.customerId;
+
     if (!stock || !stock._id) {
       // Using console.error instead of alert
       console.error("Cannot add stock, ID is missing.");
@@ -331,7 +336,7 @@ function SearchPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ instrumentId: stock._id }),
+        body: JSON.stringify({ instrumentId: stock._id, broker_id_str: brokerId, customer_id_str: customerId}),
       });
       if (response.ok) {
         console.log(`${stock.tradingSymbol} added to watchlist!`);

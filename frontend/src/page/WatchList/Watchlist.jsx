@@ -148,7 +148,7 @@ function Watchlist() {
   // Upgrade subscription from 'quote' to 'full' when BottomWindow opens
   const handleUpgradeToFull = useCallback(async (instrument) => {
     if (!instrument || isUpgradingRef.current) return;
-    
+
     // Prevent duplicate calls
     const instrumentKey = `${instrument.segment}-${instrument.securityId}`;
     if (openedInstrumentRef.current?.key === instrumentKey) {
@@ -244,17 +244,26 @@ function Watchlist() {
       // canon_key format from backend: exchange|segment|securityId (e.g., "NSE|NSE_FNO|49081")
       const canonKey = stock.canonKey || `${stock.exchange}|${stock.segment}|${stock.securityId}`;
       console.log('[Watchlist] Removing stock with canonKey:', canonKey);
-      
-      const response = await fetch(`${apiBase}/api/watchlist/${encodeURIComponent(canonKey)}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+
+      const activeContextString = localStorage.getItem('activeContext');
+      const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+      const brokerId = activeContext.brokerId;
+      const customerId = activeContext.customerId;
+
+      const response = await fetch(
+        `${apiBase}/api/watchlist/${encodeURIComponent(canonKey)}?broker_id_str=${brokerId}&customer_id_str=${customerId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
 
       if (response.ok) {
         console.log(`${stock.tradingSymbol} removed from watchlist!`);
-        
+
         // Unsubscribe from this instrument
         const sub = [{
           segment: stock.segment,
@@ -265,10 +274,10 @@ function Watchlist() {
         } catch (e) {
           console.warn("Failed to unsubscribe:", e);
         }
-        
+
         // Remove from local state
         setStocks(prev => prev.filter(s => s.id !== stock.id));
-        
+
         // Close BottomWindow if this stock was selected
         if (selectedStock?.id === stock.id) {
           setSelectedStock(null);
@@ -290,7 +299,7 @@ function Watchlist() {
     const loadAllInstruments = async () => {
       try {
         setIsLoading(true); // Start loading
-        
+
         // Index instruments
         const nifty50Res = await fetch(`${apiBase}/api/instruments/search?q=Nifty 50&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
         const bankNiftyRes = await fetch(`${apiBase}/api/instruments/search?q=Nifty Bank&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
@@ -301,16 +310,32 @@ function Watchlist() {
         const formattedIndexes = formatInstruments(indexInstrumentsRaw);
         setIndexInstruments(formattedIndexes);
 
-        // Watchlist from DB for the user
-        const response = await fetch(`${apiBase}/api/watchlist`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+
+        const activeContextString = localStorage.getItem('activeContext');
+        const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+        const brokerId = activeContext.brokerId;
+        const customerId = activeContext.customerId;
+
+        const response = await fetch(
+          `${apiBase}/api/watchlist/getWatchlist?broker_id_str=${brokerId}&customer_id_str=${customerId}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+
         if (!response.ok) throw new Error("Failed to fetch watchlist instruments");
-        const instrumentsFromDb = await response.json();
-        const formattedWatchlist = formatInstruments(instrumentsFromDb);
-        const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(p => [p.id, p])).values());
+        const payload = await response.json();
+        const instrumentsArr = Array.isArray(payload) ? payload : (payload?.instruments || []);
+        const formattedWatchlist = formatInstruments(instrumentsArr);
+        const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(item => {
+          const key = item.id ?? item._id ?? item.securityId ?? item.symbol ?? JSON.stringify(item);
+          return [key, item];
+        })).values());
+
         setStocks(uniqueWatchlist);
 
         if (formattedIndexes.length > 0) {
@@ -344,7 +369,7 @@ function Watchlist() {
   const prices = useMemo(() => {
     const byId = {};
     const num = (v) => (v == null || v === "" ? null : Number(v));
-    
+
     stocks.forEach((s) => {
       const numericSegment = segmentStringToNumberMap[s.segment];
       const tickKey = `${numericSegment}-${s.securityId}`;
@@ -391,7 +416,7 @@ function Watchlist() {
         bestAskQuantity: num(combined.bestAskQuantity),
         lastTradeQty: num(combined.lastTradeQty),
         lastTradeTime: combined.lastTradeTime,
-        
+
         // Include depth data for Market Depth view (from Full Packet)
         depth: combined.depth || null,
       };
@@ -467,93 +492,93 @@ function Watchlist() {
   const nifty50Price = nifty50Inst ? indexPrices[nifty50Inst.id] : {};
 
   return (
-  <div className="w-full h-full bg-[#0b1020] md:w-1/2 lg:w-3/12 md:border-r border-white/10 flex flex-col relative min-h-0">
-    <div className="p-4 text-white/90 border-b border-white/10 sticky top-0 bg-[#0b1020] z-20 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg md:text-xl font-semibold">Watchlist</h2>
-        <Link to="/search" className="text-white/80 hover:text-white">
-          <Search size={24} />
-        </Link>
-      </div>
-    </div>
-
-    <div className="p-2 flex sticky top-[88px] bg-[#0b1020] z-10 border-b border-white/10">
-      <IndexCard 
-        name="NIFTY BANK" 
-        price={bankNiftyPrice?.ltp?.toFixed(2) || "—"} 
-        change={bankNiftyPrice?.percentChange?.toFixed(2) || "—"} 
-        isPositive={bankNiftyPrice?.isPositive} 
-      />
-      <IndexCard 
-        name="Nifty" 
-        price={nifty50Price?.ltp?.toFixed(2) || "—"} 
-        change={nifty50Price?.percentChange?.toFixed(2) || "—"} 
-        isPositive={nifty50Price?.isPositive} 
-      />
-    </div>
-
-    {/* SCROLLABLE LIST: make it flex-1 and give bottom padding so BottomWindow doesn't hide items */}
-    <ul className="space-y-2 text-sm md:text-base p-2 flex-1 overflow-y-auto pb-28 min-h-0">
-      {stocks.map((stock) => {
-        const p = prices[stock.id] || {};
-
-        return (
-          <WatchlistItem
-            key={stock.id}
-            name={stock.tradingSymbol}
-            exchange={stock.exchange || "—"}
-            price={p.ltp}
-            netChange={p.netChange}
-            percentChange={p.percentChange}
-            isPositive={p.isPositive}
-            volume={p.volume}
-            close={p.close}
-            onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
-          />
-        );
-      })}
-
-      {stocks.length === 0 && (
-        <div className="flex flex-col items-center justify-center pt-8 px-4 text-center">
-          {isLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3" />
-              <p className="text-gray-400">Loading instruments…</p>
-            </>
-          ) : (
-            <>
-              <Search className="w-12 h-12 text-gray-600 mb-3" />
-              <h3 className="text-white font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
-              <p className="text-gray-400 text-sm mb-4">
-                Search and add your favourite stocks to get started
-              </p>
-              <Link 
-                to="/search"
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-              >
-                Add Stocks
-              </Link>
-            </>
-          )}
+    <div className="w-full h-full bg-[#0b1020] md:w-1/2 lg:w-3/12 md:border-r border-white/10 flex flex-col relative min-h-0">
+      <div className="p-4 text-white/90 border-b border-white/10 sticky top-0 bg-[#0b1020] z-20 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg md:text-xl font-semibold">Watchlist</h2>
+          <Link to="/search" className="text-white/80 hover:text-white">
+            <Search size={24} />
+          </Link>
         </div>
-      )}
-    </ul>
+      </div>
 
-    <BottomWindow
-      selectedStock={selectedStock}
-      sheetData={sheetData}
-      actionTab={actionTab}
-      setActionTab={setActionTab}
-      quantity={quantity}
-      setQuantity={setQuantity}
-      orderPrice={orderPrice}
-      setOrderPrice={setOrderPrice}
-      setSelectedStock={setSelectedStock}
-      onRemoveFromWatchlist={handleRemoveFromWatchlist}
-      subscriptionType="full"
-    />
-  </div>
-);
+      <div className="p-2 flex sticky top-[88px] bg-[#0b1020] z-10 border-b border-white/10">
+        <IndexCard
+          name="NIFTY BANK"
+          price={bankNiftyPrice?.ltp?.toFixed(2) || "—"}
+          change={bankNiftyPrice?.percentChange?.toFixed(2) || "—"}
+          isPositive={bankNiftyPrice?.isPositive}
+        />
+        <IndexCard
+          name="Nifty"
+          price={nifty50Price?.ltp?.toFixed(2) || "—"}
+          change={nifty50Price?.percentChange?.toFixed(2) || "—"}
+          isPositive={nifty50Price?.isPositive}
+        />
+      </div>
+
+      {/* SCROLLABLE LIST: make it flex-1 and give bottom padding so BottomWindow doesn't hide items */}
+      <ul className="space-y-2 text-sm md:text-base p-2 flex-1 overflow-y-auto pb-28 min-h-0">
+        {stocks.map((stock) => {
+          const p = prices[stock.id] || {};
+
+          return (
+            <WatchlistItem
+              key={stock.id}
+              name={stock.tradingSymbol}
+              exchange={stock.exchange || "—"}
+              price={p.ltp}
+              netChange={p.netChange}
+              percentChange={p.percentChange}
+              isPositive={p.isPositive}
+              volume={p.volume}
+              close={p.close}
+              onClick={() => { setSelectedStock(stock); setActionTab("Buy"); }}
+            />
+          );
+        })}
+
+        {stocks.length === 0 && (
+          <div className="flex flex-col items-center justify-center pt-8 px-4 text-center">
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3" />
+                <p className="text-gray-400">Loading instruments…</p>
+              </>
+            ) : (
+              <>
+                <Search className="w-12 h-12 text-gray-600 mb-3" />
+                <h3 className="text-white font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  Search and add your favourite stocks to get started
+                </p>
+                <Link
+                  to="/search"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+                >
+                  Add Stocks
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+      </ul>
+
+      <BottomWindow
+        selectedStock={selectedStock}
+        sheetData={sheetData}
+        actionTab={actionTab}
+        setActionTab={setActionTab}
+        quantity={quantity}
+        setQuantity={setQuantity}
+        orderPrice={orderPrice}
+        setOrderPrice={setOrderPrice}
+        setSelectedStock={setSelectedStock}
+        onRemoveFromWatchlist={handleRemoveFromWatchlist}
+        subscriptionType="full"
+      />
+    </div>
+  );
 
 }
 

@@ -31,16 +31,6 @@ cron.schedule('0 14 15 * * 1-5', async () => {
 }, { timezone: 'Asia/Kolkata' });
 
 
-// MIDNIGHT Close order cron (runs 00:00 IST Mon-Fri)
-cron.schedule('0 0 0 * * 1-5', async () => {
-  try {
-    if (!isTradingDay(new Date())) return;
-    console.log(`[cron] Running midnight closed candidates ${new Date().toLocaleString('en-IN')}`);
-    await processCandidates({ order_status: 'CLOSED' }, 'CLOSED');
-  } catch (err) {
-    console.error(err);
-  }
-}, { timezone: 'Asia/Kolkata' });
 
 // HOLD orders
 cron.schedule('0 0 0 * * 1-5', async () => {
