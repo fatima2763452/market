@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const superBrockerId  = '9428177767';
 const superBrockerPass = 'abc';
@@ -26,6 +27,7 @@ const InputField = ({ iconClass, type, name, placeholder, value, onChange, error
 );
 
 const LoginForm = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({ identifier: '', password: '' });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,8 +80,8 @@ const LoginForm = () => {
 
       axios.defaults.headers.common['Authorization'] = `Bearer ${fakeToken}`;
 
-      // 🔁 CHANGED: go straight to broker's customer detail
-      window.location.href = computeRedirect('broker', superBrockerId);
+      navigate('/brockerDetail'); // polite React redirect
+
       setIsSubmitting(false);
       return;
     }

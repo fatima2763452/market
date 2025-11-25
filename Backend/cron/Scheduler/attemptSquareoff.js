@@ -24,11 +24,6 @@ export async function attemptSquareoff(order) {
       const res = await placeMarketOrder(order._id);
       return { ok: true, action: 'placed_market', result: res };
     }
-    //clsoe order
-    if(orderStatus === 'CLOSED'){
-      const res = await placeMarketOrder(order._id);
-      return { ok: true, action: 'placed_market', result: res };
-    }
 
     //hold order
      if (orderStatus === 'HOLD' && orderCategory === 'INTRADAY' && isExpireToday) {
