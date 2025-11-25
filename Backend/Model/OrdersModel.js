@@ -16,8 +16,11 @@ const OrderSchema = new mongoose.Schema(
     // --- Order intent ---
     side: { type: String, enum: ['BUY', 'SELL'], required: true },
     // order_type: { type: String, enum: ['MARKET', 'LIMIT'], required: true },
+    closed_ltp : {type : Number},
     product: { type: String, enum: ['MIS', 'NRML'], required: true },   // intraday vs overnight
     price: { type: Number, default: 0 },                                // limit price; MARKET => 0
+    expire : {type: Date},
+    came_From : {type: String,  enum: ['Open', 'Overnight', 'Hold']},
     // trigger_price: { type: Number, default: 0 },                     // future SL use
 
     // --- Quantity (store absolute quantity in shares; also keep lots for F&O UI) ---
@@ -31,9 +34,9 @@ const OrderSchema = new mongoose.Schema(
 
     // --- New: UI buckets / tags ---
     // Open/Closed == UI filter; CLOSED when fully filled/cancelled/rejected
-    order_status: { type: String, enum: ['OPEN', 'CLOSED'], default: 'OPEN', index: true },
+    order_status: { type: String, enum: ['OPEN', 'CLOSED', 'HOLD'], default: 'OPEN', index: true },
 
-    // Intraday / Overnight / Holding == UI category
+    // Intraday  Overnight / Holding == UI category
     // Default: MIS => INTRADAY, NRML => OVERNIGHT
     order_category: {
       type: String,
@@ -62,6 +65,7 @@ const OrderSchema = new mongoose.Schema(
 
     // --- Audit ---
     placed_at: { type: Date },
+    closed_at:{type :Date},
     updated_at: { type: Date },
     meta: { type: Object, default: {} }                                 // free-form (ui/device/ip etc.)
   },

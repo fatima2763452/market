@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMarketData } from '../contexts/MarketDataContext';
 
-const apiBase = import.meta.env.VITE_REACT_APP_API_URL || '';
+const apiBase = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
 
 /**
  * Custom hook to fetch and manage option chain data with live updates

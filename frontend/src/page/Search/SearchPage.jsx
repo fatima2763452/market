@@ -36,6 +36,10 @@ function SearchPage() {
   const [snapshots, setSnapshots] = useState({}); // snapshots for selected stock only
   const [searchSnapshots, setSearchSnapshots] = useState({}); // snapshots for search results list
 
+  // Action tab state managed here
+  const [actionTab, setActionTab] = useState("Buy");
+
+
   // Track currently subscribed instrument for cleanup
   const currentSubscriptionRef = useRef(null);
   // Track search results subscriptions for cleanup
@@ -47,7 +51,7 @@ function SearchPage() {
 
   // Use shared socket connection from context
   const { ticks, subscribe, unsubscribe } = useMarketData();
-  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
 
   const searchApi = useMemo(
     () => ({
@@ -295,8 +299,8 @@ function SearchPage() {
         netChange != null
           ? netChange >= 0
           : percentChange != null
-          ? percentChange >= 0
-          : null,
+            ? percentChange >= 0
+            : null,
       open,
       high,
       low,
@@ -314,8 +318,10 @@ function SearchPage() {
   }, [selectedStock, ticks, snapshots, segmentStringToNumberMap]);
 
   const handleAddToWatchlist = async (stock) => {
+    // const 
     if (!stock || !stock._id) {
-      alert("Cannot add stock, ID is missing.");
+      // Using console.error instead of alert
+      console.error("Cannot add stock, ID is missing.");
       return;
     }
     try {
@@ -328,14 +334,14 @@ function SearchPage() {
         body: JSON.stringify({ instrumentId: stock._id }),
       });
       if (response.ok) {
-        alert(`${stock.tradingSymbol} added to watchlist!`);
+        console.log(`${stock.tradingSymbol} added to watchlist!`);
       } else {
         const errorData = await response.json();
-        alert(`Failed to add to watchlist: ${errorData.message}`);
+        console.error(`Failed to add to watchlist: ${errorData.message}`);
       }
     } catch (error) {
       console.error("Failed to add to watchlist:", error);
-      alert("An error occurred while adding to the watchlist.");
+      console.error("An error occurred while adding to the watchlist.");
     }
   };
 
@@ -388,12 +394,12 @@ function SearchPage() {
           sheetData={sheetData}
           setSelectedStock={setSelectedStock}
           onAddToWatchlist={handleAddToWatchlist}
-          actionTab={"Buy"}
-          setActionTab={() => {}}
+          actionTab={actionTab}
+          setActionTab={setActionTab}
           quantity={1}
-          setQuantity={() => {}}
+          setQuantity={() => { }}
           orderPrice={""}
-          setOrderPrice={() => {}}
+          setOrderPrice={() => { }}
           subscriptionType="full"
         />
       )}

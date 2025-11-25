@@ -99,6 +99,8 @@ const LoginForm = () => {
         localStorage.setItem('loggedInUser', JSON.stringify(user));
         if (associatedBrokerStringId) {
           localStorage.setItem('associatedBrokerStringId', associatedBrokerStringId);
+          localStorage.setItem('activeContext', JSON.stringify({ brokerId: associatedBrokerStringId, customerId: user.id }));
+
         }
 
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;

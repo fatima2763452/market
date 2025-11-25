@@ -3,9 +3,11 @@
   <component name="AgentMigrationStateService">
     <option name="migrationStatus" value="IN_PROGRESS" />
     <option name="pendingSessionIds">
+      <option value="080f3b1c-4bd5-44b7-a536-1d176f2a13f3" />
       <option value="5ff93d51-6c45-4434-938d-05a46f2960e7" />
       <option value="62dc1c5a-0ba2-4a8b-88d8-a09c938c5470" />
       <option value="6672b547-f543-4c67-ac5d-b985115b6058" />
+      <option value="92a53db8-c6b7-44cd-8cbc-b667eece933e" />
       <option value="cf8312f8-639e-4442-b381-a4ea09d38b62" />
       <option value="d102d971-aab5-4270-86c9-4f263acbe2e9" />
       <option value="e71237ab-733d-4fb2-815d-7661470e8eec" />

@@ -22,7 +22,8 @@ import {
 
 import SummaryView from './Summery'; 
 import MarketDepthView from './marketDepth';
-import OptionChainView from './OptionChain'; 
+import OptionChainView from './OptionChain';
+import OptionChainFullscreen from './OptionChainFullscreen'; 
 
 
 const navItems = [
@@ -43,11 +44,13 @@ function BottomWindow({
   setOrderPrice,
   setSelectedStock,
   onAddToWatchlist,
+  onRemoveFromWatchlist,
   subscriptionType = 'full', // Optional: 'quote' or 'full' - shows data quality badge
 }) {
  
   const [viewMode, setViewMode] = useState('Summary'); // Default tab
   const [productType, setProductType] = useState('Intraday');
+  const [showFullscreenOptionChain, setShowFullscreenOptionChain] = useState(false);
   const navigate = useNavigate();
 
   
@@ -111,7 +114,13 @@ function BottomWindow({
         );
 
       case 'OptionChain':
-        return <OptionChainView {...commonProps} />;
+        // Just show a placeholder, actual modal is rendered separately
+        return (
+          <div className="p-8 text-center text-white/70">
+            <TrendingDown className="w-12 h-12 inline mb-4 text-indigo-400" />
+            <p className="text-sm text-gray-400">Click to open fullscreen option chain</p>
+          </div>
+        );
 
       case 'Chart':
         return (
@@ -139,6 +148,17 @@ function BottomWindow({
 
   return (
     <>
+      {/* Fullscreen Option Chain Modal */}
+      {showFullscreenOptionChain && (
+        <OptionChainFullscreen
+          selectedStock={selectedStock}
+          sheetData={sheetData}
+          onClose={() => {
+            setShowFullscreenOptionChain(false);
+            setViewMode('Summary'); // Reset to summary when closing
+          }}
+        />
+      )}
      
       <div
         className="fixed inset-0 bg-black/70 z-40"
@@ -174,8 +194,18 @@ function BottomWindow({
               <button
                 className="text-gray-400 hover:text-white transition"
                 onClick={() => onAddToWatchlist(selectedStock)}
+                title="Add to watchlist"
               >
                 <Plus className="w-6 h-6" />
+              </button>
+            )}
+            {onRemoveFromWatchlist && (
+              <button
+                className="text-red-400 hover:text-red-300 transition"
+                onClick={() => onRemoveFromWatchlist(selectedStock)}
+                title="Remove from watchlist"
+              >
+                <Trash2 className="w-5 h-5" />
               </button>
             )}
             <button
@@ -195,7 +225,18 @@ function BottomWindow({
           {navItems.map((item) => (
             <button
               key={item.mode}
-              onClick={() => setViewMode(item.mode)}
+              onClick={() => {
+                if (item.mode === 'OptionChain') {
+                  setShowFullscreenOptionChain(true);
+                } else if (item.mode === 'Chart') {
+                  // Navigate directly to chart page
+                  const segment = selectedStock.segment;
+                  const securityId = selectedStock.securityId;
+                  navigate(`/chart/${segment}/${securityId}`);
+                } else {
+                  setViewMode(item.mode);
+                }
+              }}
               title={item.label}
               className={`flex-1 flex flex-col items-center p-2 rounded-lg transition text-xs font-semibold ${
                 viewMode === item.mode

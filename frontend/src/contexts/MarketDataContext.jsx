@@ -16,8 +16,14 @@ export const MarketDataProvider = ({ children }) => {
     withCredentials: true,
   }), [token]);
 
+  // Get the API URL from environment variables
+  const socketUrl = React.useMemo(() => {
+    const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
+    return `${apiUrl}/market`;
+  }, []);
+
   // Single shared socket connection for the entire app
-  const marketData = useMarketTicks("/market", socketOpts);
+  const marketData = useMarketTicks(socketUrl, socketOpts);
 
   return (
     <MarketDataContext.Provider value={marketData}>

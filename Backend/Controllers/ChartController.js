@@ -28,7 +28,7 @@ async function getChartData(req, res) {
       });
     }
 
-    console.log('[ChartController] Request received:', { symbol, from, to, interval });
+    // console.log('[ChartController] Request received:', { symbol, from, to, interval });
 
     // Parse symbol to get securityId, segment, and instrumentType
     let securityId, segment, instrumentType, tradingSymbol;
@@ -37,9 +37,9 @@ async function getChartData(req, res) {
       // Format: "NSE_FNO|58071"
       [segment, securityId] = symbol.split('|');
       tradingSymbol = symbol;
-      console.log('[ChartController] Parsed pipe format:', { segment, securityId });
+      // console.log('[ChartController] Parsed pipe format:', { segment, securityId });
 
-      console.log('[ChartController] Looking up instrument by securityId:', securityId);
+      // console.log('[ChartController] Looking up instrument by securityId:', securityId);
 
       const instrument = await Instrument.findOne({
         securityId: String(securityId),
@@ -57,15 +57,15 @@ async function getChartData(req, res) {
       instrumentType = instrument.instrumentType;
       tradingSymbol = instrument.tradingsymbol || symbol;
 
-      console.log('[ChartController] Found instrument:', {
-        securityId,
-        segment,
-        instrumentType,
-        tradingSymbol
-      });
+      // console.log('[ChartController] Found instrument:', {
+      //   securityId,
+      //   segment,
+      //   instrumentType,
+      //   tradingSymbol
+      // });
     } else {
       // Look up in database by tradingSymbol
-      console.log('[ChartController] Looking up instrument by tradingSymbol:', symbol);
+      // console.log('[ChartController] Looking up instrument by tradingSymbol:', symbol);
 
       const instrument = await Instrument.findOne({
         tradingsymbol: { $regex: new RegExp(`^${symbol}$`, 'i') }
@@ -84,24 +84,24 @@ async function getChartData(req, res) {
       instrumentType = instrument.instrumentType;
       tradingSymbol = instrument.tradingsymbol;
 
-      console.log('[ChartController] Found instrument:', {
-        securityId,
-        segment,
-        instrumentType,
-        tradingSymbol
-      });
+      // console.log('[ChartController] Found instrument:', {
+      //   securityId,
+      //   segment,
+      //   instrumentType,
+      //   tradingSymbol
+      // });
     }
 
     // Validate and format dates
     const fromDate = formatDateForDhan(from);
     const toDate = formatDateForDhan(to);
 
-    console.log('[ChartController] Formatted dates:', { fromDate, toDate });
+    // console.log('[ChartController] Formatted dates:', { fromDate, toDate });
 
     // Map to Dhan instrument type
     const dhanInstrument = mapSegmentToInstrumentType(segment, instrumentType);
 
-    console.log('[ChartController] Mapped to Dhan instrument type:', dhanInstrument);
+    // console.log('[ChartController] Mapped to Dhan instrument type:', dhanInstrument);
 
     // Fetch from Dhan API
     const candles = await getDhanHistoricalData({
@@ -125,7 +125,7 @@ async function getChartData(req, res) {
       });
     }
 
-    console.log('[ChartController] Successfully fetched', candles.length, 'candles');
+    // console.log('[ChartController] Successfully fetched', candles.length, 'candles');
 
     // Return in expected format for frontend
     return res.json({
@@ -186,7 +186,7 @@ async function getIntradayData(req, res) {
       });
     }
 
-    console.log('[ChartController] Intraday request received:', { symbol, from, to, interval, oi });
+    // console.log('[ChartController] Intraday request received:', { symbol, from, to, interval, oi });
 
     // Parse symbol to get securityId, segment, and instrumentType
     let securityId, segment, instrumentType, tradingSymbol;
@@ -195,7 +195,7 @@ async function getIntradayData(req, res) {
       // Format: "NSE_FNO|58071"
       [segment, securityId] = symbol.split('|');
       tradingSymbol = symbol;
-      console.log('[ChartController] Parsed pipe format:', { segment, securityId });
+      // console.log('[ChartController] Parsed pipe format:', { segment, securityId });
 
       const instrument = await Instrument.findOne({
         securityId: String(securityId),
@@ -213,15 +213,15 @@ async function getIntradayData(req, res) {
       instrumentType = instrument.instrumentType;
       tradingSymbol = instrument.tradingsymbol || symbol;
 
-      console.log('[ChartController] Found instrument:', {
-        securityId,
-        segment,
-        instrumentType,
-        tradingSymbol
-      });
+      // console.log('[ChartController] Found instrument:', {
+      //   securityId,
+      //   segment,
+      //   instrumentType,
+      //   tradingSymbol
+      // });
     } else {
       // Look up in database by tradingSymbol
-      console.log('[ChartController] Looking up instrument by tradingSymbol:', symbol);
+      // console.log('[ChartController] Looking up instrument by tradingSymbol:', symbol);
 
       const instrument = await Instrument.findOne({
         tradingsymbol: { $regex: new RegExp(`^${symbol}$`, 'i') }
@@ -240,12 +240,12 @@ async function getIntradayData(req, res) {
       instrumentType = instrument.instrumentType;
       tradingSymbol = instrument.tradingsymbol;
 
-      console.log('[ChartController] Found instrument:', {
-        securityId,
-        segment,
-        instrumentType,
-        tradingSymbol
-      });
+      // console.log('[ChartController] Found instrument:', {
+      //   securityId,
+      //   segment,
+      //   instrumentType,
+      //   tradingSymbol
+      // });
     }
 
     // Validate and format dates - handle both ISO and "YYYY-MM-DD HH:MM:SS" formats
@@ -271,7 +271,7 @@ async function getIntradayData(req, res) {
       });
     }
 
-    console.log('[ChartController] Formatted dates:', { fromDate, toDate });
+    // console.log('[ChartController] Formatted dates:', { fromDate, toDate });
 
     // Validate 90-day limit
     const fromTimestamp = new Date(fromDate).getTime();
@@ -288,7 +288,7 @@ async function getIntradayData(req, res) {
     // Map to Dhan instrument type
     const dhanInstrument = mapSegmentToInstrumentType(segment, instrumentType);
 
-    console.log('[ChartController] Mapped to Dhan instrument type:', dhanInstrument);
+    // console.log('[ChartController] Mapped to Dhan instrument type:', dhanInstrument);
 
     // Fetch from Dhan API
     const candles = await getDhanIntradayData({
@@ -313,7 +313,7 @@ async function getIntradayData(req, res) {
       });
     }
 
-    console.log('[ChartController] Successfully fetched', candles.length, 'intraday candles');
+    // console.log('[ChartController] Successfully fetched', candles.length, 'intraday candles');
 
     // Return in expected format for frontend
     return res.json({

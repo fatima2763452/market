@@ -15,14 +15,31 @@ export function getIO() {
 }
 
 export function createIO(server) {
-  const origins = (config.origin || "http://127.0.0.1:5173,http://localhost:5173")
-    .split(",").map(s => s.trim()).filter(Boolean);
+  // --- CORS SETUP (UPDATED) ---
+  const defaultOrigins = [
+    "http://localhost:5173", // Local development frontend
+    "http://localhost:5173",    // Allow local frontend
+    "http://127.0.0.1:5173"     // Allow local IP
+  ];
+
+  const configOrigins = (config.origin || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  // Merge default and config origins
+  const allOrigins = [...defaultOrigins, ...configOrigins];
 
   const io = new Server(server, {
     path: "/socket.io",
-    cors: { origin: origins, credentials: true, methods: ["GET","POST","OPTIONS"] },
+    cors: { 
+        origin: allOrigins, 
+        credentials: true, 
+        methods: ["GET", "POST", "OPTIONS"] 
+    },
     transports: ["websocket", "polling"],
   });
+  // ---------------------------
 
   ioInstance = io;
 

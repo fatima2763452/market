@@ -17,7 +17,7 @@ function ChartPage() {
   useEffect(() => {
     const fetchInstrumentName = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || '';
+        const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
         const url = `${baseUrl}/api/instruments/lookup?securityId=${securityId}&segment=${segment}`;
         
         console.log('[ChartPage] Fetching instrument from:', url);
@@ -47,19 +47,10 @@ function ChartPage() {
     fetchInstrumentName();
   }, [segment, securityId]);
   
-  // Get URL parameters for chart state
+  // Get URL parameters for chart state (read-only, no updates to prevent infinite loop)
   const urlInterval = searchParams.get('interval');
   const urlFrom = searchParams.get('from');
   const urlTo = searchParams.get('to');
-  
-  // Callback to update URL when chart settings change
-  const handleChartStateChange = (interval, from, to) => {
-    const params = {};
-    if (interval) params.interval = interval;
-    if (from) params.from = from;
-    if (to) params.to = to;
-    setSearchParams(params, { replace: true });
-  };
 
   return (
     <div className="min-h-screen bg-[#0E1324] p-4">
@@ -83,14 +74,13 @@ function ChartPage() {
           </div>
         </div>
 
-        {/* Full-Screen Chart with URL state */}
+        {/* Full-Screen Chart with initial URL state */}
         <StockChart 
           symbol={symbol} 
           tradingSymbol={null}
           initialInterval={urlInterval}
           initialFrom={urlFrom}
           initialTo={urlTo}
-          onStateChange={handleChartStateChange}
         />
       </div>
     </div>

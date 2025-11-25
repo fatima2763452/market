@@ -19,7 +19,7 @@ async function getOptionChain(req, res) {
             });
         }
 
-        console.log('[OptionChainController] Request received:', { symbol, expiry });
+        // console.log('[OptionChainController] Request received:', { symbol, expiry });
 
         // Parse symbol to get securityId, segment, and underlying info
         let underlyingScrip, underlyingSeg, underlyingSymbol;
@@ -52,7 +52,7 @@ async function getOptionChain(req, res) {
             });
         } else {
             // Look up by trading symbol or underlying symbol
-            console.log('[OptionChainController] Looking up instrument by symbol:', symbol);
+            // console.log('[OptionChainController] Looking up instrument by symbol:', symbol);
 
             const instrument = await Instrument.findOne({
                 $or: [
@@ -74,11 +74,11 @@ async function getOptionChain(req, res) {
             underlyingSeg = instrument.segment;
             underlyingSymbol = instrument.underlying_symbol || instrument.symbol_name;
 
-            console.log('[OptionChainController] Found instrument:', {
-                underlyingScrip,
-                underlyingSeg,
-                underlyingSymbol
-            });
+            // console.log('[OptionChainController] Found instrument:', {
+            //     underlyingScrip,
+            //     underlyingSeg,
+            //     underlyingSymbol
+            // });
         }
 
         // Map segment to Dhan format (IDX_I for indices, keep others as-is)
@@ -89,7 +89,7 @@ async function getOptionChain(req, res) {
         // If no expiry provided, fetch expiry list and use nearest
         let targetExpiry = expiry;
         if (!targetExpiry) {
-            console.log('[OptionChainController] No expiry provided, fetching expiry list');
+            // console.log('[OptionChainController] No expiry provided, fetching expiry list');
             
             const expiries = await getDhanExpiryList({
                 underlyingScrip,
@@ -105,7 +105,7 @@ async function getOptionChain(req, res) {
                 });
             }
 
-            console.log('[OptionChainController] Using nearest expiry:', targetExpiry);
+            // console.log('[OptionChainController] Using nearest expiry:', targetExpiry);
         }
 
         // Fetch option chain from Dhan
