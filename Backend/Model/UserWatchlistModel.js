@@ -2,25 +2,21 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 const UserWatchlistSchema = new Schema({
-  // user: {
-  //   type: Schema.Types.ObjectId,
-  //   ref: 'User',
-  //   required: true,
-  //   unique: true, // Each user has only one watchlist
-  // },
-
   broker_id_str : {
     type : String,
-    require : true
+    required : true, // Note: it is 'required', not 'require'
   },
-
   customer_id_str : {
     type : String,
-    require : true
+    required : true,
   },
   instruments: [{
-    type: String, // canon_key format: "NSE|NSE_FNO|49081"
+    type: String, 
   }],
 }, { timestamps: true });
+
+// ADD THIS: Create a compound unique index
+// This ensures one watchlist per broker+customer pair
+UserWatchlistSchema.index({ broker_id_str: 1, customer_id_str: 1 }, { unique: true });
 
 export default mongoose.model('UserWatchlist', UserWatchlistSchema);

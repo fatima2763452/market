@@ -27,6 +27,7 @@ setFeedSubscriber((list, subscriptionType) => lmf.subscribe(list, subscriptionTy
 setFeedInstance(lmf);
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URL;
+
 await mongoose.connect(MONGODB_URI);
 console.log("✅ Mongo connected");
 
