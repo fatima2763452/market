@@ -118,7 +118,21 @@ const LoginForm = () => {
         setApiMessage({ text: res.data?.message || 'Login failed.', type: 'error' });
       }
     } catch (err) {
-      const msg = err.response?.data?.message || ' Network error: Server unreachable or API issue.';
+      // Handle different error response formats
+      const errorData = err.response?.data;
+      let msg;
+      
+      if (err.response) {
+        // Server responded with an error status
+        msg = errorData?.message || errorData?.error || `Login failed (${err.response.status})`;
+      } else if (err.request) {
+        // Request made but no response received
+        msg = 'Network error: Server unreachable. Please check your connection.';
+      } else {
+        // Something else went wrong
+        msg = err.message || 'An unexpected error occurred.';
+      }
+      
       setApiMessage({ text: msg, type: 'error' });
     } finally {
       setIsSubmitting(false);
