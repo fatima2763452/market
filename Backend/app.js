@@ -23,8 +23,9 @@ export function createApp() {
   // ----- CORS SETUP (UPDATED) -----
   // We explicitly define the allowed public and local origins here
   const defaultOrigins = [
-    "https://devaki-brokerage.onrender.com", // Local development frontend
-    // "http://localhost:5173" // Your Local Vite Frontend
+    "http://localhost:5173",                   // Local Vite frontend
+    "http://127.0.0.1:5173",                   // Local IP
+    "https://devaki-brokerage.onrender.com",  // Render frontend (production)
   ];
 
   // If you have extra origins in your config file, we add them too

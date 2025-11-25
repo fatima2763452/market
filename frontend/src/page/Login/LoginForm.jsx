@@ -86,7 +86,7 @@ const LoginForm = () => {
       return;
     }
 
-      const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || "https://devaki-backend.onrender.com"
+      const apiUrl = import.meta.env.VITE_REACT_APP_API_URL
     try {
       const res = await axios.post(
         `${apiUrl}/api/auth/login`,
