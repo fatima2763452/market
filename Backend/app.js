@@ -80,7 +80,7 @@ export function createApp() {
 
   // ----- Routes -----
   app.use("/api/debug", debugRoute);
-  app.use("/api/auth", authStrict, authRouter);
+  app.use("/api/auth", authRouter);  // Auth routes are public (login, logout, etc.)
   app.use("/api", instrumentStockNameRoute);
   app.use("/api", optionChainRoute);
   app.use("/api/chart", chartRoute);
