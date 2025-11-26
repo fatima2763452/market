@@ -41,10 +41,11 @@ export default function Profile() {
   // ------------------ LOGOUT FUNCTION ------------------
   const handleLogout = () => {
     const token = localStorage.getItem("authToken") || localStorage.getItem("token");
+    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
 
     // optional server logout call
     if (token) {
-      fetch("/api/auth/logout", {
+      fetch(`${apiBase}/api/auth/logout`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       }).catch(() => {});

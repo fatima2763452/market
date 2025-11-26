@@ -120,15 +120,8 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
             const brokerId = activeContext.brokerId;
             const customerId = activeContext.customerId;
             const token = localStorage.getItem("token") || null;
-            // API Base setup
-            let apiBase = "";
-            // If using vite env, uncomment: 
-            // apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
-            // Fallback for current setup:
-            if (!apiBase) {
-                apiBase = typeof window !== 'undefined' ? window.location.origin : '';
-            }
-            apiBase = apiBase.replace(/\/$/, "");
+            // API Base setup - use environment variable for production
+            const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
 
             const endpoint = `${apiBase}/api/orders/updateOrder`;
 
@@ -293,8 +286,8 @@ export default function ClosedOrder() {
 
     const orderStatus = "CLOSED";
 
-    // API Handling
-    const apiBase = "";
+    // API Handling - use environment variable for production
+    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
     const token = localStorage.getItem("token") || null;
 
     const handleOrderSelect = (orderData) => {
@@ -314,13 +307,7 @@ export default function ClosedOrder() {
 
         setLoader(true);
         try {
-            let baseUrl = apiBase;
-            if (!baseUrl) {
-                baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-            }
-            baseUrl = baseUrl.replace(/\/$/, "");
-
-            const endPoint = `${baseUrl}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=${orderStatus}`;
+            const endPoint = `${apiBase}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=${orderStatus}`;
 
             const res = await fetch(endPoint, {
                 method: "GET",

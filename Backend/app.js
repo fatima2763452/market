@@ -23,8 +23,8 @@ export function createApp() {
   // ----- CORS SETUP (UPDATED) -----
   // We explicitly define the allowed public and local origins here
   const defaultOrigins = [
-    // "https://devaki-brokerage.onrender.com", // Local development frontend
-    "http://localhost:5173"                  // Your Local Vite Frontend
+    "https://devaki-brokerage.onrender.com", // Local development frontend
+    "http://localhost:5173"     // Your Local Vite Frontend
   ];
 
   // If you have extra origins in your config file, we add them too
@@ -79,7 +79,7 @@ export function createApp() {
 
   // ----- Routes -----
   app.use("/api/debug", debugRoute);
-  app.use("/api/auth", authStrict, authRouter);
+  app.use("/api/auth", authRouter);  // Auth routes are public (login, logout, etc.)
   app.use("/api", instrumentStockNameRoute);
   app.use("/api", optionChainRoute);
   app.use("/api/chart", chartRoute);

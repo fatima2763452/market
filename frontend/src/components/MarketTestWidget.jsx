@@ -8,8 +8,8 @@ import { useMarketTicks } from "../hooks/useMarketTicks.js";
  * - Subscribes to ticks and shows live LTP/quotes
  */
 export default function MarketTestWidget({
-  apiBase = "http://localhost:8080",                          // e.g. "" if proxying to backend; or "http://localhost:8080"
-  socketBase = "http://localhost:8080",
+  apiBase = import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080",
+  socketBase = import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080",
   seeds = ["NIFTY", "BANKNIFTY", "FINNIFTY", "CRUDEOIL"], // change as you like
 }) {
   const { ticks, subscribe } = useMarketTicks(socketBase);

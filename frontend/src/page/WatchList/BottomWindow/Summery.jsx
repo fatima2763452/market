@@ -197,19 +197,18 @@ const handleConfirm = async () => {
     };
     console.log('Order payload', payload);
 
-    setSubmitting(true);
+    setSubmitting(true);
     setFeedback(null);
-  
+  
+    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
 
-    try {
-      
-      const res = await fetch('/api/orders/postOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      let body = null;
+    try {
+      
+      const res = await fetch(`${apiBase}/api/orders/postOrder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });      let body = null;
       try { body = await res.json(); } catch (e) { body = null; }
 
       if (!res.ok || (body && body.success === false)) {
