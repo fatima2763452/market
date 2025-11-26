@@ -1,6 +1,6 @@
 
-import { placeMarketOrder } from './placeMarketOrder';
 
+import placeMarketOrder from "./placeMarketOrder";
 
 export async function attemptSquareoff(order) {
   if (!order) return { ok: false, reason: 'no-order' };
