@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const superBrockerId  = '9428177767';
+const superBrockerId = '9428177767';
 const superBrockerPass = 'abc';
 
 const InputField = ({ iconClass, type, name, placeholder, value, onChange, error }) => (
@@ -16,9 +16,8 @@ const InputField = ({ iconClass, type, name, placeholder, value, onChange, error
       placeholder={placeholder}
       value={value}
       onChange={onChange}
-      className={`w-full p-3 pl-10 rounded-lg bg-gray-700/50 text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-200 border ${
-        error ? 'border-red-500' : 'border-transparent'
-      } focus:border-indigo-500 shadow-inner`}
+      className={`w-full p-3 pl-10 rounded-lg bg-gray-700/50 text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-200 border ${error ? 'border-red-500' : 'border-transparent'
+        } focus:border-indigo-500 shadow-inner`}
       required
       autoComplete={name === 'password' ? 'current-password' : 'username'}
     />
@@ -85,12 +84,12 @@ const LoginForm = () => {
       setIsSubmitting(false);
       return;
     }
-
+    const apiUrl = import.meta.env.VITE_REACT_APP_API_URL || "https://devaki-backend.onrender.com"
     try {
       const res = await axios.post(
-        `${import.meta.env.VITE_REACT_APP_API_URL}/api/auth/login`,
+        `${apiUrl}/api/auth/login`,
         formData
-      );
+      );                                                    
 
       if (res.data?.success) {
         const { name, role, token, associatedBrokerStringId } = res.data;
@@ -102,7 +101,6 @@ const LoginForm = () => {
         if (associatedBrokerStringId) {
           localStorage.setItem('associatedBrokerStringId', associatedBrokerStringId);
           localStorage.setItem('activeContext', JSON.stringify({ brokerId: associatedBrokerStringId, customerId: user.id }));
-
         }
 
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -139,9 +137,8 @@ const LoginForm = () => {
 
         {apiMessage.text && (
           <div
-            className={`p-3 mb-4 rounded-lg font-semibold text-sm text-center ${
-              apiMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
-            }`}
+            className={`p-3 mb-4 rounded-lg font-semibold text-sm text-center ${apiMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
+              }`}
           >
             {apiMessage.text}
           </div>
@@ -167,7 +164,7 @@ const LoginForm = () => {
             error={errors.password}
           />
 
-         
+
 
           <button
             type="submit"
@@ -184,7 +181,7 @@ const LoginForm = () => {
           </button>
         </form>
 
-        
+
       </div>
     </div>
   );
