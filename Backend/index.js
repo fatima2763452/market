@@ -74,7 +74,6 @@ server.listen(PORT, async () => {
   stockSquareoffScheduler();
   // Start the cron job for automatic token renewal
   startTokenRenewalCron();
-
   // Start the cron job for automatic master data refresh
   startMasterRefreshCron();
 });

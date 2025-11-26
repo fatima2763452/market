@@ -1,5 +1,5 @@
 
-import { placeMarketOrder } from './orderPlacement.js';
+import { placeMarketOrder } from './placeMarketOrder';
 
 
 export async function attemptSquareoff(order) {
