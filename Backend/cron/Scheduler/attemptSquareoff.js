@@ -17,7 +17,7 @@ export async function attemptSquareoff(order) {
   const isExpireToday = expireDate.getFullYear() === today.getFullYear() &&
                         expireDate.getMonth() === today.getMonth() &&
                         expireDate.getDate() === today.getDate();
-
+                      
   try {
     //open order
     if (orderStatus === 'OPEN' && orderCategory === 'INTRADAY' && isExpireToday) {

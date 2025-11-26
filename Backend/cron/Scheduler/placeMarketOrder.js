@@ -1,4 +1,3 @@
-
 import mongoose from 'mongoose';
 import Order from '../../Model/OrdersModel.js';
 
@@ -19,15 +18,16 @@ async function placeMarketOrder(orderId) {
     if (!order) {
       return { ok: false, error: 'Order not found' };
     }
+    const res = await Order.updateOne(
+      { _id: order._id },              
+      { $set: { order_status: 'CLOSED' } } 
+    );
 
-    // Delete the document
-    const res = await Order.deleteOne({ _id: order._id });
-    if (res.deletedCount && res.deletedCount > 0) {
-      return { ok: true, action: 'deleted', orderId: String(order._id) };
+    if (res.matchedCount > 0) {
+      return { ok: true, action: 'status_updated_to_closed', orderId: String(order._id) };
     }
+    return { ok: false, error: 'Update failed', details: res };
 
-    // fallback: nothing deleted
-    return { ok: false, error: 'Delete failed', details: res };
   } catch (err) {
     console.error('[placeMarketOrder] DB error:', err);
     return { ok: false, error: 'DB error', details: err.message || String(err) };
