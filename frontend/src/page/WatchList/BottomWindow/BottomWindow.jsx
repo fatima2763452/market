@@ -201,7 +201,7 @@ function BottomWindow({
                 <Plus className="w-6 h-6" />
               </button>
             )}
-            {onRemoveFromWatchlist && (
+            {/* {onRemoveFromWatchlist && (
               <button
                 className="text-red-400 hover:text-red-300 transition"
                 onClick={() => onRemoveFromWatchlist(selectedStock)}
@@ -209,7 +209,7 @@ function BottomWindow({
               >
                 <Trash2 className="w-5 h-5" />
               </button>
-            )}
+            )} */}
             <button
               className="text-gray-400 hover:text-white transition"
               onClick={() => setSelectedStock(null)}
