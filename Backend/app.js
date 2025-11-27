@@ -12,7 +12,7 @@ import optionChainRoute from "./Routes/optionChainRoute.js";
 import chartRoute from "./Routes/ChartRoute.js";
 import quotesRoute from "./Routes/quotes.js";
 import instrumentsRoute from "./Routes/instruments.js";
-// import debugRoute from "./Routes/debug.js";
+import debugRoute from "./Routes/debug.js";
 import userWatchlistRoute from "./Routes/UserWatchlistRoute.js";
 import orderRoute from "./Routes/orderRoute.js";
 
@@ -79,7 +79,7 @@ export function createApp() {
   }
 
   // ----- Routes -----
-  // app.use("/api/debug", debugRoute);
+  app.use("/api/debug", debugRoute);
   app.use("/api/auth", authRouter);  // Auth routes are public (login, logout, etc.)
   app.use("/api", instrumentStockNameRoute);
   app.use("/api", optionChainRoute);
