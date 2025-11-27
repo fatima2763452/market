@@ -1,10 +1,11 @@
 import express from 'express';
-import { postOrder, getOrderInstrument, updateOrder } from '../Controllers/orderController.js';
+import { postOrder, getOrderInstrument, updateOrder, exitAllOpenOrder } from '../Controllers/orderController.js';
 
 const router = express.Router();
 
 router.post('/postOrder', postOrder);
 router.get('/getOrderInstrument', getOrderInstrument);
 router.post('/updateOrder', updateOrder);
+router.delete('/exitAllOpenOrder', exitAllOpenOrder);
 
 export default router;

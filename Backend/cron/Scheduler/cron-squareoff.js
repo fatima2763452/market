@@ -21,8 +21,9 @@ async function processCandidates(query, label) {
 
 export function stockSquareoffScheduler() {
   // open order cron (15:14 IST Mon-Fri)
+  console.log('[cron] Registering schedule: OPEN_INTRADAY ->', "0 58 17 * * 1-5", 'tz=Asia/Kolkata');
   cron.schedule(
-    "0 14 15 * * 1-5",
+    "0 28 19 * * 1-5",
     async () => {
       try {
         if (!isTradingDay(new Date())) {
@@ -46,6 +47,7 @@ export function stockSquareoffScheduler() {
   );
 
   // HOLD orders
+  console.log('[cron] Registering schedule: HOLD_INTRADAY ->', "0 0 0 * * 1-5", 'tz=Asia/Kolkata');
   cron.schedule(
     "0 0 0 * * 1-5",
     async () => {
@@ -68,6 +70,7 @@ export function stockSquareoffScheduler() {
   );
 
   // overnight
+  console.log('[cron] Registering schedule: OVERNIGHT ->', "0 0 0 * * 1-5", 'tz=Asia/Kolkata');
   cron.schedule(
     "0 0 0 * * 1-5",
     async () => {
@@ -85,4 +88,16 @@ export function stockSquareoffScheduler() {
     },
     { timezone: "Asia/Kolkata" }
   );
+
+  // Optional debug schedule: enable by setting CRON_DEBUG=true in env (runs every 10s)
+  if (process.env.CRON_DEBUG === 'true') {
+    console.log('[cron] CRON_DEBUG enabled — registering debug schedule (every 10s)');
+    cron.schedule('*/10 * * * * *', async () => {
+      try {
+        console.log('[cron][debug] heartbeat', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+      } catch (e) {
+        console.error('[cron][debug] error', e);
+      }
+    });
+  }
 }

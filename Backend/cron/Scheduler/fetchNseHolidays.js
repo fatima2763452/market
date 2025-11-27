@@ -92,8 +92,8 @@ export function isTradingDay(dateObj = new Date()) {
     // --- FIX IS HERE ---
     
     // 1. Sahi folder path banana (Cross-platform compatible)
-    // Dhyan de: 'Backend', 'Cron' (folder names check kar lena ki capital C hai ya small c)
-    const folderPath = path.join(process.cwd(), 'Backend', 'Cron'); 
+    // Ensure we use the correct lowercase 'cron' directory (Linux is case-sensitive)
+    const folderPath = path.join(process.cwd(), 'Backend', 'cron'); 
     
     // 2. File ka naam jodna
     const fullPath = path.join(folderPath, 'marketCalendar.js');

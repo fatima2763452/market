@@ -291,4 +291,63 @@ const updateOrder = asyncHandler(async (req, res) => {
 
 
 
-export { getOrderInstrument,postOrder,updateOrder };
+
+
+
+const exitAllOpenOrder = asyncHandler(async (req, res) => {
+    // URL params se IDs
+    const { broker_id_str, customer_id_str } = req.query;
+    
+    // Body se Payload (LTPs aur Time)
+    const { closed_ltp_map, closed_at } = req.body || {}; 
+
+    if (!broker_id_str || !customer_id_str) {
+        res.status(400);
+        throw new Error("Missing Broker ID or Customer ID");
+    }
+
+    // 1. Find Open Orders
+    const openOrders = await Order.find({
+        broker_id: broker_id_str,
+        customer_id: customer_id_str,
+        order_status: "OPEN", 
+        order_category: "INTRADAY"
+    });
+
+    if (!openOrders || openOrders.length === 0) {
+        return res.status(200).json({ message: "No open orders found to exit." });
+    }
+
+    const results = [];
+
+    // 2. Loop and Update
+    for (const order of openOrders) {
+        try {
+            const exitPrice = closed_ltp_map ? closed_ltp_map[order._id] : 0;
+            
+            order.order_status = "CLOSED"; // Status change
+            order.closed_at = closed_at || new Date(); // Closing time
+            
+            // Agar exitPrice valid hai to save karo (P&L calculation ke liye)
+            if (exitPrice) {
+                order.closed_ltp = exitPrice; // Ya koi specific field like 'exit_price'
+            }
+
+            await order.save();
+            
+            results.push({ id: order._id, status: "Success", exit_price: exitPrice });
+        } catch (error) {
+            console.error(`Failed to exit order ${order._id}:`, error);
+            results.push({ id: order._id, status: "Failed", error: error.message });
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        message: `Processed exit for ${results.length} orders`,
+        details: results
+    });
+});
+
+
+export { getOrderInstrument,postOrder,updateOrder, exitAllOpenOrder };
