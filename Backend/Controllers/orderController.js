@@ -292,8 +292,6 @@ const updateOrder = asyncHandler(async (req, res) => {
 
 
 
-
-
 const exitAllOpenOrder = asyncHandler(async (req, res) => {
     // URL params se IDs
     const { broker_id_str, customer_id_str } = req.query;
