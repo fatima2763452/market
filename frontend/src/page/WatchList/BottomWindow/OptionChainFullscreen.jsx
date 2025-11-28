@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, RefreshCw, AlertCircle, Loader, TrendingDown, ChevronDown } from 'lucide-react';
 import { useOptionChain } from '../../../hooks/useOptionChain';
+import OptionStrikeBottomWindow from './OptionStrikeBottomWindow';
 
 // Strike count options
 const STRIKE_OPTIONS = [
@@ -17,6 +18,9 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
     const [selectedExpiry, setSelectedExpiry] = useState(null);
     const [strikeCount, setStrikeCount] = useState(12); // Default to 12 strikes
     const [lastUpdateTime, setLastUpdateTime] = useState(null);
+    
+    // State for selected strike bottom window
+    const [selectedStrike, setSelectedStrike] = useState(null); // { strike, type: 'CE'|'PE', data }
     
     const { 
         chainData, 
@@ -289,6 +293,32 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                             {filteredChain.map((row) => {
                                 const isATM = row.strike === atmStrike;
                                 
+                                // Handler for clicking on Call LTP
+                                const handleCallClick = () => {
+                                    if (row.call?.ltp) {
+                                        setSelectedStrike({
+                                            strike: row.strike,
+                                            type: 'CE',
+                                            data: row.call,
+                                            instrumentName: selectedStock?.name || selectedStock?.tradingSymbol,
+                                            expiry: selectedExpiry || (expiries && expiries[0]),
+                                        });
+                                    }
+                                };
+                                
+                                // Handler for clicking on Put LTP
+                                const handlePutClick = () => {
+                                    if (row.put?.ltp) {
+                                        setSelectedStrike({
+                                            strike: row.strike,
+                                            type: 'PE',
+                                            data: row.put,
+                                            instrumentName: selectedStock?.name || selectedStock?.tradingSymbol,
+                                            expiry: selectedExpiry || (expiries && expiries[0]),
+                                        });
+                                    }
+                                };
+                                
                                 return (
                                     <div 
                                         key={row.strike} 
@@ -300,8 +330,11 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                                             }
                                         `}
                                     >
-                                        {/* Call LTP */}
-                                        <div className="py-3 px-6 text-center">
+                                        {/* Call LTP - Clickable */}
+                                        <div 
+                                            className={`py-3 px-6 text-center cursor-pointer hover:bg-green-500/20 active:bg-green-500/30 transition-colors ${row.call?.ltp ? '' : 'opacity-50 cursor-not-allowed'}`}
+                                            onClick={handleCallClick}
+                                        >
                                             <span className={`font-mono text-base ${isATM ? 'text-green-300 font-bold' : 'text-green-400'}`}>
                                                 {formatLTP(row.call?.ltp)}
                                             </span>
@@ -318,8 +351,11 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                                             {row.strike}
                                         </div>
                                         
-                                        {/* Put LTP */}
-                                        <div className="py-3 px-6 text-center">
+                                        {/* Put LTP - Clickable */}
+                                        <div 
+                                            className={`py-3 px-6 text-center cursor-pointer hover:bg-red-500/20 active:bg-red-500/30 transition-colors ${row.put?.ltp ? '' : 'opacity-50 cursor-not-allowed'}`}
+                                            onClick={handlePutClick}
+                                        >
                                             <span className={`font-mono text-base ${isATM ? 'text-red-300 font-bold' : 'text-red-400'}`}>
                                                 {formatLTP(row.put?.ltp)}
                                             </span>
@@ -338,8 +374,25 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                             </span>
                         </div>
                     </div>
+                    
+                    {/* Tap Hint */}
+                    <p className="text-center text-gray-500 text-xs mt-4">
+                        Tap on any LTP price to trade
+                    </p>
                 </div>
             </div>
+            
+            {/* Option Strike Bottom Window */}
+            <OptionStrikeBottomWindow
+                isOpen={selectedStrike !== null}
+                onClose={() => setSelectedStrike(null)}
+                optionType={selectedStrike?.type}
+                strikePrice={selectedStrike?.strike}
+                strikeData={selectedStrike?.data}
+                underlyingStock={selectedStock}
+                spotPrice={currentPrice}
+                expiry={selectedStrike?.expiry}
+            />
         </div>
     );
 };
