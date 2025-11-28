@@ -1,74 +1,141 @@
 import asyncHandler from 'express-async-handler';
 import Order from '../Model/OrdersModel.js';
-
+import Fund from '../Model/FundModel.js';
 const postOrder = asyncHandler(async (req, res) => {
-  const body = req.body || {};
+  const body = req.body || {};
 
-  const {
-    broker_id_str,
-    customer_id_str,
-    security_Id,
-    symbol,
-    side,
-    product,
-    price = 0,
-    quantity,
-    lot_size = 1,
-    lots,
-    segment = 'UNKNOWN',
-    jobbin_price,
-    meta = {}
-  } = body;
+  const {
+    broker_id_str,
+    customer_id_str,
+    security_Id,
+    symbol,
+    side,
+    product,
+    price = 0,
+    quantity,
+    lot_size = 1,
+    lots,
+    segment = 'UNKNOWN',
+    jobbin_price,
+    meta = {}
+  } = body;
 
-  if (!broker_id_str || !customer_id_str) {
-    return res.status(400).json({ error: 'broker_id_str and customer_id_str are required' });
-  }
-  if (!security_Id || !symbol) {
-    return res.status(400).json({ error: 'security_Id and symbol are required' });
-  }
-  if (!side || !['BUY','SELL'].includes(side)) {
-    return res.status(400).json({ error: 'side must be BUY or SELL' });
-  }
-  if (!product || !['MIS','NRML'].includes(String(product).trim().toUpperCase())) {
-    return res.status(400).json({ error: 'product must be MIS or NRML' });
-  }
-  const productNorm = String(product).trim().toUpperCase();
-  const qtyNum = Number(quantity);
-  if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
-    return res.status(400).json({ error: 'quantity must be a positive number' });
-  }
+  // --- Existing Validations ---
+  if (!broker_id_str || !customer_id_str) {
+    return res.status(400).json({ error: 'broker_id_str and customer_id_str are required' });
+  }
+  if (!security_Id || !symbol) {
+    return res.status(400).json({ error: 'security_Id and symbol are required' });
+  }
+  if (!side || !['BUY','SELL'].includes(side)) {
+    return res.status(400).json({ error: 'side must be BUY or SELL' });
+  }
+  if (!product || !['MIS','NRML'].includes(String(product).trim().toUpperCase())) {
+    return res.status(400).json({ error: 'product must be MIS or NRML' });
+  }
+  const productNorm = String(product).trim().toUpperCase();
+  const qtyNum = Number(quantity);
+  if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+    return res.status(400).json({ error: 'quantity must be a positive number' });
+  }
 
-  if(!jobbin_price){
-    return res.status(400).json({ error: 'enter jobbing price' });
+  if (!jobbin_price) {
+    return res.status(400).json({ error: 'enter jobbing price' });
+  }
 
-  }
+  // ============================================================
+  // START: FUND & MARGIN LOGIC
+  // ============================================================
 
-  console.log(jobbin_price)
+  const requiredMargin = Number(price) * qtyNum;
 
-  const orderDoc = new Order({
-    broker_id_str: String(broker_id_str),
-    customer_id_str: String(customer_id_str),
-    security_Id: String(security_Id),
-    symbol: String(symbol),
-    segment: String(segment),
-    side,
-    product: productNorm,
-    // For MIS (intraday) we track order_status (OPEN/CLOSED/etc). For NRML (overnight) we keep order_status null
-    order_status: productNorm === 'MIS' ? 'OPEN' : null,
-    price: Number(price) || 0,
-    quantity: qtyNum,
-    lot_size: Number(lot_size) || 1,
-    lots,
-    // store increase_price as Number; accept decimal percentages like 0.08
-    increase_price: (jobbin_price === '' || jobbin_price == null) ? 0 : Number(jobbin_price),
-    meta: meta || {},
-    placed_at: new Date()
-  });
+  const fund = await Fund.findOne({ broker_id_str, customer_id_str });
 
-  const saved = await orderDoc.save();
-  return res.json({ ok: true, message: 'Order saved', order: saved });
+  if (!fund) {
+    return res.status(404).json({ error: "Fund account not found for this user." });
+  }
+
+  const isIntraday = productNorm === 'MIS';
+  let availableLimit = 0;
+  let currentUsed = 0;
+
+  // --- 1. Check Available Funds ---
+  if (isIntraday) {
+    availableLimit = fund.intraday.available_limit;
+    currentUsed = fund.intraday.used_limit;
+  } else {
+    // Overnight: Direct Cash Limit
+    availableLimit = fund.overnight.available_limit;
+    // Overnight me hum 'used' minus nahi kar rahe validation ke liye, 
+    // kyunki available hi actual bacha hua cash hai.
+    currentUsed = 0; 
+  }
+
+  const freeLimit = availableLimit - currentUsed;
+
+  if (requiredMargin > freeLimit) {
+    return res.status(400).json({ 
+      error: `Insufficient Funds! Required: ${requiredMargin}, Available: ${freeLimit}` 
+    });
+  }
+
+  // --- 2. Deduct/Block Margin (UPDATED LOGIC) ---
+  if (isIntraday) {
+    // Intraday: Increase Used Limit (Block Margin)
+    fund.intraday.used_limit += requiredMargin;
+  } else {
+    // Overnight: Decrease Available Limit (Deduct Cash)
+    // *** YE WALI LINE AAPNE MAANGI THI ***
+    fund.overnight.available_limit -= requiredMargin;
+    
+    // Optional: Agar aap chahte hain ki Used Limit me bhi record ho ki kitna use hua
+    // fund.overnight.used_limit += requiredMargin; 
+    // Lekin agar free_limit = available - used hai, to double minus ho jayega.
+    // Isliye sirf available minus karna sahi hai agar logic cash deduction ka hai.
+  }
+
+  await fund.save(); 
+  // ============================================================
+  // END: FUND LOGIC
+  // ============================================================
+
+
+  const orderDoc = new Order({
+    broker_id_str: String(broker_id_str),
+    customer_id_str: String(customer_id_str),
+    security_Id: String(security_Id),
+    symbol: String(symbol),
+    segment: String(segment),
+    side,
+    product: productNorm,
+    order_status: productNorm === 'MIS' ? 'OPEN' : null,
+    price: Number(price) || 0,
+    quantity: qtyNum,
+    lot_size: Number(lot_size) || 1,
+    lots,
+    increase_price: (jobbin_price === '' || jobbin_price == null) ? 0 : Number(jobbin_price),
+    margin_blocked: requiredMargin,
+    meta: meta || {},
+    placed_at: new Date()
+  });
+
+  try {
+    const saved = await orderDoc.save();
+    return res.json({ ok: true, message: 'Order saved', order: saved });
+  } catch (error) {
+    
+    // --- ROLLBACK FUND (Agar Order Save Fail hua) ---
+    if (isIntraday) {
+      fund.intraday.used_limit -= requiredMargin;
+    } else {
+      // Overnight: Wapas add karo (Refund)
+      fund.overnight.available_limit += requiredMargin;
+    }
+    await fund.save();
+    
+    return res.status(500).json({ error: 'Order creation failed: ' + error.message });
+  }
 });
-
 
 
 

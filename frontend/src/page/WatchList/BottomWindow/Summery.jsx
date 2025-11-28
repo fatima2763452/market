@@ -1,6 +1,8 @@
-// Summery.jsx (robust: prevents parent from clobbering quantity while typing)
+// Summery.jsx
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { TrendingUp, ShoppingCart, DollarSign, Hash, Zap, TrendingDown, DollarSign as BidAskIcon } from 'lucide-react';
+// *** IMPORT FETCH FUND UTILITY ***
+import { getFundsData } from '../../../Utils/fetchFund.jsx'; 
 
 const DetailRow = ({ Icon, label, value, colorClass = "text-white/90" }) => (
   <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0">
@@ -19,8 +21,8 @@ function Summery({
   sheetData,
   actionTab,
   setActionTab,
-  quantity,      // kept for initial/confirm only
-  setQuantity,   // call only on blur/confirm
+  quantity,      
+  setQuantity,   
   orderPrice,
   setOrderPrice,
   placeFakeOrder,
@@ -39,21 +41,18 @@ function Summery({
   useEffect(() => {
     if (!productType) setProductType('Intraday');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array ensures this runs only once
+  }, []); 
 
-  // When selectedStock changes, reset local lots to parent's quantity/lots (or blank)
-  // Convert parent's `quantity` (shares) to lots using the instrument lot size.
+  // When selectedStock changes, reset local lots
   useEffect(() => {
     const lotSize = selectedStock?.lot_size || selectedStock?.lotSize || 1;
     if (quantity != null) {
       const n = Number(quantity);
-      // Use the initial quantity to set the lots input
       const lots = Number.isFinite(n) && lotSize > 0 ? Math.floor(n / lotSize) : 0;
       setLocalLotsStr(lots > 0 ? String(lots) : '');
     } else {
       setLocalLotsStr('');
     }
-    // Reset feedback when stock changes
     setFeedback(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStock]);
@@ -62,13 +61,6 @@ function Summery({
   const ltpRaw = sheetData?.ltp != null ? Number(sheetData.ltp) : null;
   const bestBidRaw = sheetData?.bestBidPrice != null ? Number(sheetData.bestBidPrice) : null;
   const bestAskRaw = sheetData?.bestAskPrice != null ? Number(sheetData.bestAskPrice) : null;
-
-  const bestBidDisp = bestBidRaw != null
-    ? `₹${bestBidRaw.toFixed(2)} (${sheetData?.bestBidQuantity ?? '—'})`
-    : '—';
-  const bestAskDisp = bestAskRaw != null
-    ? `₹${bestAskRaw.toFixed(2)} (${sheetData?.bestAskQuantity ?? '—'})`
-    : '—';
 
   const showHigh = sheetData?.high != null ? `₹${Number(sheetData.high).toFixed(2)}` : '—';
   const showLow = sheetData?.low != null ? `₹${Number(sheetData.low).toFixed(2)}` : '—';
@@ -85,13 +77,11 @@ function Summery({
   };
 
   // ---------- calculations ----------
-  // parse lots from local string for live use (0 if invalid)
   const lotsNum = useMemo(() => {
     const n = Number(localLotsStr);
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
   }, [localLotsStr]);
 
-  // compute actual share-quantity from lots * lotSize
   const lotSize = selectedStock?.lot_size || selectedStock?.lotSize || 1;
   const qtyNum = useMemo(() => {
     return lotsNum > 0 ? lotsNum * (Number(lotSize) || 1) : 0;
@@ -99,29 +89,23 @@ function Summery({
 
   const jobbinPct = useMemo(() => {
     const v = parseFloat(String(jobbin_price).trim());
-    // Convert percentage input (e.g., 0.08) to decimal (e.g., 0.0008)
     return Number.isFinite(v) ? v / 100 : 0;
   }, [jobbin_price]);
 
   const baseLtp = ltpRaw ?? bestAskRaw ?? bestBidRaw ?? 0;
 
-  // per-share adjusted price (apply jobbing% once)
-  // adjusted price per share (raw and rounded). Keep raw value to show tiny changes
   const { adjustedPricePerShareRaw, adjustedPricePerShare } = useMemo(() => {
     if (!baseLtp) return { adjustedPricePerShareRaw: 0, adjustedPricePerShare: 0 };
     const perShareFactor = actionTab === 'Buy' ? (1 + jobbinPct) : (1 - jobbinPct);
     const pxRaw = baseLtp * perShareFactor;
-    // Use 4 decimals for precision
     return { adjustedPricePerShareRaw: pxRaw, adjustedPricePerShare: Number(pxRaw.toFixed(4)) };
   }, [baseLtp, actionTab, jobbinPct]);
 
-  // total order value (per-share * qty)
   const totalOrderValue = useMemo(() => {
     if (!adjustedPricePerShare || !qtyNum) return 0;
     return Number((adjustedPricePerShare * qtyNum).toFixed(2));
   }, [adjustedPricePerShare, qtyNum]);
 
-  // sync total to parent orderPrice (so placeFakeOrder can read it)
   useEffect(() => {
     if (totalOrderValue > 0) setOrderPrice(String(totalOrderValue));
     else setOrderPrice('');
@@ -131,13 +115,11 @@ function Summery({
   // ---------- handlers ----------
   const handleInputChange = (e) => {
     const v = e.target.value;
-    // allow empty or numeric; keep as string to preserve typing
     setLocalLotsStr(v);
-    setFeedback(null); // Clear feedback on interaction
+    setFeedback(null); 
   };
 
   const propagateQtyToParent = () => {
-    // send computed total shares to parent (lots * lotSize)
     const rawLots = (localLotsStr || (inputRef.current && inputRef.current.value) || '').toString().trim();
     const n = parseInt(rawLots, 10);
     const lots = Number.isFinite(n) && n > 0 ? n : 0;
@@ -150,7 +132,10 @@ function Summery({
   };
 
 
+  // *** MAIN ORDER HANDLER ***
   const handleConfirm = async () => {
+    setSubmitting(true);
+    setFeedback(null);
 
     propagateQtyToParent();
 
@@ -158,13 +143,13 @@ function Summery({
     const parsedLots = parseInt(rawLots, 10);
     const lots = Number.isFinite(parsedLots) && parsedLots > 0 ? parsedLots : 0;
 
-    // Basic Validation
+    // 1. Basic Input Validation
     if (!lots) {
       setFeedback({ type: 'error', message: 'Please enter a valid lot count.' });
+      setSubmitting(false);
       return;
     }
 
-    // Parse activeContext safely
     const activeContextString = localStorage.getItem('activeContext');
     const activeContext = activeContextString ? JSON.parse(activeContextString) : null;
     const brokerId = activeContext?.brokerId || '';
@@ -172,13 +157,58 @@ function Summery({
 
     const side = actionTab === 'Buy' ? 'BUY' : 'SELL';
     const product = productType === 'Intraday' ? 'MIS' : 'NRML';
-
     const lot_size = selectedStock?.lot_size || selectedStock?.lotSize || 1;
     const qty = Number(lots) * Number(lot_size);
-
-    // Price to use in the order payload (adjusted price per share)
     const finalPrice = adjustedPricePerShare || baseLtp;
 
+    // *** 2. FUND VALIDATION LOGIC ***
+    try {
+        // Calculate Total Required Amount for this Order
+        const requiredAmount = Number(totalOrderValue);
+
+        // Fetch Latest Funds from Backend
+        const fundsData = await getFundsData();
+        
+        if (!fundsData) {
+            throw new Error("Unable to fetch wallet balance.");
+        }
+
+        let availableLimit = 0;
+        let limitType = "";
+
+        if (productType === 'Intraday') {
+            // Intraday Free Limit = Available - Used
+            const maxLimit = fundsData.intraday?.available_limit || 0;
+            const usedLimit = fundsData.intraday?.used_limit || 0;
+            availableLimit = maxLimit - usedLimit;
+            limitType = "Intraday";
+        } else {
+            // Overnight Free Limit = Available - Used
+            const maxLimit = fundsData.overnight?.available_limit || 0;
+            const usedLimit = fundsData.overnight?.used_limit || 0;
+            availableLimit = maxLimit - usedLimit;
+            limitType = "Overnight";
+        }
+
+        // Check Logic
+        if (requiredAmount > availableLimit) {
+            // *** NOT ENOUGH BALANCE - RED TOAST ***
+            setFeedback({ 
+                type: 'error', 
+                message: `Insufficient ${limitType} Balance! Required: ₹${requiredAmount}, Available: ₹${availableLimit.toFixed(2)}. Add funds.` 
+            });
+            setSubmitting(false);
+            return; // Stop execution here
+        }
+
+    } catch (err) {
+        console.error("Fund validation error:", err);
+        setFeedback({ type: 'error', message: "Failed to validate funds. Try again." });
+        setSubmitting(false);
+        return;
+    }
+
+    // *** 3. PROCEED TO PLACE ORDER (If Funds OK) ***
     const payload = {
       broker_id_str: brokerId,
       customer_id_str: customerId,
@@ -187,28 +217,25 @@ function Summery({
       segment: selectedStock?.segment || '',
       side,
       product,
-      price: Number(finalPrice), // Use calculated adjusted price
+      price: Number(finalPrice), 
       quantity: qty,
       lots: Number(lots),
       lot_size: Number(lot_size),
-      jobbin_price: jobbin_price, // Send the raw percentage string
+      jobbin_price: jobbin_price, 
       expire: selectedStock?.expiry || new Date().toLocaleString('en-IN'),
       meta: { from: 'ui_watchlist_summery', selectedStock }
     };
-    console.log('Order payload', payload);
-
-    setSubmitting(true);
-    setFeedback(null);
 
     const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
 
     try {
-
       const res = await fetch(`${apiBase}/api/orders/postOrder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }); let body = null;
+      }); 
+      
+      let body = null;
       try { body = await res.json(); } catch (e) { body = null; }
 
       if (!res.ok || (body && body.success === false)) {
@@ -217,9 +244,9 @@ function Summery({
       }
 
       console.log('Order successful:', body);
+      // *** GREEN SUCCESS TOAST ***
       setFeedback({ type: 'success', message: 'Order placed successfully!' });
 
-      // Delay closing to allow user to see success message
       setTimeout(() => {
         setSelectedStock && setSelectedStock(null);
       }, 1500);
@@ -233,11 +260,9 @@ function Summery({
     }
   };
 
- const userString = localStorage.getItem('loggedInUser');
-  const userObject = userString ? JSON.parse(userString) : {}; // Agar null hai to empty object
+  const userString = localStorage.getItem('loggedInUser');
+  const userObject = userString ? JSON.parse(userString) : {}; 
   const userRole = userObject.role;
-     // Output: "broker"
-
 
   // Use an input key so React will remount the input only when selectedStock changes.
   const qtyInputKey = selectedStock ? (selectedStock.instrument_token ?? selectedStock.symbol ?? JSON.stringify(selectedStock)) : 'qty-global';
@@ -267,15 +292,6 @@ function Summery({
         </p>
         <p className="text-xs text-gray-500">Current Market Price (CMP)</p>
       </div>
-
-      {/* Best Bid/Ask + High/Low */}
-      {/*       <div className="mb-4 p-2 bg-[#1A1F30] rounded-lg">
-        <DetailRow Icon={BidAskIcon} label="Best Bid (Buy)" value={bestBidDisp} colorClass="text-green-400" />
-        <DetailRow Icon={BidAskIcon} label="Best Ask (Sell)" value={bestAskDisp} colorClass="text-red-400" />
-        <DetailRow Icon={Zap} label="Day High" value={showHigh} colorClass="text-yellow-300" />
-        <DetailRow Icon={TrendingUp} label="Day Low" value={showLow} colorClass="text-blue-300" />
-        <DetailRow Icon={TrendingDown} label="Prev. Close" value={showClose} colorClass="text-gray-400" />
-      </div> */}
 
       {/* Buy/Sell */}
       <div className="flex space-x-2 mb-2">
@@ -320,7 +336,6 @@ function Summery({
           {/* Quantity (Lots) Input */}
           <div className="flex items-center space-x-2">
             <div className="flex items-center">
-              {/* <Hash className="w-5 h-5 text-gray-400 mr-2" /> */}
               <h6 className='text-lg font-semibold  text-white'>Lot</h6>
             </div>
             <input

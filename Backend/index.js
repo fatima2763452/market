@@ -10,6 +10,7 @@ import { setFeedInstance } from "./services/feedState.js";
 import { loadDhanConfig, config } from "./config.js";
 import { stockSquareoffScheduler } from './cron/Scheduler/cron-squareoff.js';
 import { getDhanCredentials } from './services/dhanCredentialService.js';
+import FundCronJobs from './cron/FundScheduler/fundCorn.js';
 
 const app = createApp();
 const server = http.createServer(app);
@@ -70,7 +71,7 @@ server.listen(PORT, async () => {
   } else {
     console.warn("⚠️  No credentials found in database.");
   }
-
+  FundCronJobs();
   stockSquareoffScheduler();
   // Start the cron job for automatic token renewal
   startTokenRenewalCron();

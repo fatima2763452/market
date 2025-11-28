@@ -66,7 +66,6 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
         if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
         return num.toLocaleString();
     };
-
     // Loading state
     if (loading) {
         return (
@@ -78,7 +77,8 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
             </div>
         );
     }
-
+ 
+ 
     // Error state
     if (error) {
         return (
