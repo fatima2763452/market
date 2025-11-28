@@ -4,17 +4,19 @@ import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock } from 'lucide-reac
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
-const DetailRow = ({ Icon, label, value, colorClass = "text-white/90" }) => (
-  <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0">
-    <div className="flex items-center text-gray-400 text-sm">
-      <Icon className="w-4 h-4 mr-2 text-indigo-400" />
-      {label}
-    </div>
-    <span className={`font-medium text-sm ${value === '—' ? 'text-gray-500' : colorClass}`}>
-      {value}
-    </span>
-  </div>
-);
+const DetailRow = ({ Icon, label, value, colorClass }) => {
+    return (
+        <div className="flex justify-between items-center py-0.5 px-2">
+            <div className="flex items-center text-gray-400">
+                {Icon && <Icon className="w-3 h-3 mr-2" />}
+                <span className="text-xs">{label}</span>
+            </div>
+            <span className={`text-sm font-medium ${colorClass || "text-white"}`}>
+                {value}
+            </span>
+        </div>
+    );
+};
 
 export default function OvernightOrderBottomWindow({ selectedOrder, onClose, sheetData }) {
   if (!selectedOrder) return null;
@@ -75,7 +77,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
   const pnlColor = profit ? "text-green-400" : "text-red-400";
 
   const isBuy = orderSide === 'BUY';
-  const adjustActionColor = isBuy ? 'bg-green-600' : 'bg-red-600';
+  const adjustActionColor = isBuy ? 'bg-green-600' : 'bg-green-600';
 
   // parsed inputs
   const parsedNewLot = Math.max(0, parseInt(String(newLot).trim() || '0', 10));
@@ -208,6 +210,10 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
     }
   };
 
+   const userString = localStorage.getItem('loggedInUser');
+  const userObject = userString ? JSON.parse(userString) : {}; // Agar null hai to empty object
+  const userRole = userObject.role;
+
   return (
     <div className="open-order-bottom-window fixed bottom-0 left-0 right-0 z-50 bg-[#121A2B] border-t border-white/10 shadow-2xl p-4 transition-transform duration-300">
       <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
@@ -240,12 +246,12 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
       </div>
 
       <div className="mb-4 p-2 bg-[#1A1F30] rounded-lg">
-        <DetailRow Icon={ShoppingCart} label="Quantity" value={`${initialQty} shares`} />
-        <DetailRow Icon={ShoppingCart} label="lots" value={`${lots} lots`} />
-        <DetailRow Icon={DollarSign} label="Avg. Buy Price" value={money(initialPrice)} colorClass="text-yellow-300" />
-        <DetailRow Icon={Zap} label="type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
-        <DetailRow Icon={Hash} label="order instant" value={productType} colorClass="text-gray-300" />
-        <DetailRow Icon={Clock} label="expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+        <DetailRow  label="Quantity" value={`${initialQty} shares`} />
+        <DetailRow  label="lots" value={`${lots} lots`} />
+        <DetailRow  label="Avg. Buy Price" value={money(initialPrice)} colorClass="text-yellow-300" />
+        <DetailRow  label="type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
+        <DetailRow  label="order instant" value={productType} colorClass="text-gray-300" />
+        <DetailRow  label="expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
       </div>
 
       <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
@@ -253,7 +259,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
 
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
-            <Hash className="w-5 h-5 text-gray-400 mr-2" />
+             <h6 className='text-lg font-semibold  text-white'>Lot</h6>
             <input
               type="number"
               value={newLot}
@@ -265,13 +271,13 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
           </div>
 
           {/* Show computed avg price only (not editable) */}
-          <div className="flex items-center">
-            <DollarSign className="w-5 h-5 text-gray-400 mr-2" />
+          {userRole === 'broker' && <div className="flex items-center">
+            <Hash className="w-5 h-5 text-gray-400 mr-2" />
             <div className="w-full p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
-              <span className="text-sm">Computed Avg. Price</span>
+              <span className="text-sm">Avg. Price</span>
               <span className="font-medium">{displayComputedAvg}</span>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -281,15 +287,15 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
           disabled={submitting}
           className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
         >
-          {submitting && action === 'Adjust' ? 'Adjusting...' : 'Adjust Order'}
+          {submitting && action === 'Adjust' ? 'BUY MORE...' : 'BUY MORE'}
         </button>
 
         <button
           onClick={() => handleAction('Close')}
           disabled={submitting}
-          className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-gray-500 hover:bg-gray-700 ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
+          className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-red-500 hover:bg-gray-700 ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
         >
-          {submitting && action === 'Close' ? 'Closing...' : 'Close Order'}
+          {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
         </button>
       </div>
     </div>

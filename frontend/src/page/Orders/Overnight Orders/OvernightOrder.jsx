@@ -291,10 +291,17 @@ export default function OvernightOrder() {
                 onClick={() => handleOrderSelect(data)}
               >
                 <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
-                <div className="flex items-start justify-between">
-                  <h4 className="text-white font-bold tracking-wide text-sm">{tradingsymbol || '—'}</h4>
-                  <div className={`text-xs font-bold ${pnlColor}`}>{pctText}</div>
-                </div>
+               <div className="flex items-center justify-between mb-1">
+                    
+                    {/* *** FIXED SECTION *** */}
+                    {/* 1. displayList[0].side ki jagah 'sideUpper' use kiya */}
+                    {/* 2. Truncation classes add ki (whitespace-nowrap, overflow-hidden...) */}
+                    <h4 className="text-white font-bold tracking-wide text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1">
+                        {tradingsymbol || '—'} <span className="text-xs text-gray-400">({sideUpper})</span>
+                    </h4>
+                    
+                    <div className={`text-xs font-bold ${pnlColor} whitespace-nowrap flex-shrink-0`}>{pctText}</div>
+                </div>
 
                 <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
                   <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>

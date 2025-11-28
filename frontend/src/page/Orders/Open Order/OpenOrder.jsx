@@ -242,6 +242,7 @@ export default function OpenOrder() {
     }, [selectedOrderData, allData]);
 
     const displayList = allData;
+    console.log(displayList.side)
 
     return (
         <>
@@ -266,41 +267,51 @@ export default function OpenOrder() {
 
             {/* List */}
             <ul className="space-y-2 pb-24 overflow-auto">
-                {displayList.map((data, idx) => {
-                    const tradingsymbolRaw = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
-                    const tradingsymbol = String(tradingsymbolRaw ?? "");
-                    const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
-                    const avg = Number(data.price ?? 0);
-                    const qty = Number(data?.quantity ?? 0);
-                    const sideUpper = String(data.side ?? "").toUpperCase();
-                    const diff = sideUpper === "BUY" ? (ltp - avg) : (avg - ltp);
-                    const pnl = diff * qty;
-                    const pct = avg ? (diff / avg) * 100 : 0;
-                    const profit = pnl >= 0;
-                    const pnlColor = profit ? "text-green-400" : "text-red-400";
-                    const pctText = `${profit ? '+' : ''}${pnl.toFixed(2)} (${profit ? '+' : ''}${pct.toFixed(2)}%)`;
+    {displayList.map((data, idx) => {
+        const tradingsymbolRaw = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
+        const tradingsymbol = String(tradingsymbolRaw ?? "");
+        const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
+        const avg = Number(data.price ?? 0);
+        const qty = Number(data?.quantity ?? 0);
+        
+        // Sahi variable yaha calculate ho raha hai
+        const sideUpper = String(data.side ?? "").toUpperCase(); 
+        
+        const diff = sideUpper === "BUY" ? (ltp - avg) : (avg - ltp);
+        const pnl = diff * qty;
+        const pct = avg ? (diff / avg) * 100 : 0;
+        const profit = pnl >= 0;
+        const pnlColor = profit ? "text-green-400" : "text-red-400";
+        const pctText = `${profit ? '+' : ''}${pnl.toFixed(2)} (${profit ? '+' : ''}${pct.toFixed(2)}%)`;
 
-                    return (
-                        <li
-                            key={data._id || data.id || `${data.segment}-${data.security_Id}-${idx}`}
-                            className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
-                            onClick={() => handleOrderSelect(data)}
-                        >
-                            <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
-                            <div className="flex items-start justify-between">
-                                <h4 className="text-white font-bold tracking-wide text-sm">{tradingsymbol || '—'}</h4>
-                                <div className={`text-xs font-bold ${pnlColor}`}>{pctText}</div>
-                            </div>
-                            <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
-                                <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
-                                <div className="text-right text-gray-400">LTP: <span className="text-white font-semibold">{ltp ? `₹${ltp.toFixed(2)}` : '—'}</span></div>
-                                <div className="text-gray-400">Avg: <span className="text-white">{money(avg)}</span></div>
-                                <div className="text-right text-gray-400">Total P&L: <span className={`${pnlColor} font-semibold`}>{money(pnl)}</span></div>
-                            </div>
-                        </li>
-                    );
-                })}
-            </ul>
+        return (
+            <li
+                key={data._id || data.id || `${data.segment}-${data.security_Id}-${idx}`}
+                className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
+                onClick={() => handleOrderSelect(data)}
+            >
+                <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
+                
+                {/* Flex container for alignment */}
+                <div className="flex items-center justify-between mb-1">
+                    
+                    <h4 className="text-white font-bold tracking-wide text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1">
+                        {tradingsymbol || '—'} <span className="text-xs text-gray-400">({sideUpper})</span>
+                    </h4>
+                    
+                    <div className={`text-xs font-bold ${pnlColor} whitespace-nowrap flex-shrink-0`}>{pctText}</div>
+                </div>
+
+                <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
+                    <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
+                    <div className="text-right text-gray-400">LTP: <span className="text-white font-semibold">{ltp ? `₹${ltp.toFixed(2)}` : '—'}</span></div>
+                    <div className="text-gray-400">Avg: <span className="text-white">{money(avg)}</span></div>
+                    <div className="text-right text-gray-400">Total P&L: <span className={`${pnlColor} font-semibold`}>{money(pnl)}</span></div>
+                </div>
+            </li>
+        );
+    })}
+</ul>
 
             {selectedOrderData && (
                 <OpenOrderBottomWindow
@@ -324,13 +335,13 @@ export default function OpenOrder() {
                         <div className="flex flex-col items-center text-center">
                             
                             {/* Warning Icon */}
-                            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                            {/* <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
                                 <AlertTriangle className="text-red-500 w-6 h-6" />
-                            </div>
+                            </div> */}
 
                             <h3 className="text-lg font-bold text-white mb-2">Exit All Orders?</h3>
                             <p className="text-gray-400 text-sm mb-6">
-                                Are you sure you want to cancel/exit all {displayList.length} open orders? This action cannot be undone.
+                                Are you sure you want to exit all {displayList.length} open orders? This action cannot be undone.
                             </p>
 
                             {/* Buttons */}
