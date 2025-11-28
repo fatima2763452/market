@@ -310,7 +310,7 @@ const exitAllOpenOrder = asyncHandler(async (req, res) => {
         customer_id: customer_id_str,
         order_status: "OPEN", 
         order_category: "INTRADAY"
-    });
+    });  
 
     if (!openOrders || openOrders.length === 0) {
         return res.status(200).json({ message: "No open orders found to exit." });

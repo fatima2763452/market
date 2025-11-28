@@ -233,7 +233,11 @@ function Summery({
     }
   };
 
-  const isBrocker = localStorage.getItem('loggedInUser').role
+ const userString = localStorage.getItem('loggedInUser');
+  const userObject = userString ? JSON.parse(userString) : {}; // Agar null hai to empty object
+  const userRole = userObject.role;
+     // Output: "broker"
+
 
   // Use an input key so React will remount the input only when selectedStock changes.
   const qtyInputKey = selectedStock ? (selectedStock.instrument_token ?? selectedStock.symbol ?? JSON.stringify(selectedStock)) : 'qty-global';
@@ -333,29 +337,33 @@ function Summery({
           </div>
 
           {/* Jobbing % */}
-          { isBrocker && <div className="flex items-center">
+          {userRole === 'broker' && (
+          <div className="flex items-center">
             <Hash className="w-5 h-5 text-gray-400 mr-2" />
             <input
               type="number"
               step="0.01"
               min="0"
-              placeholder="Jobbing % — 0.08 means 0.08%, or 3 means 3%"
+              placeholder="Jobbing %"
               value={jobbin_price}
               onChange={(e) => setJobbin_price(e.target.value)}
               className="w-55 p-2 bg-[#2A314A] text-white rounded-md transition"
             />
-          </div>}
+          </div>
+        )}
 
-         { isBrocker && <div className="text-xs text-gray-400">Applied jobbing: <span className="text-white font-medium">{jobbin_price || '0'}%</span></div>}
+         {userRole === 'broker' && (
+           <div className="text-xs text-gray-400">Applied jobbing: <span className="text-white font-medium">{jobbin_price || '0'}%</span></div>
+        )}
 
           {/* Price / share and Total */}
           <div className="text-sm bg-[#2A314A] rounded-md p-3 flex flex-col">
-            {isBrocker &&
+            {userRole === 'broker' && (
             <div className="flex justify-between">
               <span className="text-gray-300">Price / share (Jobbing applied)</span>
               <span className="text-white font-semibold">{adjustedPricePerShare ? `₹${adjustedPricePerShare.toFixed(4)}` : '—'}</span>
             </div>
-            }
+          )}
             <div className="flex justify-between mt-2">
               <span className="text-gray-300">Total Order Value</span>
               <span className="text-white font-semibold">{totalOrderValue ? `₹${totalOrderValue.toFixed(2)}` : '—'}</span>

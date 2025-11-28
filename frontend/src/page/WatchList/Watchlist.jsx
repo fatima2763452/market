@@ -10,35 +10,69 @@ import Toast from '../../Utils/Toast.jsx'
 
 // --- Index Card (Same as before) ---
 const IndexCard = ({ name, price, change, isPositive }) => {
-  // ... (Apka purana code same rahega)
   const [flashColor, setFlashColor] = useState("");
   const prevPriceRef = useRef(price);
 
   useEffect(() => {
+    // Basic validation check
     if (!price || price === "—") return;
+
+    // Convert string/number to float for comparison
     const currentP = parseFloat(price);
     const prevP = parseFloat(prevPriceRef.current);
+
+    // Check if numbers are valid and price has actually changed
     if (!isNaN(currentP) && !isNaN(prevP) && currentP !== prevP) {
-      setFlashColor(currentP > prevP ? "text-green-500" : "text-red-500");
-      const timer = setTimeout(() => setFlashColor(""), 300);
+      if (currentP > prevP) {
+        // Price Badha -> Green Flash
+        setFlashColor("text-green-500 scale-105"); // scale-105 thoda pop effect dega
+      } else {
+        // Price Ghata -> Red Flash
+        setFlashColor("text-red-500 scale-105");
+      }
+
+      // 300ms baad flash hata do
+      const timer = setTimeout(() => {
+        setFlashColor("");
+      }, 300);
+
+      // Ref update karo current price ke sath
       prevPriceRef.current = price;
+
       return () => clearTimeout(timer);
+    } else {
+      // First render ya same price par ref update
+      prevPriceRef.current = price;
     }
   }, [price]);
 
-  const changeColor = isPositive ? "text-green-400" : "text-red-400";
+
+  const defaultColor = isPositive ? "text-green-400" : "text-red-400";
+  
+  const priceColor = flashColor || defaultColor;
+
+  // Arrow icon logic    
   const arrow = isPositive ? "▲" : "▼";
 
   return (
     <div className="flex-1 bg-[#121a2b] border border-white/10 p-3 rounded-lg mx-1">
       <div className="flex justify-between items-center">
         <div>
-          <p className="text-white font-semibold">{name}</p>
-          <p className="text-gray-400 text-xs">Index</p>
+          <p className="text-white font-semibold text-sm md:text-base">{name}</p>
+          <p className="text-gray-400 text-[10px] md:text-xs">Index</p>
         </div>
         <div className="text-right">
-          <p className={`font-medium transition-colors duration-200 ${flashColor || "text-white/90"}`}>{price}</p>
-          <p className={`${changeColor} text-sm`}>{arrow} {change}%</p>
+          {/* Price with Flash Effect */}
+          <p 
+            className={`font-bold text-sm md:text-base transition-all duration-200 ${priceColor}`}
+          >
+            {price}
+          </p>
+          
+          {/* Percentage Change */}
+          <p className={`text-[10px] md:text-xs font-medium ${defaultColor}`}>
+            {arrow} {change}%
+          </p>
         </div>
       </div>
     </div>
@@ -57,7 +91,7 @@ const SwipeableWatchlistItem = ({
   const formattedNetChange = netChange == null ? "—" : `${netChange > 0 ? "+" : ""}${Number(netChange).toFixed(2)}`;
   const formattedPercentChange = percentChange == null ? "—" : `(${percentChange > 0 ? "+" : ""}${Number(percentChange).toFixed(2)}%)`;
   const formattedVolume = volume ? `${(Number(volume) / 100000).toFixed(2)}L` : "—";
-  const formattedClose = close ? `Close: ₹${Number(close).toFixed(2)}` : "";
+  const formattedClose = close ? `Close: ₹${Number(close).toFixed(2)}` : ""; 
 
   // Motion values for swipe effect
   const x = useMotionValue(0);

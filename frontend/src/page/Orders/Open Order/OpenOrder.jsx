@@ -95,7 +95,7 @@ export default function OpenOrder() {
                 closed_ltp_map: ltpData, // Map of { order_id: price }
                 closed_at: currentTime
             };
-
+    
             // API Endpoint
             const endPoint = `${apiBase.replace(/\/$/, "")}/api/orders/exitAllOpenOrder?broker_id_str=${brokerId}&customer_id_str=${customerId}`;
 
