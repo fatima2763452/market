@@ -15,7 +15,7 @@ import instrumentsRoute from "./Routes/instruments.js";
 import debugRoute from "./Routes/debug.js";
 import userWatchlistRoute from "./Routes/UserWatchlistRoute.js";
 import orderRoute from "./Routes/orderRoute.js";
-
+import fundRoute from "./Routes/fundRoute.js"
 
 export function createApp() {
   const app = express();
@@ -88,6 +88,9 @@ export function createApp() {
   app.use("/api/quotes", authQuotes, quotesRoute);
   app.use("/api/watchlist", userWatchlistRoute);
   app.use("/api/orders", orderRoute);
+  app.use("/api/funds", fundRoute);
+
+
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
 

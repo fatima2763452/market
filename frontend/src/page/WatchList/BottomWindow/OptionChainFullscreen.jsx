@@ -144,7 +144,8 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
             </div>
         );
     }
-
+ 
+ 
     // Error state
     if (error) {
         return (
