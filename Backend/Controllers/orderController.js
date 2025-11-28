@@ -292,11 +292,12 @@ const updateOrder = asyncHandler(async (req, res) => {
 
 
 
+// NOTE: Frontend se ab hum 'PUT' request bhejenge
 const exitAllOpenOrder = asyncHandler(async (req, res) => {
     // URL params se IDs
     const { broker_id_str, customer_id_str } = req.query;
     
-    // Body se Payload (LTPs aur Time)
+    // Body se Payload
     const { closed_ltp_map, closed_at } = req.body || {}; 
 
     if (!broker_id_str || !customer_id_str) {
@@ -304,16 +305,23 @@ const exitAllOpenOrder = asyncHandler(async (req, res) => {
         throw new Error("Missing Broker ID or Customer ID");
     }
 
-    // 1. Find Open Orders
+    // --- FIX 1: Database Field Names Sahi Kiye ---
+    // Screenshot ke hisab se fields 'broker_id_str' aur 'customer_id_str' hain
     const openOrders = await Order.find({
-        broker_id: broker_id_str,
-        customer_id: customer_id_str,
+        broker_id_str: broker_id_str,      // <--- Was 'broker_id' (Wrong)
+        customer_id_str: customer_id_str,  // <--- Was 'customer_id' (Wrong)
         order_status: "OPEN", 
         order_category: "INTRADAY"
     });  
 
+    // Agar koi order nahi mila
     if (!openOrders || openOrders.length === 0) {
-        return res.status(200).json({ message: "No open orders found to exit." });
+        // Debugging ke liye log kar sakte hain
+        console.log("No orders found for:", broker_id_str, customer_id_str);
+        return res.status(200).json({ 
+            success: false, 
+            message: "No open Intraday orders found to exit." 
+        });
     }
 
     const results = [];
@@ -323,12 +331,13 @@ const exitAllOpenOrder = asyncHandler(async (req, res) => {
         try {
             const exitPrice = closed_ltp_map ? closed_ltp_map[order._id] : 0;
             
-            order.order_status = "CLOSED"; // Status change
-            order.closed_at = closed_at || new Date(); // Closing time
+            order.order_status = "CLOSED"; 
+            order.closed_at = closed_at || new Date(); 
             
-            // Agar exitPrice valid hai to save karo (P&L calculation ke liye)
+            // Price update logic
             if (exitPrice) {
-                order.closed_ltp = exitPrice; // Ya koi specific field like 'exit_price'
+                order.closed_ltp = exitPrice; 
+                // Profit/Loss calculation logic bhi yaha add kar sakte ho future me
             }
 
             await order.save();
@@ -342,7 +351,7 @@ const exitAllOpenOrder = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: `Processed exit for ${results.length} orders`,
+        message: `Successfully exited ${results.length} orders`,
         details: results
     });
 });

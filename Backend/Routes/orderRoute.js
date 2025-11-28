@@ -6,6 +6,6 @@ const router = express.Router();
 router.post('/postOrder', postOrder);
 router.get('/getOrderInstrument', getOrderInstrument);
 router.post('/updateOrder', updateOrder);
-router.delete('/exitAllOpenOrder', exitAllOpenOrder);
+router.put('/exitAllOpenOrder', exitAllOpenOrder);
 
 export default router;

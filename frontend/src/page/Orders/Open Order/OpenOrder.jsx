@@ -76,46 +76,44 @@ export default function OpenOrder() {
     const handleExitAll = async () => {
         setIsExiting(true);
         try {
-            // 1. Current LTP Data collect karo sabhi open orders ka
             const ltpData = {};
             displayList.forEach(order => {
-                // Snapshot se LTP nikalo, fallback to order.ltp or 0
                 const currentLtp = Number(order.snapshot?.ltp ?? order.ltp ?? 0);
-                
-                // Order ID ko key banao aur LTP ko value
-                // Backend me match karne ke liye _id use kar rahe hain
                 if (order._id) {
                     ltpData[order._id] = currentLtp;
                 }
             });
 
-            const currentTime = new Date(); // Current Datetime
+            const currentTime = new Date(); 
 
             const payload = {
-                closed_ltp_map: ltpData, // Map of { order_id: price }
+                closed_ltp_map: ltpData, 
                 closed_at: currentTime
             };
     
             // API Endpoint
             const endPoint = `${apiBase.replace(/\/$/, "")}/api/orders/exitAllOpenOrder?broker_id_str=${brokerId}&customer_id_str=${customerId}`;
 
+            // --- FIX 2: Method changed to PUT ---
+            // DELETE me body aksar ignore hoti hai, PUT use karein update ke liye
             const res = await fetch(endPoint, {
-                method: "DELETE",
+                method: "PUT", 
                 headers: { 
                     "Content-Type": "application/json", 
                     ...(token ? { Authorization: `Bearer ${token}` } : {}) 
                 },
-                // *** Body add kar di ***
                 body: JSON.stringify(payload)
             });
 
-            if (res.ok) {
-                console.log("All orders exited successfully");
+            const data = await res.json(); // Response check karein
+
+            if (res.ok && data.success) {
+                console.log("Response:", data);
                 fetchInstrumentData(); // Refresh list
                 setShowExitModal(false);
             } else {
-                console.error("Failed to exit all orders");
-                alert("Failed to exit orders. Please try again.");
+                console.error("Failed to exit:", data.message);
+                alert(data.message || "Failed to exit orders.");
             }
         } catch (err) {
             console.error("Exit All API Error:", err);
