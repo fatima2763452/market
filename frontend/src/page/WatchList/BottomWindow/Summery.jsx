@@ -316,11 +316,11 @@ function Summery({
         <button className={`flex-1 p-2 rounded-lg text-xs font-medium transition ${getProductTypeClass('Overnight')}`} onClick={() => setProductType('Overnight')}>Overnight</button>
       </div>
 
-      <h4 className="text-20 font-semibold mb-2 text-white/80 text-muted">Order Type</h4>
+      {/* <h4 className="text-20 font-semibold mb-2 text-white/80 text-muted">Order Type</h4>
       <div className="flex space-x-2 mb-4">
         <button className={`flex-1 p-2 rounded-lg text-xs font-medium transition ${getProductTypeClass('Market')}`} >Market</button>
         <button className={`flex-1 p-2 rounded-lg text-xs font-medium transition ${getProductTypeClass('SL')}`} >SL</button>
-      </div>
+      </div> */}
 
       {feedback && (
         <div className={`p-2 mb-3 rounded-md text-sm ${feedback.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>

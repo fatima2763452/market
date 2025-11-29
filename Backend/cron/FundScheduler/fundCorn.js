@@ -6,7 +6,7 @@ const FundCronJobs = () => {
     // ---------------------------------------------------------
     // Job: Reset Intraday Limits (Available & Used) to 0 at 12:00 AM
     // ---------------------------------------------------------
-    cron.schedule('22 22 * * *', async () => {
+    cron.schedule('0 0 * * *', async () => {
         console.log('⏰ [CRON] Running Midnight Intraday Reset...');
 
         try {

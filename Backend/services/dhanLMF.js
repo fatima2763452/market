@@ -2,6 +2,7 @@
 import WebSocket from "ws";
 import { config } from "../config.js";
 import { getIO } from "../sockets/io.js";
+import { onMarketTick } from "../Utils/OrderManager.js";
 
 const roomFor = (securityId) => `sec:${securityId}`;
 
@@ -245,6 +246,11 @@ export class DhanLMF {
             const payload = { securityId: String(securityId), exchangeSegment, ltp };
             this.last.set(String(securityId), { ...this.last.get(String(securityId)), ...payload });
             this.ns.to(roomFor(securityId)).emit("ticker_update", payload);
+
+            if (ltp > 0) {
+                onMarketTick({ token: String(securityId), ltp: ltp });
+            }
+
             break;
           }
 
@@ -287,6 +293,11 @@ export class DhanLMF {
             // Emit for both quote and index listeners, as indices use this packet.
             this.ns.to(roomFor(securityId)).emit("quote_update", payload);
             this.ns.to(roomFor(securityId)).emit("index_update", payload);
+
+            if (ltp > 0) {
+                onMarketTick({ token: String(securityId), ltp: ltp });
+            }
+
             break;
           }
 
@@ -374,6 +385,11 @@ export class DhanLMF {
 
             this.last.set(String(securityId), payload);
             this.ns.to(roomFor(securityId)).emit("market_update", payload);
+
+            if (ltp > 0) {
+                onMarketTick({ token: String(securityId), ltp: ltp });
+            }
+            
             break;
           }
           

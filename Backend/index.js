@@ -12,14 +12,17 @@ import { stockSquareoffScheduler } from './cron/Scheduler/cron-squareoff.js';
 import { getDhanCredentials } from './services/dhanCredentialService.js';
 import FundCronJobs from './cron/FundScheduler/fundCorn.js';
 
+// 👇 1. IMPORT ORDER MANAGER
+import { loadOpenOrders } from './Utils/OrderManager.js';
+
 const app = createApp();
 const server = http.createServer(app);
 
 // createIO now returns { io, market } (market = namespace)
 const { io, market } = createIO(server);
 
-// Initialize the DhanLMF service via the new auth module
-const lmf = initializeDhanLMF();
+
+export const lmf = initializeDhanLMF();
 
 // allow sockets layer to forward client "subscribe" to LMF
 setFeedSubscriber((list, subscriptionType) => lmf.subscribe(list, subscriptionType));
@@ -34,6 +37,12 @@ console.log("✅ Mongo connected");
 
 // Load Dhan config from DB before starting the server
 await loadDhanConfig();
+
+// 👇 3. LOAD ACTIVE ORDERS & START SOCKET
+// DB connect hone ke baad hi purane orders load karo
+await loadOpenOrders(); 
+
+lmf.connect(); // Ensure Socket connects
 
 const PORT = Number(config?.port || process.env.PORT || 8081);
 server.listen(PORT, async () => {
@@ -55,7 +64,7 @@ server.listen(PORT, async () => {
       // Renew if less than 2 hours remaining
       if (hoursUntilExpiry < 2) {
         if (hoursUntilExpiry <= 0) {
-          console.error("❌ Token has EXPIRED! Cannot renew. Please generate fresh token from Dhan Web.");
+          console.error(" Token has EXPIRED! Cannot renew. Please generate fresh token from Dhan Web.");
           console.error("   Go to: https://web.dhan.co → My Profile → Access DhanHQ APIs");
           console.error("   Then run: node scripts/init-dhan-credentials.js");
         } else {

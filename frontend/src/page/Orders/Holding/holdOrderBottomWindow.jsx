@@ -1,6 +1,6 @@
-// HoldOrderBottomWindow.jsx
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock } from 'lucide-react';
+import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock, Target, AlertCircle } from 'lucide-react';
+import { getFundsData } from '../../../Utils/fetchFund.jsx';
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -20,9 +20,11 @@ const DetailRow = ({ Icon, label, value, colorClass }) => {
 
 export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetData }) {
 
-    if (!selectedOrder) {
-        return null;
-    }
+    if (!selectedOrder) return null;
+
+    const userString = localStorage.getItem('loggedInUser');
+    const userObject = userString ? JSON.parse(userString) : {};
+    const userRole = userObject.role;
 
     // expiry display
     const expireDate = selectedOrder.meta?.selectedStock?.expiry;
@@ -35,35 +37,12 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
         security_Id, segment, _id: orderId, lots, lot_size,
     } = selectedOrder;
 
-    // states
-    const [newLot, setNewLot] = useState(String(lots ?? ''));
-    const [submitting, setSubmitting] = useState(false);
-    const [action, setAction] = useState('Adjust');
-    const [feedback, setFeedback] = useState(null);
-
-    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
-    const token = localStorage.getItem("token") || null;
-
-    const activeContextString = localStorage.getItem('activeContext');
-    const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
-    const brokerId = activeContext.brokerId;
-    const customerId = activeContext.customerId;
-
-    useEffect(() => {
-        setNewLot(String(lots ?? ''));
-        setFeedback(null);
-        setAction('Adjust');
-    }, [selectedOrder, lots]);
-
+    const currentLotSize = lot_size || selectedOrder.meta?.selectedStock?.lot_size || 1;
     const tradingsymbol = selectedOrder.meta?.selectedStock?.tradingSymbol ?? symbol ?? "N/A";
     const orderSide = String(side ?? "").toUpperCase();
-    const currentLotSize = lot_size || selectedOrder.meta?.selectedStock?.lot_size || 1;
 
     const ltpRaw = sheetData?.ltp != null ? Number(sheetData.ltp) : null;
-    const bestBidRaw = sheetData?.bestBidPrice != null ? Number(sheetData.bestBidPrice) : null;
-    const bestAskRaw = sheetData?.bestAskPrice != null ? Number(sheetData.bestAskPrice) : null;
-
-    const currentPrice = ltpRaw ?? bestAskRaw ?? bestBidRaw ?? 0;
+    const currentPrice = ltpRaw || Number(initialPrice) || 0;
     const formattedCMP = currentPrice ? `₹${currentPrice.toFixed(2)}` : '—';
 
     const avg = Number(initialPrice ?? 0);
@@ -79,51 +58,91 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const adjustActionColor = isBuy ? 'bg-green-600' : 'bg-green-600';
     const closeActionColor = 'bg-red-500 hover:bg-red-700';
 
-    // parsed inputs
-    const parsedNewLot = Math.max(0, parseInt(String(newLot).trim() || '0', 10));
-    const computedQuantity = Number(parsedNewLot) * Number(currentLotSize || 1);
+    // --- STATES ---
+    const [addLotInput, setAddLotInput] = useState(''); 
+    
+    // NEW: SL & Target States
+    const [slPrice, setSlPrice] = useState(selectedOrder.stop_loss || '');
+    const [targetPrice, setTargetPrice] = useState(selectedOrder.target || '');
 
-    // computed avg (weighted) — same logic as OpenOrderBottomWindow
+    const [submitting, setSubmitting] = useState(false);
+    const [action, setAction] = useState('Adjust');
+    const [feedback, setFeedback] = useState(null);
+
+    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+    const token = localStorage.getItem("token") || null;
+    const activeContextString = localStorage.getItem('activeContext');
+    const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+    const brokerId = activeContext.brokerId;
+    const customerId = activeContext.customerId;
+
+    useEffect(() => {
+        setAddLotInput('');
+        setSlPrice(selectedOrder.stop_loss || '');
+        setTargetPrice(selectedOrder.target || '');
+        setFeedback(null);
+        setAction('Adjust');
+    }, [selectedOrder]);
+
+    // --- ADD LOT CALCULATION ---
+    const currentLots = Number(lots ?? 0);
+    const parsedAddLots = Math.max(0, parseInt(String(addLotInput).trim() || '0', 10));
+    
+    const targetTotalLots = currentLots + parsedAddLots;
+    const targetTotalQuantity = targetTotalLots * Number(currentLotSize || 1);
+
+    // Weighted Avg Price
     let computedAvg = avg || 0;
-    if (computedQuantity > 0) {
+    if (parsedAddLots > 0) {
         const totalExisting = avg * qty;
-        const totalNew = currentPrice * computedQuantity;
-        const combinedQty = qty + computedQuantity;
-        computedAvg = combinedQty > 0 ? (totalExisting + totalNew) / combinedQty : (currentPrice || avg || 0);
-    } else {
-        computedAvg = avg || currentPrice || 0;
+        const totalNew = currentPrice * (parsedAddLots * currentLotSize);
+        computedAvg = (totalExisting + totalNew) / targetTotalQuantity;
     }
     const displayComputedAvg = `₹${Number(computedAvg || 0).toFixed(2)}`;
 
-    // convenience
-    const currentLots = Number(lots ?? 0);
 
-    // handleAction: 'Adjust' or 'Close'
+    // --- ACTION HANDLER ---
     const handleAction = async (intendedAction) => {
         setSubmitting(true);
         setFeedback(null);
         setAction(intendedAction);
 
         try {
-            // validation: new lots cannot be less than current DB lots
+            // Validation & Fund Check for "BUY MORE"
             if (intendedAction === 'Adjust') {
-                if (parsedNewLot < currentLots) {
-                    setFeedback({
-                        type: 'error',
-                        message: `Invalid lots: cannot set lots (${parsedNewLot}) less than current lots (${currentLots}).`
-                    });
-                    setSubmitting(false);
-                    return;
-                }
-                if (parsedNewLot <= 0) {
-                    setFeedback({ type: 'error', message: 'Lots must be greater than zero.' });
-                    setSubmitting(false);
-                    return;
+                if (parsedAddLots > 0) {
+                    try {
+                        const fundsData = await getFundsData();
+                        if (!fundsData) throw new Error("Unable to fetch wallet balance.");
+
+                        const requiredAmount = (parsedAddLots * currentLotSize) * currentPrice;
+                        
+                        // Holdings use Overnight Funds (Available Limit)
+                        // Or if you want Intraday logic for holdings as per your previous message:
+                        // "User requested to use Intraday Fund for this" -> Let's stick to Intraday logic if specifically asked,
+                        // otherwise Holdings are naturally Overnight. 
+                        // Assuming you want Intraday check as per last specific instruction:
+                        const maxLimit = fundsData.intraday?.available_limit || 0;
+                        const usedLimit = fundsData.intraday?.used_limit || 0;
+                        const availableLimit = maxLimit - usedLimit;
+
+                        if (requiredAmount > availableLimit) {
+                            setFeedback({ 
+                                type: 'error', 
+                                message: `Insufficient Funds! Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availableLimit.toFixed(2)}` 
+                            });
+                            setSubmitting(false);
+                            return; 
+                        }
+                    } catch (fundErr) {
+                        setFeedback({ type: 'error', message: "Fund validation failed. Try again." });
+                        setSubmitting(false);
+                        return;
+                    }
                 }
             }
 
             const endpoint = `${apiBase.replace(/\/$/, "")}/api/orders/updateOrder`;
-            let payload = {};
             const basePayload = {
                 broker_id_str: brokerId,
                 customer_id_str: customerId,
@@ -135,30 +154,34 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 segment: segment,
             };
 
+            let payload = {};
+
             if (intendedAction === 'Adjust') {
-                // send computedAvg as price (2dp), computedQuantity as quantity, keep it HOLD
+                // *** BUY MORE / UPDATE SL-TARGET ***
                 payload = {
                     ...basePayload,
-                    lots: String(parsedNewLot),
-                    quantity: Number(computedQuantity),
+                    lots: String(targetTotalLots),
+                    quantity: Number(targetTotalQuantity),
                     price: Number(Number(computedAvg).toFixed(2)),
                     order_status: "HOLD",
+                    
+                    // --- SEND SL & TARGET ---
+                    stop_loss: slPrice ? Number(slPrice) : 0,
+                    target: targetPrice ? Number(targetPrice) : 0,
+
                     meta: { from: 'ui_holding_order_adjustment' }
                 };
 
             } else if (intendedAction === 'Close') {
-                // compute closed_ltp using jobbing formula (jobbin_price expected like 0.08 meaning 0.08%)
+                // *** EXIT LOGIC ***
                 const liveLtp = Number(sheetData?.ltp ?? 0);
                 const jobbingRaw = Number(selectedOrder.jobbin_price ?? jobbin_price ?? 0);
                 const jobbingPct = Number.isFinite(jobbingRaw) ? (jobbingRaw / 100) : 0;
 
                 let closedLtp = liveLtp || currentPrice || initialPrice || 0;
                 if (closedLtp > 0 && !Number.isNaN(jobbingPct) && jobbingPct !== 0) {
-                    if (orderSide === 'BUY') {
-                        closedLtp = closedLtp - (closedLtp * jobbingPct);
-                    } else {
-                        closedLtp = closedLtp + (closedLtp * jobbingPct);
-                    }
+                    if (orderSide === 'BUY') closedLtp = closedLtp - (closedLtp * jobbingPct);
+                    else closedLtp = closedLtp + (closedLtp * jobbingPct);
                 }
 
                 payload = {
@@ -171,16 +194,11 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                     came_From: 'Hold',
                     meta: { from: 'ui_holding_order_closure' }
                 };
-            } else {
-                throw new Error("Invalid action specified.");
             }
 
             const res = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                },
+                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify(payload)
             });
 
@@ -188,7 +206,7 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
             try { body = await res.json(); } catch (e) { body = null; }
 
             if (!res.ok) {
-                const message = body?.message || body?.error || res.statusText || `Server responded with ${res.status}`;
+                const message = body?.message || body?.error || `Server error: ${res.status}`;
                 throw new Error(message);
             }
 
@@ -197,11 +215,9 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
             }
 
             setFeedback({ type: 'success', message: body?.message || `${intendedAction} successful.` });
-
             try {
-                const updatedOrder = body?.order || null;
-                window.dispatchEvent(new CustomEvent('orders:changed', { detail: { order: updatedOrder } }));
-            } catch (e) { /* ignore */ }
+                window.dispatchEvent(new CustomEvent('orders:changed', { detail: { order: body?.order } }));
+            } catch (e) { }
 
             setTimeout(() => onClose(), 1000);
 
@@ -213,19 +229,11 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
         }
     };
 
-     const userString = localStorage.getItem('loggedInUser');
-  const userObject = userString ? JSON.parse(userString) : {}; // Agar null hai to empty object
-  const userRole = userObject.role;
-
     return (
         <div className="open-order-bottom-window fixed bottom-0 left-0 right-0 z-50 bg-[#121A2B] border-t border-white/10 shadow-2xl p-4 transition-transform duration-300">
             <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
-                <h3 className="text-xl text-white font-bold tracking-wide">
-                    {tradingsymbol} ({orderSide})
-                </h3>
-                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:text-white transition">
-                    <XCircle className="w-6 h-6" />
-                </button>
+                <h3 className="text-xl text-white font-bold tracking-wide">{tradingsymbol} ({orderSide})</h3>
+                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:text-white transition"><XCircle className="w-6 h-6" /></button>
             </div>
 
             {feedback && (
@@ -236,13 +244,8 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
             <div className="mb-4 flex justify-between items-end">
                 <div>
-                    <p className="text-xl font-bold">
-                        <span className="text-gray-300 mr-1">₹</span>
-                        <span className={pnlColor}>
-                            {formattedCMP}
-                        </span>
-                    </p>
-                    <p className="text-xs text-gray-500">Current Market Price (CMP)</p>
+                    <p className="text-xl font-bold"><span className="text-gray-300 mr-1">₹</span><span className={pnlColor}>{formattedCMP}</span></p>
+                    <p className="text-xs text-gray-500">Current Market Price</p>
                 </div>
                 <div className="text-right">
                     <p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p>
@@ -252,37 +255,72 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
             <div className="mb-4 p-2 bg-[#1A1F30] rounded-lg">
                 <DetailRow label="Quantity" value={`${initialQty} shares`} />
-                <DetailRow  label="lots" value={`${lots} lots`} />
-                <DetailRow  label="Avg. Buy Price" value={money(initialPrice)} colorClass="text-yellow-300" />
-                <DetailRow  label="type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
-                <DetailRow  label="order instant" value={product === 'MIS' ? 'Intraday' : 'Overnight'} colorClass="text-gray-300" />
-                <DetailRow  label="expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+                <DetailRow label="Lots" value={`${lots} lots`} />
+                <DetailRow label="Avg. Buy Price" value={money(initialPrice)} colorClass="text-yellow-300" />
+                <DetailRow label="Type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
+                <DetailRow label="Order Instant" value={product === 'MIS' ? 'Intraday' : 'Overnight'} colorClass="text-gray-300" />
+                <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
             </div>
 
             <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
-                <h4 className="text-lg font-semibold mb-3 text-white">Modify Holding</h4>
+                <h4 className="text-lg font-semibold mb-3 text-white">MODIFY HOLDING</h4>
 
                 <div className="space-y-3">
                     <div className="flex items-center space-x-2">
-                         <h6 className='text-lg font-semibold  text-white'>Lot</h6>
+                        <h6 className='text-lg font-semibold text-white'>Add Lot</h6>
                         <input
                             type="number"
-                            value={newLot}
-                            onChange={(e) => setNewLot(e.target.value)}
-                            placeholder="New Lots"
+                            value={addLotInput}
+                            onChange={(e) => setAddLotInput(e.target.value)}
+                            placeholder="Add Lots"
                             className="flex-1 p-2 bg-[#2A314A] text-white rounded-md transition"
                         />
-                        <div className="text-xs text-gray-400 italic">Lot size: <span className="font-medium text-white ml-1">{currentLotSize}</span></div>
+                        <div className="text-xs text-gray-400 italic">Size: <span className="font-medium text-white ml-1">{currentLotSize}</span></div>
                     </div>
 
-                    {/* Show computed avg price only (not editable) */}
-                   {userRole === 'broker' && <div className="flex items-center">
+
+
+                    {userRole === 'broker' && <div className="flex items-center">
                         <Hash className="w-5 h-5 text-gray-400 mr-2" />
                         <div className="w-full p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
-                            <span className="text-sm">Avg. Price</span>
+                            <span className="text-sm">New Avg. Price</span>
                             <span className="font-medium">{displayComputedAvg}</span>
                         </div>
                     </div>}
+
+                                        {/* --- SL & TARGET INPUTS --- */}
+                    <div className="flex space-x-2">
+                        {/* Stop Loss Input */}
+                        <div className="flex-1 flex items-center space-x-2 bg-[#2A314A] p-2 rounded-md">
+                            <AlertCircle className="w-4 h-4 text-red-400" />
+                            <div className="flex flex-col w-full">
+                                <span className="text-[10px] text-gray-400 uppercase">Stop Loss</span>
+                                <input 
+                                    type="number" 
+                                    value={slPrice}
+                                    onChange={(e) => setSlPrice(e.target.value)}
+                                    placeholder="0.00"
+                                    className="bg-transparent text-white font-medium focus:outline-none w-full"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Target Input */}
+                        <div className="flex-1 flex items-center space-x-2 bg-[#2A314A] p-2 rounded-md">
+                            <Target className="w-4 h-4 text-green-400" />
+                            <div className="flex flex-col w-full">
+                                <span className="text-[10px] text-gray-400 uppercase">Target</span>
+                                <input 
+                                    type="number" 
+                                    value={targetPrice}
+                                    onChange={(e) => setTargetPrice(e.target.value)}
+                                    placeholder="0.00"
+                                    className="bg-transparent text-white font-medium focus:outline-none w-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
@@ -292,7 +330,7 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                     disabled={submitting}
                     className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
                 >
-                    {submitting && action === 'Adjust' ? 'BUYING...' : 'BUY MORE'}
+                    {submitting && action === 'Adjust' ? 'BUY MORE / UPDATE' : 'BUY MORE / UPDATE'}
                 </button>
 
                 <button
