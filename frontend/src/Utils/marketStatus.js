@@ -88,3 +88,10 @@ export function isMarketOpen() {
   const now = new Date();
   return isTradingDay(now) && isMarketHours(now);
 }
+
+export function logMarketStatus() {
+  const istTime = getISTTime();
+  const open = isMarketOpen();
+  const timeStr = istTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  console.log(`[Market Status] ${open ? "🟢 OPEN" : "🔴 CLOSED"} | IST: ${timeStr}`);
+}

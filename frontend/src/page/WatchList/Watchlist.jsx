@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 import { Search, Trash2 } from "lucide-react";
 import BottomWindow from "./BottomWindow/BottomWindow";
 import { useMarketData } from "../../contexts/MarketDataContext.jsx";
-// Framer Motion Import
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import Toast from '../../Utils/Toast.jsx'
+import { logMarketStatus } from '../../Utils/marketStatus';
 
 
 // --- Index Card (Same as before) ---
@@ -172,6 +172,10 @@ function Watchlist() {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: "", type: "" }), 2500); // 2.5s fast toast
   };
+
+  useEffect(() => {
+    logMarketStatus();
+  }, []);
 
   // ... (formatInstruments function same)
   const formatInstruments = (instruments) => {
