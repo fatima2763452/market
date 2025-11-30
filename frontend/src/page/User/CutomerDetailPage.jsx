@@ -44,34 +44,34 @@ const AddCustomerModal = ({ isVisible, onClose, onCustomerAdded }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#21283D] p-6 shadow-2xl">
-        <h3 className="mb-4 text-lg font-bold text-white">Naya Customer Jodein</h3>
+      <div className="w-full max-w-md rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-6 shadow-2xl">
+        <h3 className="mb-4 text-lg font-bold text-[var(--text-primary)]">Naya Customer Jodein</h3>
         {message && (
           <p className={`mb-3 text-sm ${message.startsWith('❌') ? 'text-red-400' : 'text-green-400'}`}>
             {message}
           </p>
         )}
         <form onSubmit={handleAddSubmit} className="space-y-3">
-          <label className="block text-sm text-gray-300">
+          <label className="block text-sm text-[var(--text-secondary)]">
             <span className="mb-1 block font-medium">Customer Naam</span>
             <input
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full rounded-lg border border-white/10 bg-[#1A1F30] p-2 text-white outline-none focus:ring-2 focus:ring-indigo-600"
+              className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] p-2 text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-indigo-600"
               placeholder="Customer ka poora naam"
               required
               disabled={isSubmitting}
             />
           </label>
-          <label className="block text-sm text-gray-300">
+          <label className="block text-sm text-[var(--text-secondary)]">
             <span className="mb-1 block font-medium">Password</span>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full rounded-lg border border-white/10 bg-[#1A1F30] p-2 text-white outline-none focus:ring-2 focus:ring-indigo-600"
+              className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] p-2 text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-indigo-600"
               placeholder="Login Password set karein"
               required
               disabled={isSubmitting}
@@ -154,27 +154,27 @@ export default function CustomerDetailsPage() {
     navigate(`/watchlist?brokerId=${encodeURIComponent(brokerId10)}&customerId=${encodeURIComponent(customerId)}`);
   };
 
-  if (loading) return <div className="p-6 text-gray-400">Loading customers…</div>;
+  if (loading) return <div className="p-6 text-[var(--text-secondary)]">Loading customers…</div>;
 
   return (
-    <div className="min-h-screen bg-[#121626] p-4">
+    <div className="min-h-screen bg-[var(--bg-primary)] p-4">
       {/* Header */}
       <div className="mx-auto mb-4 flex w-full max-w-3xl items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">
-          Customers <span className="ml-2 text-sm font-semibold text-gray-400">({displayBrokerId})</span>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+          Customers <span className="ml-2 text-sm font-semibold text-[var(--text-secondary)]">({displayBrokerId})</span>
         </h1>
       </div>
 
       {/* List */}
       <div className="mx-auto w-full max-w-3xl space-y-4 pb-24">
         {customers.map((c) => (
-          <div key={c.id} className="rounded-xl border border-white/10 bg-[#1F2638] p-4 shadow-md transition hover:bg-[#242c42]">
+          <div key={c.id} className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 shadow-md transition hover:bg-[var(--bg-hover)]">
             <div className="flex items-start justify-between">
               <div className="text-sm font-semibold">
-                <span className="text-gray-400">ID:</span>{' '}
+                <span className="text-[var(--text-secondary)]">ID:</span>{' '}
                 <span className="text-[#8aa2ff]">{c.id}</span>
               </div>
-              <div className="text-right text-gray-200">{c.name}</div>
+              <div className="text-right text-[var(--text-primary)]">{c.name}</div>
             </div>
 
             <div className="mt-3 flex gap-2">
@@ -196,7 +196,7 @@ export default function CustomerDetailsPage() {
         ))}
 
         {!customers.length && !errText && (
-          <div className="rounded-xl border border-white/10 p-6 text-center text-gray-400">
+          <div className="rounded-xl border border-[var(--border-color)] p-6 text-center text-[var(--text-secondary)]">
             No customers found.
           </div>
         )}

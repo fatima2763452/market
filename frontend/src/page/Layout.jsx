@@ -4,7 +4,7 @@ import NavBar from "../components/NavBar";
 
 const Layout = ({ children }) => {
   return (
-    <div className="h-screen flex flex-col bg-[#121626] text-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden">
       <NavBar />
 
       {/* Content area scrolls normally */}

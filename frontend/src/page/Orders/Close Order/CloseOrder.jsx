@@ -24,11 +24,11 @@ const getOrderValues = (order) => {
 // --- Internal Component: DetailRow (Safe Icon Rendering) ---
 const DetailRow = ({ Icon, label, value, colorClass }) => (
     <div className="flex justify-between items-center py-0.5 px-2">
-        <div className="flex items-center text-gray-400">
+        <div className="flex items-center text-[var(--text-secondary)]">
             {Icon && <Icon className="w-3 h-3 mr-2" />}
             <span className="text-xs">{label}</span>
         </div>
-        <span className={`text-sm font-medium ${colorClass || "text-white"}`}>
+        <span className={`text-sm font-medium ${colorClass || "text-[var(--text-primary)]"}`}>
             {value}
         </span>
     </div>
@@ -152,13 +152,13 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
     };
 
     return (
-        <div className="open-order-bottom-window fixed bottom-0 left-0 right-0 z-50 bg-[#121A2B] border-t border-white/10 shadow-2xl p-4 transition-transform duration-300">
+        <div className="open-order-bottom-window fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-card)] border-t border-[var(--border-color)] shadow-2xl p-4 transition-transform duration-300">
             {/* Header */}
-            <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
-                <h3 className="text-xl text-white font-bold tracking-wide">
+            <div className="flex justify-between items-start mb-3 border-b border-[var(--border-color)] pb-2">
+                <h3 className="text-xl text-[var(--text-primary)] font-bold tracking-wide">
                     {tradingsymbol} ({orderSide})
                 </h3>
-                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:text-white transition">
+                <button onClick={onClose} className="p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition">
                     <XCircle className="w-6 h-6" />
                 </button>
             </div>
@@ -174,19 +174,19 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
             <div className="mb-4 flex justify-between items-end">
                 <div>
                     <p className="text-xl font-bold">
-                        <span className="text-gray-300 mr-1">₹</span>
+                        <span className="text-[var(--text-secondary)] mr-1">₹</span>
                         <span className={pnlColor}>{exitPrice.toFixed(2)}</span>
                     </p>
-                    <p className="text-xs text-gray-500">Exit Price</p>
+                    <p className="text-xs text-[var(--text-muted)]">Exit Price</p>
                 </div>
                 <div className="text-right">
                     <p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p>
-                    <p className="text-xs text-gray-500">Realized P&L</p>
+                    <p className="text-xs text-[var(--text-muted)]">Realized P&L</p>
                 </div>
             </div>
 
             {/* Details Grid (Compact) */}
-            <div className="mb-2 p-2 bg-[#1A1F30] rounded-md text-xs">
+            <div className="mb-2 p-2 bg-[var(--bg-secondary)] rounded-md text-xs">
                 <DetailRow Icon={ShoppingCart} label="Quantity" value={`${qty} shares`} />
                 <DetailRow Icon={Layers} label="Lots (Size)" value={`${lots ?? '-'} (${lot_size ?? '-'})`} />
                 <DetailRow Icon={DollarSign} label="Entry Price" value={money(entryPrice)} colorClass="text-yellow-300" />
@@ -202,7 +202,7 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
             <div className="flex space-x-2 mt-4">
                 <button
                     onClick={onClose}
-                    className="flex-1 p-3 rounded-lg bg-[#21283D] text-white font-semibold hover:bg-[#2A314A] transition border border-white/10"
+                    className="flex-1 p-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] font-semibold hover:bg-[var(--bg-hover)] transition border border-[var(--border-color)]"
                 >
                     Close
                 </button>
@@ -319,14 +319,14 @@ export default function ClosedOrder() {
 
                 {/* Right: Order List */}
                 <div>
-                    <h3 className="text-gray-400 text-sm mb-2">Closed Orders ({filteredOrders.length})</h3>
+                    <h3 className="text-[var(--text-secondary)] text-sm mb-2">Closed Orders ({filteredOrders.length})</h3>
 
                     {loader ? (
                         <div className="flex justify-center items-center py-8">
                             <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
                     ) : filteredOrders.length === 0 ? (
-                        <div className="text-gray-500 text-center py-8 text-sm italic">
+                        <div className="text-[var(--text-muted)] text-center py-8 text-sm italic">
                             No closed positions found.
                         </div>
                     ) : (
@@ -362,13 +362,13 @@ export default function ClosedOrder() {
                                 return (
                                     <li
                                         key={data._id || idx}
-                                        className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
+                                        className="relative bg-[var(--bg-card)] rounded-lg p-3 border border-[var(--border-color)] hover:bg-[var(--bg-hover)] transition cursor-pointer"
                                         onClick={() => handleOrderSelect(data)}
                                     >
                                         <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
 
                                         <div className="flex items-start justify-between">
-                                            <h4 className="text-white font-bold tracking-wide text-sm">
+                                            <h4 className="text-[var(--text-primary)] font-bold tracking-wide text-sm">
                                                 {tradingsymbol || '—'}
                                             </h4>
                                             <div className={`text-xs font-bold ${pnlColor}`}>{pctText}</div>
@@ -376,19 +376,19 @@ export default function ClosedOrder() {
 
                                         <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
                                             {/* Qty and Exit */}
-                                            <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
-                                            <div className="text-right text-gray-400">Exit: <span className="text-white font-semibold">{money(exitPrice)}</span></div>
+                                            <div className="text-[var(--text-secondary)]">Qty: <span className="text-[var(--text-primary)]">{qty}</span></div>
+                                            <div className="text-right text-[var(--text-secondary)]">Exit: <span className="text-[var(--text-primary)] font-semibold">{money(exitPrice)}</span></div>
 
                                             {/* Lots and Avg */}
-                                            <div className="text-gray-400">
-                                                Lots: <span className="text-white">{data.lots ?? '-'}</span>
-                                                <span className="text-gray-500 ml-1 text-[10px]">({data.lot_size ?? '-'})</span>
+                                            <div className="text-[var(--text-secondary)]">
+                                                Lots: <span className="text-[var(--text-primary)]">{data.lots ?? '-'}</span>
+                                                <span className="text-[var(--text-muted)] ml-1 text-[10px]">({data.lot_size ?? '-'})</span>
                                             </div>
-                                            <div className="text-right text-gray-400">Avg: <span className="text-white">{money(entryPrice)}</span></div>
+                                            <div className="text-right text-[var(--text-secondary)]">Avg: <span className="text-[var(--text-primary)]">{money(entryPrice)}</span></div>
 
                                             {/* Total P&L Row */}
-                                            <div className="col-span-2 text-right pt-1 mt-1 border-t border-white/5">
-                                                <span className="text-gray-400 mr-2">Total P&L:</span>
+                                            <div className="col-span-2 text-right pt-1 mt-1 border-t border-[var(--border-color)]">
+                                                <span className="text-[var(--text-secondary)] mr-2">Total P&L:</span>
                                                 <span className={`${pnlColor} font-semibold text-sm`}>{money(pnl)}</span>
                                             </div>
                                         </div>

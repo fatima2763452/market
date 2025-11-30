@@ -143,9 +143,9 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
   const showNumberInput = range === "day" || range === "month" || range === "year";
 
   return (
-    <div className="w-full md:w-80 bg-[#0f1724] border border-white/6 rounded-lg p-3 space-y-3">
+    <div className="w-full md:w-80 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg p-3 space-y-3">
       <div>
-        <label className="text-xs text-gray-400">Range</label>
+        <label className="text-xs text-[var(--text-secondary)]">Range</label>
         <select
           value={range}
           onChange={(e) => {
@@ -153,7 +153,7 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
             setSelectedExpiredSymbol("");
             setNValue(1);
           }}
-          className="w-full mt-1 p-2 bg-[#0b1220] border border-white/6 rounded text-sm text-white"
+          className="w-full mt-1 p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
         >
           {RANGE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
@@ -166,16 +166,16 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
       {/* show number input only for day/month/year */}
       {showNumberInput && (
         <div>
-          <label className="text-xs text-gray-400">Number (units back from today)</label>
+          <label className="text-xs text-[var(--text-secondary)]">Number (units back from today)</label>
           <input
             type="number"
             min="1"
             value={nValue}
             onChange={(e) => setNValue(e.target.value)}
-            className="w-full mt-1 p-2 bg-[#0b1220] border border-white/6 rounded text-sm text-white"
+            className="w-full mt-1 p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
             placeholder="1"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-[var(--text-muted)] mt-1">
             For Day/Month/Year: choose how many units back from today.
           </p>
         </div>
@@ -184,11 +184,11 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
       {/* show expired symbols dropdown only for expiry range */}
       {range === "expiry" && (
         <div>
-          <label className="text-xs text-gray-400">Expired Symbol (expiry ≤ today)</label>
+          <label className="text-xs text-[var(--text-secondary)]">Expired Symbol (expiry ≤ today)</label>
           <select
             value={selectedExpiredSymbol}
             onChange={(e) => setSelectedExpiredSymbol(e.target.value)}
-            className="w-full mt-1 p-2 bg-[#0b1220] border border-white/6 rounded text-sm text-white"
+            className="w-full mt-1 p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
           >
             <option value="">— All expired symbols —</option>
             {expiredSymbols.map((s) => (
@@ -197,7 +197,7 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
               </option>
             ))}
           </select>
-          {/* <p className="text-xs text-gray-500 mt-1">Select a symbol and click Apply to show only expired orders for that symbol.</p> */}
+          {/* <p className="text-xs text-[var(--text-muted)] mt-1">Select a symbol and click Apply to show only expired orders for that symbol.</p> */}
         </div>
       )}
 
@@ -210,14 +210,14 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
         </button>
         <button
           onClick={resetFilter}
-          className="flex-1 p-2 bg-transparent border border-white/6 rounded text-sm text-white/80 hover:bg-white/5"
+          className="flex-1 p-2 bg-transparent border border-[var(--border-color)] rounded text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
         >
           Reset
         </button>
       </div>
 
-      <div className="text-xs text-gray-400 mt-2">
-        {/* Tip: <span className="text-white">All</span> shows everything. For <span className="text-white">Today</span> or <span className="text-white">Expiry</span> the number input is hidden. */}
+      <div className="text-xs text-[var(--text-muted)] mt-2">
+        {/* Tip: <span className="text-[var(--text-primary)]">All</span> shows everything. For <span className="text-[var(--text-primary)]">Today</span> or <span className="text-[var(--text-primary)]">Expiry</span> the number input is hidden. */}
       </div>
     </div>
   );

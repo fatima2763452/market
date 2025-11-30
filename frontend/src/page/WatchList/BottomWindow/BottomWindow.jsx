@@ -118,16 +118,16 @@ function BottomWindow({
       case 'OptionChain':
         // Just show a placeholder, actual modal is rendered separately
         return (
-          <div className="p-8 text-center text-white/70">
+          <div className="p-8 text-center text-[var(--text-secondary)]">
             <TrendingDown className="w-12 h-12 inline mb-4 text-indigo-400" />
-            <p className="text-sm text-gray-400">Click to open fullscreen option chain</p>
+            <p className="text-sm text-[var(--text-secondary)]">Click to open fullscreen option chain</p>
           </div>
         );
 
       case 'Chart':
         return (
-          <div className="p-4 text-center text-white/70 bg-[#1A1F30] rounded-lg h-96 flex flex-col items-center justify-center">
-            <p className="mb-3 text-sm text-gray-400">View detailed chart with full controls</p>
+          <div className="p-4 text-center text-[var(--text-secondary)] bg-[var(--bg-secondary)] rounded-lg h-96 flex flex-col items-center justify-center">
+            <p className="mb-3 text-sm text-[var(--text-secondary)]">View detailed chart with full controls</p>
             <button
               onClick={() => {
                 const segment = selectedStock.segment;
@@ -168,13 +168,13 @@ function BottomWindow({
       ></div>
 
       {/*Bottom Sheet Window */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#2A314A] shadow-2xl z-50 rounded-t-xl transition-all duration-300 ease-in-out md:max-w-xs md:left-auto md:right-4 md:bottom-4 md:rounded-xl flex flex-col max-h-[95vh]">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-[var(--bg-card)] shadow-2xl z-50 rounded-t-xl transition-all duration-300 ease-in-out md:max-w-xs md:left-auto md:right-4 md:bottom-4 md:rounded-xl flex flex-col max-h-[95vh]">
 
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3 flex-shrink-0">
+        <div className="flex justify-between items-center mb-4 border-b border-[var(--border-color)] pb-3 flex-shrink-0">
           <div className="flex items-center space-x-2 flex-1 min-w-0">
-            <h3 className="text-white text-xl font-bold truncate">
+            <h3 className="text-[var(--text-primary)] text-xl font-bold truncate">
               {selectedStock.name || selectedStock.tradingSymbol}
             </h3>
             {/* Data Quality Badge */}
@@ -194,7 +194,7 @@ function BottomWindow({
           <div className="flex items-center space-x-2">
             {onAddToWatchlist && (
               <button
-                className="text-gray-400 hover:text-white transition"
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
                 onClick={() => onAddToWatchlist(selectedStock)}
                 title="Add to watchlist"
               >
@@ -211,7 +211,7 @@ function BottomWindow({
               </button>
             )} */}
             <button
-              className="text-gray-400 hover:text-white transition"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
               onClick={() => setSelectedStock(null)}
             >
               <X className="w-6 h-6" />
@@ -223,7 +223,7 @@ function BottomWindow({
         <div className="flex-grow overflow-y-auto pr-1">{renderView()}</div>
 
         {/* Bottom Navigation Tabs */}
-        <div className="flex items-center space-x-1 border-t border-white/10 mt-2 pt-2">
+        <div className="flex items-center space-x-1 border-t border-[var(--border-color)] mt-2 pt-2">
           {navItems.map((item) => (
             <button
               key={item.mode}
@@ -243,7 +243,7 @@ function BottomWindow({
               className={`flex-1 flex flex-col items-center p-2 rounded-lg transition text-xs font-semibold ${
                 viewMode === item.mode
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-[#333846] text-gray-400 hover:text-white'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               <item.icon className="w-4 h-4 mb-0.5" />

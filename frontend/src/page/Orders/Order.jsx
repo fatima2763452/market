@@ -42,7 +42,7 @@ export default function Order() {
   }, [active]);
 
   return (
-    <div className="bg-[#0b1020] text-white p-4 min-h-screen">
+    <div className="bg-[var(--bg-primary)] text-[var(--text-primary)] p-4 min-h-screen">
       <h2 className="text-lg md:text-xl font-semibold text-[26px] mb-2">Orders</h2>
       {/* Tabs with top indicator */}
       <div className="relative">
@@ -63,7 +63,7 @@ export default function Order() {
                 ref={el => (pillRefs.current[t.key] = el)}
                 onClick={() => setActive(t.key)}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-semibold transition flex items-center
-                  ${isActive ? "bg-fuchsia-600 text-white" : "bg-[#111827] text-gray-300 hover:bg-[#1a2337]"}`}
+                  ${isActive ? "bg-fuchsia-600 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"}`}
               >
                 {t.icon && <span className="mr-1">{t.icon}</span>}
                 {t.label} <span className="ml-1 opacity-90"></span>

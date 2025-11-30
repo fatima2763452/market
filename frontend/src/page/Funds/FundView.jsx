@@ -8,7 +8,7 @@ const Tab = ({ active, label, onClick }) => (
   <button
     onClick={onClick}
     className={`px-4 py-1 rounded-full text-sm font-semibold ${
-      active ? "bg-fuchsia-600 text-white" : "bg-[#1f2435] text-gray-300 hover:bg-[#2a3145]"
+      active ? "bg-fuchsia-600 text-white" : "bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
     }`}
   >
     {label}
@@ -102,22 +102,22 @@ export default function FundsView() {
   if (loading && !fundsData) return <div className="p-10 text-center text-gray-500">Loading Funds...</div>;
 
   return (
-    <div className="p-4 space-y-5 bg-[#0b1020] min-h-screen pb-24 relative">
+    <div className="p-4 space-y-5 bg-[var(--bg-primary)] min-h-screen pb-24 relative">
 
       {/* Top Card: Balance */}
-      <div className="bg-[#121a2b] p-4 rounded-xl border border-indigo-500/50 relative">
-        <h3 className="text-gray-400 text-sm mb-1 font-semibold">Net Available Balance (Cash)</h3>
+      <div className="bg-[var(--bg-secondary)] p-4 rounded-xl border border-indigo-500/50 relative">
+        <h3 className="text-[var(--text-secondary)] text-sm mb-1 font-semibold">Net Available Balance (Cash)</h3>
         <div className="flex items-center gap-3">
             {isEditing ? (
                 <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xl text-gray-400 font-bold">₹</span>
-                    <input type="number" value={tempBalance} onChange={(e) => setTempBalance(e.target.value)} className="bg-[#1f2435] text-white text-xl font-bold p-1 rounded border border-indigo-500/50 w-48 focus:outline-none" autoFocus />
+                    <span className="text-2xl text-[var(--text-secondary)] font-bold">₹</span>
+                    <input type="number" value={tempBalance} onChange={(e) => setTempBalance(e.target.value)} className="bg-[var(--bg-card)] text-[var(--text-primary)] text-xl font-bold p-1 rounded border border-indigo-500/50 w-48 focus:outline-none" autoFocus />
                     <button onClick={handleUpdateBalance} disabled={updating} className="p-1.5 bg-green-600/20 text-green-400 rounded hover:bg-green-600/40 transition"><Check size={20} /></button>
                     <button onClick={() => setIsEditing(false)} className="p-1.5 bg-red-600/20 text-red-400 rounded hover:bg-red-600/40 transition"><X size={20} /></button>
                 </div>
             ) : (
                 <div className="flex items-center gap-3">
-                    <p className="text-3xl font-extrabold text-white">{formatCurrency(d.net_available_balance)}</p>
+                    <p className="text-3xl font-extrabold text-[var(--text-primary)]">{formatCurrency(d.net_available_balance)}</p>
                     {userRole === 'broker' && (
                         <button onClick={() => { setTempBalance(d.net_available_balance); setIsEditing(true); }} className="text-gray-500 hover:text-indigo-400 transition p-1 rounded-full hover:bg-white/5"><Pencil size={16} /></button>
                     )}
@@ -139,24 +139,24 @@ export default function FundsView() {
 
       {/* --- BROKER: Set Number --- */}
       {userRole === 'broker' && (
-        <div className="bg-[#121a2b] p-4 rounded-xl shadow-inner border border-white/10 mt-6">
-            <h3 className="text-white text-lg font-bold mb-3 border-b border-white/10 pb-2 flex items-center">
+        <div className="bg-[var(--bg-secondary)] p-4 rounded-xl shadow-inner border border-[var(--border-color)] mt-6">
+            <h3 className="text-[var(--text-primary)] text-lg font-bold mb-3 border-b border-[var(--border-color)] pb-2 flex items-center">
                  <Smartphone className="w-5 h-5 mr-2 text-blue-400" /> Support Contact
             </h3>
             <div className="flex justify-between items-center py-2">
-                <div className="flex items-center text-gray-400 text-sm">
+                <div className="flex items-center text-[var(--text-secondary)] text-sm">
                     <Phone className="w-4 h-4 mr-2 text-indigo-400" /> Broker Mobile Number
                 </div>
                 <div className="flex items-center gap-2">
                     {isMobileEditing ? (
                         <>
-                            <input type="number" value={mobileInput} onChange={(e) => setMobileInput(e.target.value)} className="bg-[#1f2435] text-white text-sm font-bold p-1 rounded border border-indigo-500/50 w-32 focus:outline-none" autoFocus placeholder="Enter Number" />
+                            <input type="number" value={mobileInput} onChange={(e) => setMobileInput(e.target.value)} className="bg-[var(--bg-card)] text-[var(--text-primary)] text-sm font-bold p-1 rounded border border-indigo-500/50 w-32 focus:outline-none" autoFocus placeholder="Enter Number" />
                             <button onClick={handleSaveMobile} disabled={mobileUpdating} className="p-1 bg-green-600/20 text-green-400 rounded hover:bg-green-600/40 transition"><Check size={16} /></button>
                             <button onClick={() => setIsMobileEditing(false)} className="p-1 bg-red-600/20 text-red-400 rounded hover:bg-red-600/40 transition"><X size={16} /></button>
                         </>
                     ) : (
                         <>
-                            <span className="text-white font-bold text-base tracking-wider">{mobileInput || "Not Set"}</span>
+                            <span className="text-[var(--text-primary)] font-bold text-base tracking-wider">{mobileInput || "Not Set"}</span>
                             <button onClick={() => setIsMobileEditing(true)} className="text-gray-600 hover:text-indigo-400 transition p-1"><Pencil size={14} /></button>
                         </>
                     )}
@@ -180,17 +180,17 @@ export default function FundsView() {
       {/* --- CUSTOMER POPUP --- */}
       {showPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center relative transform transition-all scale-100">
+            <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center relative transform transition-all scale-100">
                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Phone className="w-8 h-8 text-blue-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Add Fund Request</h3>
-                <p className="text-gray-300 text-sm mb-6">
+                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">Add Fund Request</h3>
+                <p className="text-[var(--text-secondary)] text-sm mb-6">
                     To add funds to your wallet, please contact your broker at this number:
                 </p>
-                <div className="bg-[#0f172a] p-4 rounded-lg border border-white/5 mb-6">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Broker Contact</p>
-                    <p className="text-2xl font-mono font-bold text-white tracking-wide select-all">{d.broker_phone}</p>
+                <div className="bg-[var(--bg-primary)] p-4 rounded-lg border border-[var(--border-color)] mb-6">
+                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Broker Contact</p>
+                    <p className="text-2xl font-mono font-bold text-[var(--text-primary)] tracking-wide select-all">{d.broker_phone}</p>
                 </div>
                 <button 
                     onClick={() => setShowPopup(false)}

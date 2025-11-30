@@ -153,7 +153,7 @@ const OptionStrikeBottomWindow = ({
     };
 
     const getProductTypeClass = (mode) => {
-        if (productType !== mode) return 'bg-[#1A1F30] text-gray-400';
+        if (productType !== mode) return 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]';
         return actionTab === 'Buy' ? 'bg-green-600 text-white' : 'bg-red-600 text-white';
     };
 
@@ -166,41 +166,41 @@ const OptionStrikeBottomWindow = ({
             />
 
             {/* Bottom Sheet */}
-            <div className="fixed bottom-0 left-0 right-0 bg-[#1A1F30] z-[120] rounded-t-2xl max-h-[85vh] overflow-y-auto animate-slide-up">
+            <div className="fixed bottom-0 left-0 right-0 bg-[var(--bg-card)] z-[120] rounded-t-2xl max-h-[85vh] overflow-y-auto animate-slide-up">
                 
                 {/* Header */}
-                <div className="sticky top-0 bg-[#1A1F30] px-4 py-3 border-b border-white/10">
+                <div className="sticky top-0 bg-[var(--bg-card)] px-4 py-3 border-b border-[var(--border-color)]">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-white font-bold text-lg">{instrumentName}</h2>
-                            <p className="text-gray-500 text-xs">{formatExpiry(expiry)}</p>
+                            <h2 className="text-[var(--text-primary)] font-bold text-lg">{instrumentName}</h2>
+                            <p className="text-[var(--text-muted)] text-xs">{formatExpiry(expiry)}</p>
                         </div>
                         <button 
                             onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition"
+                            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition"
                         >
-                            <X className="w-5 h-5 text-gray-400" />
+                            <X className="w-5 h-5 text-[var(--text-secondary)]" />
                         </button>
                     </div>
                 </div>
 
                 {/* Price Bar */}
-                <div className="px-4 py-3 bg-[#141B2D] border-b border-white/10">
+                <div className="px-4 py-3 bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
                     <div className="flex justify-between items-center">
                         <div className="text-center flex-1">
-                            <p className="text-gray-500 text-[10px] uppercase">Bid</p>
+                            <p className="text-[var(--text-muted)] text-[10px] uppercase">Bid</p>
                             <p className="text-green-400 font-semibold text-sm">
                                 {bestBid ? `₹${Number(bestBid).toFixed(2)}` : '—'}
                             </p>
                         </div>
-                        <div className="text-center flex-1 border-x border-white/10 px-4">
-                            <p className="text-gray-500 text-[10px] uppercase">LTP</p>
+                        <div className="text-center flex-1 border-x border-[var(--border-color)] px-4">
+                            <p className="text-[var(--text-muted)] text-[10px] uppercase">LTP</p>
                             <p className="text-yellow-400 font-bold text-lg">
                                 {ltp ? `₹${Number(ltp).toFixed(2)}` : '—'}
                             </p>
                         </div>
                         <div className="text-center flex-1">
-                            <p className="text-gray-500 text-[10px] uppercase">Ask</p>
+                            <p className="text-[var(--text-muted)] text-[10px] uppercase">Ask</p>
                             <p className="text-red-400 font-semibold text-sm">
                                 {bestAsk ? `₹${Number(bestAsk).toFixed(2)}` : '—'}
                             </p>
@@ -217,7 +217,7 @@ const OptionStrikeBottomWindow = ({
                             className={`flex-1 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-1 ${
                                 actionTab === 'Buy' 
                                     ? 'bg-green-600 text-white' 
-                                    : 'bg-[#252B3B] text-gray-400'
+                                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
                             }`}
                             onClick={() => setActionTab('Buy')}
                         >
@@ -227,7 +227,7 @@ const OptionStrikeBottomWindow = ({
                             className={`flex-1 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-1 ${
                                 actionTab === 'Sell' 
                                     ? 'bg-red-600 text-white' 
-                                    : 'bg-[#252B3B] text-gray-400'
+                                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
                             }`}
                             onClick={() => setActionTab('Sell')}
                         >
@@ -237,7 +237,7 @@ const OptionStrikeBottomWindow = ({
 
                     {/* Product Type */}
                     <div>
-                        <p className="text-gray-500 text-xs mb-2">Product Type</p>
+                        <p className="text-[var(--text-muted)] text-xs mb-2">Product Type</p>
                         <div className="flex gap-2">
                             <button 
                                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${getProductTypeClass('Intraday')}`}
@@ -256,31 +256,31 @@ const OptionStrikeBottomWindow = ({
 
                     {/* Quantity Input */}
                     <div>
-                        <p className="text-gray-500 text-xs mb-2">Quantity (Lots)</p>
+                        <p className="text-[var(--text-muted)] text-xs mb-2">Quantity (Lots)</p>
                         <input
                             ref={inputRef}
                             type="number"
                             value={localLotsStr}
                             onChange={handleInputChange}
                             placeholder="Enter lots"
-                            className="w-full p-3 bg-[#252B3B] text-white rounded-lg text-center text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-white/10"
+                            className="w-full p-3 bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-lg text-center text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-[var(--border-color)]"
                             min="1"
                         />
                         <div className="flex justify-between mt-2 text-xs">
-                            <span className="text-gray-500">
-                                Lot size: <span className="text-white">{lotSize}</span>
+                            <span className="text-[var(--text-muted)]">
+                                Lot size: <span className="text-[var(--text-primary)]">{lotSize}</span>
                             </span>
-                            <span className="text-gray-500">
-                                Qty: <span className="text-white">{qtyNum} shares</span>
+                            <span className="text-[var(--text-muted)]">
+                                Qty: <span className="text-[var(--text-primary)]">{qtyNum} shares</span>
                             </span>
                         </div>
                     </div>
 
                     {/* Required Funds */}
-                    <div className="bg-[#252B3B] rounded-lg p-3">
+                    <div className="bg-[var(--bg-secondary)] rounded-lg p-3 border border-[var(--border-color)]">
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-400 text-sm">Required Funds</span>
-                            <span className="text-white font-bold text-lg">
+                            <span className="text-[var(--text-secondary)] text-sm">Required Funds</span>
+                            <span className="text-[var(--text-primary)] font-bold text-lg">
                                 {requiredFunds ? `₹${requiredFunds.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                             </span>
                         </div>
@@ -316,7 +316,7 @@ const OptionStrikeBottomWindow = ({
                         </button>)}
                         <button
                             onClick={onClose}
-                            className="w-full py-3 rounded-lg bg-[#252B3B] text-gray-300 font-medium transition hover:bg-[#333846]"
+                            className="w-full py-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-secondary)] font-medium transition hover:bg-[var(--bg-hover)]"
                         >
                             Cancel
                         </button>
