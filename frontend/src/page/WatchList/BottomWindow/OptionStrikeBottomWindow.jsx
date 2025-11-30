@@ -1,128 +1,210 @@
-// OptionStrikeBottomWindow.jsx - Bottom sheet for trading individual option strikes
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { X, ShoppingCart, DollarSign } from 'lucide-react';
+import { X, ShoppingCart, DollarSign, Hash } from 'lucide-react';
 import { logMarketStatus } from '../../../Utils/marketStatus.js'
-
+import { getFundsData } from '../../../Utils/fetchFund.jsx'; 
 
 const OptionStrikeBottomWindow = ({
     isOpen,
     onClose,
     optionType,          // 'CE' | 'PE'
-    strikePrice,         // Number - e.g., 24250
-    strikeData,          // Object - { ltp, bid, ask, oi, vol, iv, ... }
-    underlyingStock,     // Object - parent stock info
-    spotPrice,           // Number - underlying spot price
-    expiry,              // String - expiry date
+    strikePrice,         // Number
+    strikeData,          // Object (LTP etc.)
+    underlyingStock,     // Object (Parent Info)
+    spotPrice,           // Number
+    expiry,              // String
 }) => {
-    // Local states
+    // --- Local States ---
     const [actionTab, setActionTab] = useState('Buy');
     const [productType, setProductType] = useState('Intraday');
     const [localLotsStr, setLocalLotsStr] = useState('1');
+    const [jobbin_price, setJobbin_price] = useState("0.08");
+    
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
     const inputRef = useRef(null);
 
+    // --- Context & Role ---
     const isMarketOpen = logMarketStatus();
-
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role;
 
-
-    // Extract values (moved before hooks that depend on them)
+    // --- Derived Values ---
     const ltp = strikeData?.ltp || 0;
     const bestBid = strikeData?.bid || 0;
     const bestAsk = strikeData?.ask || 0;
-    const lotSize = underlyingStock?.lot_size || underlyingStock?.lotSize || 50;
+    
+    // Lot Size
+    const lotSize = underlyingStock?.lot_size || underlyingStock?.lotSize || 50; 
 
-    // Reset state when strike changes
+    // Reset on Open
     useEffect(() => {
         if (isOpen) {
             setLocalLotsStr('1');
             setFeedback(null);
             setActionTab('Buy');
+            setProductType('Intraday');
         }
     }, [isOpen, strikePrice, optionType]);
 
-    // Calculations - ALL useMemo hooks must be called before any early return
+    // --- Calculations ---
     const lotsNum = useMemo(() => {
         const n = Number(localLotsStr);
         return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
     }, [localLotsStr]);
 
-    const qtyNum = useMemo(() => {
-        return lotsNum * lotSize;
-    }, [lotsNum, lotSize]);
+    const qtyNum = useMemo(() => lotsNum * lotSize, [lotsNum, lotSize]);
 
-    const requiredFunds = useMemo(() => {
-        if (!ltp || !qtyNum) return 0;
-        return ltp * qtyNum;
-    }, [ltp, qtyNum]);
+    const jobbinPct = useMemo(() => {
+        const v = parseFloat(String(jobbin_price).trim());
+        return Number.isFinite(v) ? v / 100 : 0;
+    }, [jobbin_price]);
 
-    // Don't render if not open - MUST be after ALL hooks
+    const { adjustedPricePerShare } = useMemo(() => {
+        if (!ltp) return { adjustedPricePerShare: 0 };
+        const perShareFactor = actionTab === 'Buy' ? (1 + jobbinPct) : (1 - jobbinPct);
+        const pxRaw = ltp * perShareFactor;
+        return { adjustedPricePerShare: Number(pxRaw.toFixed(4)) };
+    }, [ltp, actionTab, jobbinPct]);
+
+    const totalOrderValue = useMemo(() => {
+        if (!adjustedPricePerShare || !qtyNum) return 0;
+        return Number((adjustedPricePerShare * qtyNum).toFixed(2));
+    }, [adjustedPricePerShare, qtyNum]);
+
     if (!isOpen) return null;
 
-    // Format instrument name
-    const instrumentName = `${underlyingStock?.name || underlyingStock?.tradingSymbol || 'OPTION'} ${strikePrice} ${optionType}`;
+    // --- Name Construction (Symbol) ---
+    // Format: SYMBOL + EXPIRY + STRIKE + TYPE (e.g. MARUTI 30 DEC 16500 CALL)
+    const getInstrumentName = () => {
+        if (strikeData?.tradingSymbol) return strikeData.tradingSymbol;
 
-    // Format expiry
-    const formatExpiry = (dateStr) => {
+        const symbol = underlyingStock?.tradingSymbol || underlyingStock?.symbol || "UNKNOWN";
+        let expiryStr = "";
+        if (expiry) {
+            try {
+                const d = new Date(expiry);
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
+                expiryStr = `${day} ${month}`;
+            } catch(e){}
+        }
+        const typeStr = (optionType === 'CE' || optionType === 'CALL') ? 'CALL' : 'PUT';
+        return `${symbol} ${expiryStr} ${strikePrice} ${typeStr}`.trim();
+    };
+    const instrumentName = getInstrumentName();
+
+    const formatExpiryFull = (dateStr) => {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch(e) { return dateStr; }
     };
 
-    // Handlers
     const handleInputChange = (e) => {
         setLocalLotsStr(e.target.value);
         setFeedback(null);
     };
 
+    // --- CONFIRM ORDER HANDLER ---
     const handleConfirm = async () => {
-        if (!lotsNum || lotsNum < 1) {
-            setFeedback({ type: 'error', message: 'Please enter a valid lot count.' });
-            return;
-        }
-
-        // Parse activeContext
-        const activeContextString = localStorage.getItem('activeContext');
-        const activeContext = activeContextString ? JSON.parse(activeContextString) : null;
-        const brokerId = activeContext?.brokerId || '';
-        const customerId = activeContext?.customerId || '';
-
-        const side = actionTab === 'Buy' ? 'BUY' : 'SELL';
-        const product = productType === 'Intraday' ? 'MIS' : 'NRML';
-
-        const payload = {
-            broker_id_str: brokerId,
-            customer_id_str: customerId,
-            security_Id: strikeData?.securityId || '',
-            symbol: `${underlyingStock?.tradingSymbol || ''}${strikePrice}${optionType}`,
-            segment: underlyingStock?.segment || 'NSE_FNO',
-            side,
-            product,
-            price: Number(ltp),
-            quantity: qtyNum,
-            lots: lotsNum,
-            lot_size: lotSize,
-            strike: strikePrice,
-            optionType: optionType,
-            expire: expiry || '',
-            meta: { 
-                from: 'ui_option_chain', 
-                underlying: underlyingStock?.name,
-                spotPrice: spotPrice
-            }
-        };
-
-        console.log('Option Order payload:', payload);
-
         setSubmitting(true);
         setFeedback(null);
 
-        const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
-
         try {
+            // 1. Input Validation
+            if (!lotsNum || lotsNum < 1) {
+                setFeedback({ type: 'error', message: 'Please enter a valid lot count.' });
+                setSubmitting(false);
+                return;
+            }
+
+            // 2. ID Validation (Use Strike Price as requested)
+            // --- ERROR FIX IS HERE: Use strikePrice directly ---
+            const finalSecurityId = String(strikePrice);
+
+            if (!finalSecurityId || finalSecurityId === "0") {
+                setFeedback({ type: 'error', message: "Invalid Strike Price / Security ID." });
+                setSubmitting(false);
+                return;
+            }
+
+            // 3. Fund Validation
+            try {
+                const fundsData = await getFundsData();
+                if (!fundsData) throw new Error("Unable to fetch wallet balance.");
+
+                const requiredAmount = Number(totalOrderValue);
+                let availableLimit = 0;
+                
+                if (productType === 'Intraday') {
+                    // Intraday Free = Available - Used
+                    availableLimit = (fundsData.intraday?.available_limit || 0) - (fundsData.intraday?.used_limit || 0);
+                } else {
+                    availableLimit = fundsData.overnight?.available_limit || 0;
+                }
+
+                if (requiredAmount > availableLimit) {
+                    setFeedback({
+                        type: 'error',
+                        message: `Insufficient Funds! Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availableLimit.toFixed(2)}.`
+                    });
+                    setSubmitting(false);
+                    return; 
+                }
+            } catch (fundErr) {
+                setFeedback({ type: 'error', message: "Fund validation failed. Try again." });
+                setSubmitting(false);
+                return;
+            }
+
+            // 4. Prepare Payload
+            const activeContextString = localStorage.getItem('activeContext');
+            const activeContext = activeContextString ? JSON.parse(activeContextString) : null;
+            const brokerId = activeContext?.brokerId || '';
+            const customerId = activeContext?.customerId || '';
+
+            const side = actionTab === 'Buy' ? 'BUY' : 'SELL';
+            const product = productType === 'Intraday' ? 'MIS' : 'NRML';
+            const finalPrice = adjustedPricePerShare || ltp;
+
+            const payload = {
+                broker_id_str: brokerId,
+                customer_id_str: customerId,
+                
+                // Aapki Request: Security ID ki jagah Strike Price bhej rahe hain
+                security_Id: finalSecurityId, 
+                
+                symbol: instrumentName, 
+                segment: 'NSE_FNO', 
+
+                side,
+                product,
+                price: Number(finalPrice),
+                quantity: qtyNum,
+                lots: lotsNum,
+                lot_size: lotSize,
+                
+                // Mapping Jobbing Price
+                jobbin_price: jobbin_price === '' ? 0 : Number(jobbin_price), 
+                
+                order_status: "OPEN",
+                
+                meta: { 
+                    from: 'ui_option_chain', 
+                    underlying: underlyingStock?.name,
+                    expiry: expiry,
+                    spotPrice: spotPrice
+                },
+                
+                placed_at: new Date()
+            };
+
+            console.log('Option Order Payload:', payload);
+            
+            const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+            
             const res = await fetch(`${apiBase}/api/orders/postOrder`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -137,12 +219,8 @@ const OptionStrikeBottomWindow = ({
                 throw new Error(message);
             }
 
-            console.log('Option Order successful:', body);
             setFeedback({ type: 'success', message: 'Order placed successfully!' });
-
-            setTimeout(() => {
-                onClose();
-            }, 1500);
+            setTimeout(() => { onClose(); }, 1500);
 
         } catch (err) {
             console.error('Option Order failed:', err);
@@ -159,13 +237,7 @@ const OptionStrikeBottomWindow = ({
 
     return (
         <>
-            {/* Backdrop */}
-            <div 
-                className="fixed inset-0 bg-black/60 z-[110]"
-                onClick={onClose}
-            />
-
-            {/* Bottom Sheet */}
+            <div className="fixed inset-0 bg-black/60 z-[110]" onClick={onClose} />
             <div className="fixed bottom-0 left-0 right-0 bg-[#1A1F30] z-[120] rounded-t-2xl max-h-[85vh] overflow-y-auto animate-slide-up">
                 
                 {/* Header */}
@@ -173,12 +245,9 @@ const OptionStrikeBottomWindow = ({
                     <div className="flex items-center justify-between">
                         <div>
                             <h2 className="text-white font-bold text-lg">{instrumentName}</h2>
-                            <p className="text-gray-500 text-xs">{formatExpiry(expiry)}</p>
+                            <p className="text-gray-500 text-xs">{formatExpiryFull(expiry)}</p>
                         </div>
-                        <button 
-                            onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition"
-                        >
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition">
                             <X className="w-5 h-5 text-gray-400" />
                         </button>
                     </div>
@@ -189,21 +258,15 @@ const OptionStrikeBottomWindow = ({
                     <div className="flex justify-between items-center">
                         <div className="text-center flex-1">
                             <p className="text-gray-500 text-[10px] uppercase">Bid</p>
-                            <p className="text-green-400 font-semibold text-sm">
-                                {bestBid ? `₹${Number(bestBid).toFixed(2)}` : '—'}
-                            </p>
+                            <p className="text-green-400 font-semibold text-sm">{bestBid ? `₹${Number(bestBid).toFixed(2)}` : '—'}</p>
                         </div>
                         <div className="text-center flex-1 border-x border-white/10 px-4">
                             <p className="text-gray-500 text-[10px] uppercase">LTP</p>
-                            <p className="text-yellow-400 font-bold text-lg">
-                                {ltp ? `₹${Number(ltp).toFixed(2)}` : '—'}
-                            </p>
+                            <p className="text-yellow-400 font-bold text-lg">{ltp ? `₹${Number(ltp).toFixed(2)}` : '—'}</p>
                         </div>
                         <div className="text-center flex-1">
                             <p className="text-gray-500 text-[10px] uppercase">Ask</p>
-                            <p className="text-red-400 font-semibold text-sm">
-                                {bestAsk ? `₹${Number(bestAsk).toFixed(2)}` : '—'}
-                            </p>
+                            <p className="text-red-400 font-semibold text-sm">{bestAsk ? `₹${Number(bestAsk).toFixed(2)}` : '—'}</p>
                         </div>
                     </div>
                 </div>
@@ -214,24 +277,16 @@ const OptionStrikeBottomWindow = ({
                     {/* Buy/Sell Toggle */}
                     <div className="flex gap-2">
                         <button
-                            className={`flex-1 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-1 ${
-                                actionTab === 'Buy' 
-                                    ? 'bg-green-600 text-white' 
-                                    : 'bg-[#252B3B] text-gray-400'
-                            }`}
+                            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${actionTab === 'Buy' ? 'bg-green-600 text-white' : 'bg-[#252B3B] text-gray-400'}`}
                             onClick={() => setActionTab('Buy')}
                         >
-                            <ShoppingCart className="w-4 h-4" /> BUY
+                            BUY
                         </button>
                         <button
-                            className={`flex-1 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-1 ${
-                                actionTab === 'Sell' 
-                                    ? 'bg-red-600 text-white' 
-                                    : 'bg-[#252B3B] text-gray-400'
-                            }`}
+                            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white' : 'bg-[#252B3B] text-gray-400'}`}
                             onClick={() => setActionTab('Sell')}
                         >
-                            <DollarSign className="w-4 h-4" /> SELL
+                            SELL
                         </button>
                     </div>
 
@@ -267,53 +322,66 @@ const OptionStrikeBottomWindow = ({
                             min="1"
                         />
                         <div className="flex justify-between mt-2 text-xs">
-                            <span className="text-gray-500">
-                                Lot size: <span className="text-white">{lotSize}</span>
-                            </span>
-                            <span className="text-gray-500">
-                                Qty: <span className="text-white">{qtyNum} shares</span>
-                            </span>
+                            <span className="text-gray-500">Lot size: <span className="text-white">{lotSize}</span></span>
+                            <span className="text-gray-500">Qty: <span className="text-white">{qtyNum}</span></span>
                         </div>
                     </div>
 
-                    {/* Required Funds */}
-                    <div className="bg-[#252B3B] rounded-lg p-3">
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-400 text-sm">Required Funds</span>
-                            <span className="text-white font-bold text-lg">
-                                {requiredFunds ? `₹${requiredFunds.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                            </span>
+                    {/* Jobbing Price (Broker Only) */}
+                    {userRole === 'broker' && (
+                        <div>
+                            <p className="text-gray-500 text-xs mb-2">Jobbing %</p>
+                            <div className="flex items-center bg-[#252B3B] rounded-lg p-3 border border-white/10">
+                                <Hash className="w-4 h-4 text-gray-400 mr-2" />
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="0.08"
+                                    value={jobbin_price}
+                                    onChange={(e) => setJobbin_price(e.target.value)}
+                                    className="bg-transparent text-white font-medium focus:outline-none w-full"
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* Price Display (Broker Only) */}
+                    {userRole === 'broker' && (
+                        <div className="bg-[#252B3B] rounded-lg p-3 space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-gray-400">Adj. Price:</span>
+                                <span className="text-white font-mono">{adjustedPricePerShare}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-t border-white/10 pt-2">
+                                <span className="text-gray-400 text-sm">Total Value:</span>
+                                <span className="text-white font-bold text-lg">
+                                    {totalOrderValue ? `₹${totalOrderValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Feedback */}
                     {feedback && (
-                        <div className={`p-3 rounded-lg text-sm text-center ${
-                            feedback.type === 'error' 
-                                ? 'bg-red-500/20 text-red-400' 
-                                : 'bg-green-500/20 text-green-400'
-                        }`}>
+                        <div className={`p-3 rounded-lg text-sm text-center ${feedback.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                             {feedback.message}
                         </div>
                     )}
 
                     {/* Action Buttons */}
                     <div className="space-y-2 pt-2">
-
-                        {(userRole === 'broker' || isMarketOpen ) && (<button
-                            onClick={handleConfirm}
-                            disabled={submitting || !lotsNum}
-                            className={`w-full py-3.5 rounded-lg font-bold text-white text-base transition ${
-                                actionTab === 'Buy' 
-                                    ? 'bg-green-600 hover:bg-green-700' 
-                                    : 'bg-red-600 hover:bg-red-700'
-                            } ${(submitting || !lotsNum) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            {submitting 
-                                ? 'Placing Order...' 
-                                : `INSTANT ${actionTab.toUpperCase()}`
-                            }
-                        </button>)}
+                        {(userRole === 'broker' || isMarketOpen) && (
+                            <button
+                                onClick={handleConfirm}
+                                disabled={submitting || !lotsNum}
+                                className={`w-full py-3.5 rounded-lg font-bold text-white text-base transition ${
+                                    actionTab === 'Buy' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                                } ${(submitting || !lotsNum) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {submitting ? 'Placing Order...' : `INSTANT ${actionTab.toUpperCase()}`}
+                            </button>
+                        )}
                         <button
                             onClick={onClose}
                             className="w-full py-3 rounded-lg bg-[#252B3B] text-gray-300 font-medium transition hover:bg-[#333846]"
@@ -323,20 +391,12 @@ const OptionStrikeBottomWindow = ({
                     </div>
                 </div>
             </div>
-
-            {/* Animation styles */}
             <style>{`
                 @keyframes slide-up {
-                    from {
-                        transform: translateY(100%);
-                    }
-                    to {
-                        transform: translateY(0);
-                    }
+                    from { transform: translateY(100%); }
+                    to { transform: translateY(0); }
                 }
-                .animate-slide-up {
-                    animation: slide-up 0.3s ease-out;
-                }
+                .animate-slide-up { animation: slide-up 0.3s ease-out; }
             `}</style>
         </>
     );
