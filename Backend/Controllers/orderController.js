@@ -188,7 +188,8 @@ const updateOrder = asyncHandler(async (req, res) => {
     segment,
     closed_ltp,
     closed_at,
-    came_From,
+
+    came_From, 
     stop_loss,
     target,
     ...rest
@@ -198,9 +199,9 @@ const updateOrder = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'order_id is required' });
   }
 
+  // Update Object Creation
   const update = {};
   
-  // ... (Other field updates same) ...
   if (quantity) update.quantity = Number(quantity);
   if (lots) update.lots = Number(lots);
   if (price && order_status !== 'CLOSED') update.price = Number(price);
@@ -208,58 +209,74 @@ const updateOrder = asyncHandler(async (req, res) => {
   if (closed_ltp) update.closed_ltp = Number(closed_ltp);
   if (closed_at) update.closed_at = closed_at;
   
-  // 👇 --- ADD SL & TARGET TO UPDATE --- 👇
+  // 👇 Fix: Add came_From to update object
+  if (came_From) update.came_From = String(came_From).trim();
+
+  // 👇 SL/Target update
   if (stop_loss !== undefined) update.stop_loss = Number(stop_loss);
   if (target !== undefined) update.target = Number(target);
-  // ---------------------------------------
 
   update.updatedAt = new Date();
 
   try {
-    // ... (Order finding logic same) ...
+    // 1. Find Existing Order
     let existing = await Order.findOne({ order_id: order_id });
     if (!existing) existing = await Order.findById(order_id);
-    if (!existing) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    // ... (Fund finding logic same) ...
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // 2. Find Fund
     const fund = await Fund.findOne({ 
         broker_id_str: existing.broker_id_str, 
         customer_id_str: existing.customer_id_str 
     });
-    if (!fund) return res.status(404).json({ success: false, message: "Fund account not found" });
 
+    if (!fund) {
+        return res.status(404).json({ success: false, message: "Fund account not found" });
+    }
+
+    // Determine Product Type & Fund Source
     const currentProduct = update.product || existing.product; 
     const currentStatus = update.order_status || existing.order_status;
     const isHold = currentStatus === 'HOLD';
     const isIntraday = String(currentProduct).trim().toUpperCase() === 'MIS' || isHold; 
 
     // ============================================================
-    // FUND LOGIC (Same as previous, no changes needed here)
+    // START: FUND UPDATE LOGIC
     // ============================================================
 
-    // --- SCENARIO 1: BUY MORE ---
+    // --- SCENARIO 1: BUY MORE (Quantity Increase) ---
+    // 🛑 BUG FIXED HERE: Removed comma operator. Use checks for NOT closed.
+    // Covers: OPEN (Intraday), HOLD (Holdings), and null (Overnight)
     if (update.quantity && update.quantity > existing.quantity && existing.order_status !== 'CLOSED') {
+        
         const newQty = Number(update.quantity);
         const calcPrice = update.price ? Number(update.price) : Number(existing.price);
         
-        // Handle old orders with no margin_blocked
         const oldMargin = existing.margin_blocked || (existing.quantity * existing.price);
         const newTotalMargin = newQty * calcPrice;
+        
         const marginToDeduct = newTotalMargin - oldMargin;
 
         if (marginToDeduct > 0) {
+            // Check Available Funds
             let availableLimit = 0;
-            let currentUsed = 0;
+            let currentUsed = 0; 
 
             if (isIntraday) {
+                // Intraday Logic (Free = Available - Used)
                 availableLimit = fund.intraday.available_limit;
                 currentUsed = fund.intraday.used_limit;
             } else {
+                // Overnight Logic (Direct Cash)
                 availableLimit = fund.overnight.available_limit;
                 currentUsed = 0;
             }
 
             const freeLimit = availableLimit - currentUsed;
+
             if (marginToDeduct > freeLimit) {
                 return res.status(400).json({ 
                     success: false, 
@@ -267,15 +284,25 @@ const updateOrder = asyncHandler(async (req, res) => {
                 });
             }
 
-            if (isIntraday) fund.intraday.used_limit += marginToDeduct;
-            else fund.overnight.available_limit -= marginToDeduct;
+            // *** UPDATE FUND ***
+            if (isIntraday) {
+                // Intraday/HOLD: Increase Used Limit
+                fund.intraday.used_limit += marginToDeduct;
+            } else {
+                // Overnight (NRML): Decrease Available Limit
+                fund.overnight.available_limit -= marginToDeduct;
+            }
             
+            // Record new total margin
             update.margin_blocked = newTotalMargin;
         }
     } 
-    // --- SCENARIO 2: EXIT ---
+    
+    // --- SCENARIO 2: EXIT / CLOSE ORDER (Refund) ---
     else if (update.order_status === 'CLOSED' && existing.order_status !== 'CLOSED') {
+        
         const marginToRelease = existing.margin_blocked || (existing.price * existing.quantity);
+
         if (marginToRelease > 0) {
             if (isIntraday) {
                 fund.intraday.used_limit -= marginToRelease;
@@ -285,6 +312,7 @@ const updateOrder = asyncHandler(async (req, res) => {
             }
         }
     }
+
     await fund.save();
 
     // ============================================================
@@ -297,12 +325,10 @@ const updateOrder = asyncHandler(async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to update order' });
     }
 
-    // 👇 --- UPDATE MEMORY (WATCHLIST) --- 👇
-    // Agar order abhi bhi Active (OPEN/HOLD) hai, to memory update karo
+    // 👇 Update Watchlist (Auto-Exit System)
     if (updated.order_status !== 'CLOSED') {
         updateTriggerInWatchlist(updated);
     }
-    // ---------------------------------------
 
     return res.status(200).json({ success: true, message: 'Order updated', order: updated });
 

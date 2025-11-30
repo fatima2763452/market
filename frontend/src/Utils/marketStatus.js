@@ -93,5 +93,7 @@ export function logMarketStatus() {
   const istTime = getISTTime();
   const open = isMarketOpen();
   const timeStr = istTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const isOpen = open ? true : false;
+  return isOpen;
   console.log(`[Market Status] ${open ? "🟢 OPEN" : "🔴 CLOSED"} | IST: ${timeStr}`);
 }

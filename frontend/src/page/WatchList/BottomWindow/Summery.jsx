@@ -2,7 +2,8 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { TrendingUp, ShoppingCart, DollarSign, Hash, Zap, TrendingDown, DollarSign as BidAskIcon } from 'lucide-react';
 // *** IMPORT FETCH FUND UTILITY ***
-import { getFundsData } from '../../../Utils/fetchFund.jsx'; 
+import { getFundsData } from '../../../Utils/fetchFund.jsx';
+import { logMarketStatus } from '../../../Utils/marketStatus.js'
 
 const DetailRow = ({ Icon, label, value, colorClass = "text-white/90" }) => (
   <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0">
@@ -21,8 +22,8 @@ function Summery({
   sheetData,
   actionTab,
   setActionTab,
-  quantity,      
-  setQuantity,   
+  quantity,
+  setQuantity,
   orderPrice,
   setOrderPrice,
   placeFakeOrder,
@@ -36,12 +37,13 @@ function Summery({
   const inputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const isOpen = logMarketStatus();
 
   // Ensure productType once (Intraday or Overnight)
   useEffect(() => {
     if (!productType) setProductType('Intraday');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []);
 
   // When selectedStock changes, reset local lots
   useEffect(() => {
@@ -116,7 +118,7 @@ function Summery({
   const handleInputChange = (e) => {
     const v = e.target.value;
     setLocalLotsStr(v);
-    setFeedback(null); 
+    setFeedback(null);
   };
 
   const propagateQtyToParent = () => {
@@ -163,49 +165,49 @@ function Summery({
 
     // *** 2. FUND VALIDATION LOGIC ***
     try {
-        // Calculate Total Required Amount for this Order
-        const requiredAmount = Number(totalOrderValue);
+      // Calculate Total Required Amount for this Order
+      const requiredAmount = Number(totalOrderValue);
 
-        // Fetch Latest Funds from Backend
-        const fundsData = await getFundsData();
-        
-        if (!fundsData) {
-            throw new Error("Unable to fetch wallet balance.");
-        }
+      // Fetch Latest Funds from Backend
+      const fundsData = await getFundsData();
 
-        let availableLimit = 0;
-        let limitType = "";
+      if (!fundsData) {
+        throw new Error("Unable to fetch wallet balance.");
+      }
 
-        if (productType === 'Intraday') {
-            // Intraday Free Limit = Available - Used
-            const maxLimit = fundsData.intraday?.available_limit || 0;
-            const usedLimit = fundsData.intraday?.used_limit || 0;
-            availableLimit = maxLimit - usedLimit;
-            limitType = "Intraday";
-        } else {
-            // Overnight Free Limit = Available - Used
-            const maxLimit = fundsData.overnight?.available_limit || 0;
-            const usedLimit = fundsData.overnight?.used_limit || 0;
-            availableLimit = maxLimit - usedLimit;
-            limitType = "Overnight";
-        }
+      let availableLimit = 0;
+      let limitType = "";
 
-        // Check Logic
-        if (requiredAmount > availableLimit) {
-            // *** NOT ENOUGH BALANCE - RED TOAST ***
-            setFeedback({ 
-                type: 'error', 
-                message: `Insufficient ${limitType} Balance! Required: ₹${requiredAmount}, Available: ₹${availableLimit.toFixed(2)}. Add funds.` 
-            });
-            setSubmitting(false);
-            return; // Stop execution here
-        }
+      if (productType === 'Intraday') {
+        // Intraday Free Limit = Available - Used
+        const maxLimit = fundsData.intraday?.available_limit || 0;
+        const usedLimit = fundsData.intraday?.used_limit || 0;
+        availableLimit = maxLimit - usedLimit;
+        limitType = "Intraday";
+      } else {
+        // Overnight Free Limit = Available - Used
+        const maxLimit = fundsData.overnight?.available_limit || 0;
+        const usedLimit = fundsData.overnight?.used_limit || 0;
+        availableLimit = maxLimit - usedLimit;
+        limitType = "Overnight";
+      }
+
+      // Check Logic
+      if (requiredAmount > availableLimit) {
+        // *** NOT ENOUGH BALANCE - RED TOAST ***
+        setFeedback({
+          type: 'error',
+          message: `Insufficient ${limitType} Balance! Required: ₹${requiredAmount}, Available: ₹${availableLimit.toFixed(2)}. Add funds.`
+        });
+        setSubmitting(false);
+        return; // Stop execution here
+      }
 
     } catch (err) {
-        console.error("Fund validation error:", err);
-        setFeedback({ type: 'error', message: "Failed to validate funds. Try again." });
-        setSubmitting(false);
-        return;
+      console.error("Fund validation error:", err);
+      setFeedback({ type: 'error', message: "Failed to validate funds. Try again." });
+      setSubmitting(false);
+      return;
     }
 
     // *** 3. PROCEED TO PLACE ORDER (If Funds OK) ***
@@ -217,11 +219,11 @@ function Summery({
       segment: selectedStock?.segment || '',
       side,
       product,
-      price: Number(finalPrice), 
+      price: Number(finalPrice),
       quantity: qty,
       lots: Number(lots),
       lot_size: Number(lot_size),
-      jobbin_price: jobbin_price, 
+      jobbin_price: jobbin_price,
       expire: selectedStock?.expiry || new Date().toLocaleString('en-IN'),
       meta: { from: 'ui_watchlist_summery', selectedStock }
     };
@@ -233,8 +235,8 @@ function Summery({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }); 
-      
+      });
+
       let body = null;
       try { body = await res.json(); } catch (e) { body = null; }
 
@@ -261,7 +263,7 @@ function Summery({
   };
 
   const userString = localStorage.getItem('loggedInUser');
-  const userObject = userString ? JSON.parse(userString) : {}; 
+  const userObject = userString ? JSON.parse(userString) : {};
   const userRole = userObject.role;
 
   // Use an input key so React will remount the input only when selectedStock changes.
@@ -285,7 +287,7 @@ function Summery({
             {formattedCMP}
           </span>
           <span className={`text-sm font-normal ml-2 ${sheetData?.isPositive === true ? "text-green-400" :
-              sheetData?.isPositive === false ? "text-red-400" : "text-gray-400"
+            sheetData?.isPositive === false ? "text-red-400" : "text-gray-400"
             }`}>
             {formattedChangePercent}
           </span>
@@ -299,21 +301,21 @@ function Summery({
           className={`flex-1 p-2 rounded-lg font-semibold transition ${actionTab === 'Buy' ? 'bg-green-600 text-white shadow-lg' : 'bg-[#21283D] text-gray-400 hover:text-white'}`}
           onClick={() => setActionTab('Buy')}
         >
-          <ShoppingCart className="w-5 h-5 inline mr-1" /> BUY
+          BUY
         </button>
         <button
           className={`flex-1 p-2 rounded-lg font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white shadow-lg' : 'bg-[#21283D] text-gray-400 hover:text-white'}`}
           onClick={() => setActionTab('Sell')}
         >
-          <DollarSign className="w-5 h-5 inline mr-1" /> SELL
+           SELL
         </button>
       </div>
 
       {/* Product type */}
-        <h4 className="text-20 font-semibold mb-2 text-white/80 text-muted">Product Order</h4>
+      <h4 className="text-20 font-semibold mb-2 text-white/80 text-muted">Product Order</h4>
       <div className="flex space-x-2 mb-4">
-        <button className={`flex-1 p-2 rounded-lg text-xs font-medium transition ${getProductTypeClass('Intraday')}`} onClick={() => setProductType('Intraday')}>Intraday</button>
-        <button className={`flex-1 p-2 rounded-lg text-xs font-medium transition ${getProductTypeClass('Overnight')}`} onClick={() => setProductType('Overnight')}>Overnight</button>
+        <button className={`flex-1 p-2 rounded-lg  font-semibold transition ${getProductTypeClass('Intraday')}`} onClick={() => setProductType('Intraday')}>Intraday</button>
+        <button className={`flex-1 p-2 rounded-lg  font-semibold transition ${getProductTypeClass('Overnight')}`} onClick={() => setProductType('Overnight')}>overnight</button>
       </div>
 
       {/* <h4 className="text-20 font-semibold mb-2 text-white/80 text-muted">Order Type</h4>
@@ -353,32 +355,32 @@ function Summery({
 
           {/* Jobbing % */}
           {userRole === 'broker' && (
-          <div className="flex items-center">
-            <Hash className="w-5 h-5 text-gray-400 mr-2" />
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Jobbing %"
-              value={jobbin_price}
-              onChange={(e) => setJobbin_price(e.target.value)}
-              className="w-55 p-2 bg-[#2A314A] text-white rounded-md transition"
-            />
-          </div>
-        )}
+            <div className="flex items-center">
+              <Hash className="w-5 h-5 text-gray-400 mr-2" />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Jobbing %"
+                value={jobbin_price}
+                onChange={(e) => setJobbin_price(e.target.value)}
+                className="w-55 p-2 bg-[#2A314A] text-white rounded-md transition"
+              />
+            </div>
+          )}
 
-         {userRole === 'broker' && (
-           <div className="text-xs text-gray-400">Applied jobbing: <span className="text-white font-medium">{jobbin_price || '0'}%</span></div>
-        )}
+          {userRole === 'broker' && (
+            <div className="text-xs text-gray-400">Applied jobbing: <span className="text-white font-medium">{jobbin_price || '0'}%</span></div>
+          )}
 
           {/* Price / share and Total */}
           <div className="text-sm bg-[#2A314A] rounded-md p-3 flex flex-col">
             {userRole === 'broker' && (
-            <div className="flex justify-between">
-              <span className="text-gray-300">Price / share (Jobbing applied)</span>
-              <span className="text-white font-semibold">{adjustedPricePerShare ? `₹${adjustedPricePerShare.toFixed(4)}` : '—'}</span>
-            </div>
-          )}
+              <div className="flex justify-between">
+                <span className="text-gray-300">Price / share (Jobbing applied)</span>
+                <span className="text-white font-semibold">{adjustedPricePerShare ? `₹${adjustedPricePerShare.toFixed(4)}` : '—'}</span>
+              </div>
+            )}
             <div className="flex justify-between mt-2">
               <span className="text-gray-300">Total Order Value</span>
               <span className="text-white font-semibold">{totalOrderValue ? `₹${totalOrderValue.toFixed(2)}` : '—'}</span>
@@ -387,14 +389,26 @@ function Summery({
 
           {/* Buttons */}
           <div className="flex space-x-2">
+
+            {/* Buy/Sell Button: Sirf tab dikhega jab Broker ho YA Market Open ho */}
+            {(userRole === 'broker' || isOpen) && (
+              <button
+                onClick={handleConfirm}
+                disabled={submitting}
+                className={`flex-1 p-3 rounded-lg text-white font-semibold ${actionTab === 'Buy' ? 'bg-green-600' : 'bg-red-600'} ${submitting ? 'opacity-50' : ''}`}
+              >
+                {submitting ? 'Placing...' : `${actionTab === 'Buy' ? 'Instant Buy' : 'Instant Sell'}`}
+              </button>
+            )}
+
+            {/* Cancel Button: Hamesha dikhega taaki user window band kar sake */}
             <button
-              onClick={handleConfirm}
-              disabled={submitting}
-              className={`flex-1 p-3 rounded-lg text-white font-semibold ${actionTab === 'Buy' ? 'bg-green-600' : 'bg-red-600'} ${submitting ? 'opacity-50' : ''}`}
+              onClick={() => setSelectedStock(null)}
+              className={`p-3 rounded-lg bg-[#333846] text-gray-200 font-medium ${(userRole === 'broker' || isOpen) ? '' : 'flex-1'}`}
             >
-              {submitting ? 'Placing...' : `${actionTab === 'Buy' ? 'Instent Buy' : 'Instent Sell'}`}
+              Cancel
             </button>
-            <button onClick={() => setSelectedStock(null)} className="p-3 rounded-lg bg-[#333846] text-gray-200 font-medium">Cancel</button>
+
           </div>
         </div>
       </div>

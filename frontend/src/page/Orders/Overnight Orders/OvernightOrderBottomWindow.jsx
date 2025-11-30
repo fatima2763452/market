@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Target, AlertCircle } from 'lucide-react';
 import { getFundsData } from '../../../Utils/fetchFund.jsx';
+import { logMarketStatus } from '../../../Utils/marketStatus.js';
+
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -20,7 +22,8 @@ const DetailRow = ({ Icon, label, value, colorClass }) => {
 
 export default function OvernightOrderBottomWindow({ selectedOrder, onClose, sheetData }) {
     if (!selectedOrder) return null;
-
+    const isOpen = logMarketStatus();
+    
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role;
@@ -309,13 +312,13 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                 </div>
             </div>
 
-            <div className="flex space-x-2">
+            {(userRole === 'broker' || isOpen) && (<div className="flex space-x-2">
                 <button
                     onClick={() => handleAction('Adjust')}
                     disabled={submitting}
                     className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
                 >
-                    {submitting && action === 'Adjust' ? 'BUY MORE / UPDATE' : 'BUY MORE / UPDATE'}
+                    {submitting && action === 'Adjust' ? 'BUY MORE...' : 'BUY MORE'}
                 </button>
 
                 <button
@@ -325,7 +328,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                 >
                     {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
                 </button>
-            </div>
+            </div>)}
         </div>
     );
 }

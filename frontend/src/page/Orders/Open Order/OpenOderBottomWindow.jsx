@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Target, AlertCircle } from 'lucide-react';
 import { getFundsData } from '../../../Utils/fetchFund.jsx';
+import { logMarketStatus } from '../../../Utils/marketStatus.js'
+
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -21,6 +23,8 @@ const DetailRow = ({ Icon, label, value, colorClass }) => {
 export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetData }) {
 
     if (!selectedOrder) return null;
+    const isOpen = logMarketStatus();
+    
 
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
@@ -352,7 +356,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 </div>
             </div>
 
-            <div className="space-y-2">
+            {(userRole === 'broker' || isOpen) && (<div className="space-y-2">
                 <div className="flex space-x-2">
                     <button
                         onClick={() => handleAction('Adjust', 'OPEN')}
@@ -360,7 +364,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-green-500 hover:bg-blue-700 ${submitting ? 'opacity-50' : ''}`}
                     >
                         {/* Change Text based on input */}
-                        {submitting && action === 'Adjust' ? 'UPDATING...' : (parsedAddLots > 0 ? 'BUY MORE' : 'UPDATE SL/TARGET')}
+                        {submitting && action === 'Adjust' ? 'UPDATING...' : (parsedAddLots > 0 ? 'BUY MORE..' : 'BUY MORE')}
                     </button>
                     <button
                         onClick={() => handleAction('Adjust', 'CLOSED')}
@@ -378,7 +382,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 >
                     CONVERT TO HOLD
                 </button>}
-            </div>
+            </div>)}
         </div>
     );
 }

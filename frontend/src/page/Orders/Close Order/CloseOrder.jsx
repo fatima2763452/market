@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock, Layers, RefreshCw } from 'lucide-react';
 import ClosedOrderFilter from "./CloseOrderFilter"; // Ensure this path is correct
+import { logMarketStatus } from '../../../Utils/marketStatus.js'
+
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -35,11 +37,14 @@ const DetailRow = ({ Icon, label, value, colorClass }) => (
 // --- Internal Component: ClosedOrderBottomWindow ---
 const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
     if (!selectedOrder) return null;
+    console.log(selectedOrder)
 
     // 1. Get User Role for Permissions
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role; // 'broker' or 'customer'
+    const isOpen = logMarketStatus();
+    
 
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
@@ -203,7 +208,7 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
                 </button>
 
                 {/* Condition: Not Hold, Not Overnight AND User is Broker */}
-                {(came_From !== 'Hold' && came_From !== 'Overnight' && userRole === 'broker') && (
+                {((came_From !== 'Hold' && came_From !== 'Overnight' && userRole === 'broker') || isOpen) && (
                     <button
                         onClick={handleReopen}
                         disabled={submitting}

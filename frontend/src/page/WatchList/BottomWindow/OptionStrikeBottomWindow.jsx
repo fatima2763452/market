@@ -1,6 +1,8 @@
 // OptionStrikeBottomWindow.jsx - Bottom sheet for trading individual option strikes
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { X, ShoppingCart, DollarSign } from 'lucide-react';
+import { logMarketStatus } from '../../../Utils/marketStatus.js'
+
 
 const OptionStrikeBottomWindow = ({
     isOpen,
@@ -19,6 +21,13 @@ const OptionStrikeBottomWindow = ({
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
     const inputRef = useRef(null);
+
+    const isMarketOpen = logMarketStatus();
+
+    const userString = localStorage.getItem('loggedInUser');
+    const userObject = userString ? JSON.parse(userString) : {};
+    const userRole = userObject.role;
+
 
     // Extract values (moved before hooks that depend on them)
     const ltp = strikeData?.ltp || 0;
@@ -290,7 +299,8 @@ const OptionStrikeBottomWindow = ({
 
                     {/* Action Buttons */}
                     <div className="space-y-2 pt-2">
-                        <button
+
+                        {(userRole === 'broker' || isMarketOpen ) && (<button
                             onClick={handleConfirm}
                             disabled={submitting || !lotsNum}
                             className={`w-full py-3.5 rounded-lg font-bold text-white text-base transition ${
@@ -303,7 +313,7 @@ const OptionStrikeBottomWindow = ({
                                 ? 'Placing Order...' 
                                 : `INSTANT ${actionTab.toUpperCase()}`
                             }
-                        </button>
+                        </button>)}
                         <button
                             onClick={onClose}
                             className="w-full py-3 rounded-lg bg-[#252B3B] text-gray-300 font-medium transition hover:bg-[#333846]"
