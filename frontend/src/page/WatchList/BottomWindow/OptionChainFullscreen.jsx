@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, RefreshCw, AlertCircle, Loader, TrendingDown, ChevronDown } from 'lucide-react';
 import { useOptionChain } from '../../../hooks/useOptionChain';
-// import OptionStrikeBottomWindow from './OptionStrikeBottomWindow';
+import OptionStrikeBottomWindow from './OptionStrikeBottomWindow';
 
 // Strike count options
 const STRIKE_OPTIONS = [
