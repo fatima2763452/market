@@ -55,11 +55,11 @@ const IndexCard = ({ name, price, change, isPositive }) => {
   const arrow = isPositive ? "▲" : "▼";
 
   return (
-    <div className="flex-1 bg-[#121a2b] border border-white/10 p-3 rounded-lg mx-1">
+    <div className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3 rounded-lg mx-1">
       <div className="flex justify-between items-center">
         <div>
-          <p className="text-white font-semibold text-sm md:text-base">{name}</p>
-          <p className="text-gray-400 text-[10px] md:text-xs">Index</p>
+          <p className="text-[var(--text-primary)] font-semibold text-sm md:text-base">{name}</p>
+          <p className="text-[var(--text-secondary)] text-[10px] md:text-xs">Index</p>
         </div>
         <div className="text-right">
           {/* Price with Flash Effect */}
@@ -120,8 +120,8 @@ const SwipeableWatchlistItem = ({
           }
         }}
         whileTap={{ cursor: "grabbing" }}
-        style={{ x, backgroundColor: "#121a2b" }}
-        className="relative z-10 border border-white/10 p-3 rounded-lg hover:bg-[#172238] transition-colors cursor-pointer"
+        style={{ x, backgroundColor: "var(--bg-secondary)" }}
+        className="relative z-10 border border-[var(--border-color)] p-3 rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
         onClick={() => {
             // Prevent click if user was dragging
             if (x.get() === 0) onClick();
@@ -129,15 +129,15 @@ const SwipeableWatchlistItem = ({
       >
         <div className="flex justify-between items-center w-full pointer-events-none"> {/* pointer-events-none helps drag work smoothly on text */}
           <div>
-            <span className="font-medium text-white/90 block">{item.tradingSymbol}</span>
-            <span className="text-xs text-gray-400 block mt-0.5">{item.exchange}</span>
+            <span className="font-medium text-[var(--text-primary)] opacity-90 block">{item.tradingSymbol}</span>
+            <span className="text-xs text-[var(--text-secondary)] block mt-0.5">{item.exchange}</span>
           </div>
           <div className="text-right">
             <span className={`font-semibold text-lg block ${priceColor}`}>{formattedPrice}</span>
             <span className={`text-xs block ${priceColor}`}>{formattedNetChange} {formattedPercentChange}</span>
             <div className="flex justify-end space-x-2">
-              <span className="text-xs text-gray-400 block">Vol: {formattedVolume}</span>
-              <span className="text-xs text-gray-400 block">{formattedClose}</span>
+              <span className="text-xs text-[var(--text-secondary)] block">Vol: {formattedVolume}</span>
+              <span className="text-xs text-[var(--text-secondary)] block">{formattedClose}</span>
             </div>
           </div>
         </div>
@@ -421,37 +421,37 @@ function Watchlist() {
   const nifty50Price = nifty50Inst ? indexPrices[nifty50Inst.id] : {};
 
   return (
-    <div className="w-full h-full bg-[#0b1020] md:w-1/2 lg:w-3/12 md:border-r border-white/10 flex flex-col relative min-h-0">
+    <div className="w-full h-full bg-[var(--bg-primary)] md:w-1/2 lg:w-3/12 md:border-r border-[var(--border-color)] flex flex-col relative min-h-0">
       
       {/* Toast Notification */}
       <Toast message={notification.message} type={notification.type} show={notification.show} />
 
       {/* Header */}
-      <div className="pt-3 pb-2 px-4 mb-0 border-b border-white/10 sticky top-0 bg-[#0b1020] z-20">
+      <div className="pt-3 pb-2 px-4 mb-0 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-primary)] z-20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-white/10">
+            <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-[var(--border-color)]">
               <span className="text-white font-bold text-lg font-sans">D</span>
             </div>
             <div className="flex flex-col">
-              <h3 className="text-lg font-bold text-white tracking-wide leading-none">DEVAKI</h3>
-              <span className="text-[10px] text-gray-400 font-medium tracking-widest uppercase mt-0.5">Terminal</span>
+              <h3 className="text-lg font-bold text-[var(--text-primary)] tracking-wide leading-none">DEVAKI</h3>
+              <span className="text-[10px] text-[var(--text-secondary)] font-medium tracking-widest uppercase mt-0.5">Terminal</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Index Cards */}
-      <div className="px-2 pb-2 pt-2 flex sticky top-[64px] bg-[#0b1020] z-10 border-b border-white/10 mt-0">
+      <div className="px-2 pb-2 pt-2 flex sticky top-[64px] bg-[var(--bg-primary)] z-10 border-b border-[var(--border-color)] mt-0">
         <IndexCard name="NIFTY BANK" price={bankNiftyPrice?.ltp?.toFixed(2) || "—"} change={bankNiftyPrice?.percentChange?.toFixed(2) || "—"} isPositive={bankNiftyPrice?.isPositive} />
         <IndexCard name="Nifty" price={nifty50Price?.ltp?.toFixed(2) || "—"} change={nifty50Price?.percentChange?.toFixed(2) || "—"} isPositive={nifty50Price?.isPositive} />
       </div>
 
       {/* Search Button */}
-      <div className="p-2 sticky top-[150px] bg-[#0b1020] z-10 border-b border-white/10">
-        <Link to="/search" className="flex items-center gap-3 w-full bg-[#121a2b] hover:bg-[#1a2438] border border-white/10 text-gray-400 px-3 py-2.5 rounded-lg transition-all duration-200 group">
-          <Search size={18} className="group-hover:text-white transition-colors" />
-          <span className="text-sm font-medium group-hover:text-white transition-colors">Search & add instruments...</span>
+      <div className="p-2 sticky top-[150px] bg-[var(--bg-primary)] z-10 border-b border-[var(--border-color)]">
+        <Link to="/search" className="flex items-center gap-3 w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] px-3 py-2.5 rounded-lg transition-all duration-200 group">
+          <Search size={18} className="group-hover:text-[var(--text-primary)] transition-colors" />
+          <span className="text-sm font-medium group-hover:text-[var(--text-primary)] transition-colors">Search & add instruments...</span>
         </Link>
       </div>
 
@@ -485,13 +485,13 @@ function Watchlist() {
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3" />
-                <p className="text-gray-400">Loading instruments…</p>
+                <p className="text-[var(--text-secondary)]">Loading instruments…</p>
               </>
             ) : (
               <>
-                <Search className="w-12 h-12 text-gray-600 mb-3" />
-                <h3 className="text-white font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
-                <p className="text-gray-400 text-sm mb-4">Search above to add stocks</p>
+                <Search className="w-12 h-12 text-[var(--text-muted)] mb-3" />
+                <h3 className="text-[var(--text-primary)] font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
+                <p className="text-[var(--text-secondary)] text-sm mb-4">Search above to add stocks</p>
               </>
             )}
           </div>

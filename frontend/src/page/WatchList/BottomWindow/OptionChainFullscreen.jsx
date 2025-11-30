@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, RefreshCw, AlertCircle, Loader, TrendingDown, ChevronDown } from 'lucide-react';
 import { useOptionChain } from '../../../hooks/useOptionChain';
-import OptionStrikeBottomWindow from './OptionStrikeBottomWindow';
+// import OptionStrikeBottomWindow from './OptionStrikeBottomWindow';
 
 // Strike count options
 const STRIKE_OPTIONS = [
@@ -136,10 +136,10 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
     // Loading state
     if (loading) {
         return (
-            <div className="fixed inset-0 bg-[#0A0F1E] z-[100] flex items-center justify-center">
+            <div className="fixed inset-0 bg-[var(--bg-primary)] z-[100] flex items-center justify-center">
                 <div className="text-center">
                     <Loader className="w-10 h-10 inline animate-spin text-indigo-400 mb-4" />
-                    <p className="text-gray-400">Loading option chain...</p>
+                    <p className="text-[var(--text-secondary)]">Loading option chain...</p>
                 </div>
             </div>
         );
@@ -149,7 +149,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
     // Error state
     if (error) {
         return (
-            <div className="fixed inset-0 bg-[#0A0F1E] z-[100] flex items-center justify-center">
+            <div className="fixed inset-0 bg-[var(--bg-primary)] z-[100] flex items-center justify-center">
                 <div className="text-center max-w-md">
                     <AlertCircle className="w-10 h-10 inline text-red-400 mb-4" />
                     <p className="text-red-400 mb-4">{error}</p>
@@ -162,7 +162,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                         </button>
                         <button 
                             onClick={onClose}
-                            className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition"
+                            className="px-5 py-2 bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-hover)] transition"
                         >
                             Close
                         </button>
@@ -175,14 +175,14 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
     // No data state
     if (!filteredChain || filteredChain.length === 0) {
         return (
-            <div className="fixed inset-0 bg-[#0A0F1E] z-[100] flex items-center justify-center">
+            <div className="fixed inset-0 bg-[var(--bg-primary)] z-[100] flex items-center justify-center">
                 <div className="text-center max-w-md">
-                    <TrendingDown className="w-10 h-10 inline mb-4 opacity-50 text-gray-400" />
-                    <p className="text-gray-400 mb-2">No option chain data available</p>
-                    <p className="text-gray-500 text-sm mb-4">This instrument may not support options trading</p>
+                    <TrendingDown className="w-10 h-10 inline mb-4 opacity-50 text-[var(--text-secondary)]" />
+                    <p className="text-[var(--text-secondary)] mb-2">No option chain data available</p>
+                    <p className="text-[var(--text-muted)] text-sm mb-4">This instrument may not support options trading</p>
                     <button 
                         onClick={onClose}
-                        className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition"
+                        className="px-5 py-2 bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-hover)] transition"
                     >
                         Close
                     </button>
@@ -192,14 +192,14 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
     }
 
     return (
-        <div className="fixed inset-0 bg-[#0A0F1E] z-[100] flex flex-col text-white">
+        <div className="fixed inset-0 bg-[var(--bg-primary)] z-[100] flex flex-col text-[var(--text-primary)]">
             
             {/* Header Bar - Fixed - Mobile Optimized */}
-            <div className="bg-[#141B2D] border-b border-white/10 px-3 py-2 flex-shrink-0">
+            <div className="bg-[var(--bg-card)] border-b border-[var(--border-color)] px-3 py-2 flex-shrink-0">
                 {/* Top Row: Title + Close */}
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 min-w-0">
-                        <h1 className="text-base font-bold text-white truncate">
+                        <h1 className="text-base font-bold text-[var(--text-primary)] truncate">
                             {selectedStock?.name || selectedStock?.tradingSymbol}
                         </h1>
                         <span className="flex items-center gap-1 flex-shrink-0">
@@ -210,17 +210,17 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                     <div className="flex items-center gap-1 flex-shrink-0">
                         <button 
                             onClick={() => { refetch(); setLastUpdateTime(new Date()); }}
-                            className="p-1.5 hover:bg-white/10 rounded-lg transition"
+                            className="p-1.5 hover:bg-[var(--bg-hover)] rounded-lg transition"
                             title="Refresh"
                         >
-                            <RefreshCw className="w-4 h-4 text-gray-400" />
+                            <RefreshCw className="w-4 h-4 text-[var(--text-secondary)]" />
                         </button>
                         <button 
                             onClick={onClose}
-                            className="p-1.5 hover:bg-white/10 rounded-lg transition"
+                            className="p-1.5 hover:bg-[var(--bg-hover)] rounded-lg transition"
                             title="Close"
                         >
-                            <X className="w-5 h-5 text-gray-400" />
+                            <X className="w-5 h-5 text-[var(--text-secondary)]" />
                         </button>
                     </div>
                 </div>
@@ -229,7 +229,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                 <div className="flex items-center justify-between gap-2">
                     {/* Spot Price */}
                     <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className="text-gray-500 text-xs">Spot:</span>
+                        <span className="text-[var(--text-muted)] text-xs">Spot:</span>
                         <span className="text-yellow-400 text-sm font-bold">
                             ₹{Number(currentPrice).toFixed(2)}
                         </span>
@@ -241,7 +241,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                         <select 
                             value={strikeCount}
                             onChange={(e) => setStrikeCount(Number(e.target.value))}
-                            className="bg-[#1E2638] text-white px-2 py-1 rounded border border-white/10 focus:outline-none text-xs w-14"
+                            className="bg-[var(--bg-secondary)] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border-color)] focus:outline-none text-xs w-14"
                         >
                             {STRIKE_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>
@@ -255,7 +255,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                             <select 
                                 value={selectedExpiry || expiries[0]} 
                                 onChange={(e) => setSelectedExpiry(e.target.value)}
-                                className="bg-[#1E2638] text-white px-2 py-1 rounded border border-white/10 focus:outline-none text-xs max-w-[90px]"
+                                className="bg-[var(--bg-secondary)] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border-color)] focus:outline-none text-xs max-w-[90px]"
                             >
                                 {expiries.map(exp => (
                                     <option key={exp} value={exp}>
@@ -272,15 +272,15 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
                 <div className="max-w-2xl mx-auto">
                     {/* Table Container */}
-                    <div className="bg-[#141B2D] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)] shadow-2xl overflow-hidden">
                         
                         {/* Table Header - Separate from body */}
-                        <div className="bg-[#1A2236] border-b border-white/10">
+                        <div className="bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
                             <div className="grid grid-cols-3">
                                 <div className="py-3 px-6 text-center text-green-400 font-semibold text-sm uppercase tracking-wider">
                                     Call LTP
                                 </div>
-                                <div className="py-3 px-6 text-center text-gray-400 font-semibold text-sm uppercase tracking-wider border-x border-white/10">
+                                <div className="py-3 px-6 text-center text-[var(--text-secondary)] font-semibold text-sm uppercase tracking-wider border-x border-[var(--border-color)]">
                                     Strike
                                 </div>
                                 <div className="py-3 px-6 text-center text-red-400 font-semibold text-sm uppercase tracking-wider">
@@ -324,10 +324,10 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                                     <div 
                                         key={row.strike} 
                                         className={`
-                                            grid grid-cols-3 border-b border-white/5 transition-colors
+                                            grid grid-cols-3 border-b border-[var(--border-color)] transition-colors
                                             ${isATM 
                                                 ? 'bg-yellow-500/10' 
-                                                : 'hover:bg-white/5'
+                                                : 'hover:bg-[var(--bg-hover)]'
                                             }
                                         `}
                                     >
@@ -343,10 +343,10 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                                         
                                         {/* Strike Price */}
                                         <div className={`
-                                            py-3 px-6 text-center font-bold text-lg border-x border-white/10
+                                            py-3 px-6 text-center font-bold text-lg border-x border-[var(--border-color)]
                                             ${isATM 
                                                 ? 'bg-yellow-500/20 text-yellow-300' 
-                                                : 'bg-[#1E2430] text-white'
+                                                : 'bg-[var(--bg-secondary)] text-[var(--text-primary)]'
                                             }
                                         `}>
                                             {row.strike}
@@ -367,7 +367,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-[#1A2236] border-t border-white/10 px-4 py-2 flex items-center justify-between text-xs text-gray-500">
+                        <div className="bg-[var(--bg-secondary)] border-t border-[var(--border-color)] px-4 py-2 flex items-center justify-between text-xs text-[var(--text-muted)]">
                             <span>{filteredChain.length} strikes • ATM: {atmStrike}</span>
                             <span className="flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
@@ -377,7 +377,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                     </div>
                     
                     {/* Tap Hint */}
-                    <p className="text-center text-gray-500 text-xs mt-4">
+                    <p className="text-center text-[var(--text-muted)] text-xs mt-4">
                         Tap on any LTP price to trade
                     </p>
                 </div>

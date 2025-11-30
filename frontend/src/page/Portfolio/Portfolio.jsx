@@ -140,14 +140,14 @@ const PortfolioItem = ({ data, onClick }) => {
     return (
         <div 
             onClick={() => onClick(data)}
-            className="relative bg-[#121a2b] p-4 rounded-xl shadow-md border border-white/10 hover:bg-[#172238] transition mb-3 cursor-pointer"
+            className="relative bg-[var(--bg-secondary)] p-4 rounded-xl shadow-md border border-[var(--border-color)] hover:bg-[var(--bg-hover)] transition mb-3 cursor-pointer"
         >
             {/* Left purple accent bar (Portfolio Style) */}
             <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-fuchsia-500" />
 
             {/* Header Row */}
             <div className="flex justify-between items-center mb-2">
-                <p className="text-base md:text-lg font-bold text-white tracking-wide">{tradingsymbol}</p>
+                <p className="text-base md:text-lg font-bold text-[var(--text-primary)] tracking-wide">{tradingsymbol}</p>
                 <p className={`text-sm md:text-base font-semibold ${pnlColor}`}>
                     {signSym(pnl)}{money(pnl)} 
                     <span className="text-[10px] ml-1 opacity-80">
@@ -157,18 +157,18 @@ const PortfolioItem = ({ data, onClick }) => {
             </div>
 
             {/* Details Row */}
-            <div className="flex justify-between text-xs md:text-sm text-gray-300">
+            <div className="flex justify-between text-xs md:text-sm text-[var(--text-secondary)]">
                 <div className="space-y-1">
                     <p>
-                        Qty: <span className="text-white font-medium">{qty}</span>
+                        Qty: <span className="text-[var(--text-primary)] font-medium">{qty}</span>
                     </p>
                     <p>
-                        Entry Avg: <span className="text-white font-medium">{money(entryPrice)}</span>
+                        Entry Avg: <span className="text-[var(--text-primary)] font-medium">{money(entryPrice)}</span>
                     </p>
                 </div>
                 <div className="space-y-1 text-right">
                     <p>
-                        Exit Avg: <span className="text-white font-semibold">{money(exitPrice)}</span>
+                        Exit Avg: <span className="text-[var(--text-primary)] font-semibold">{money(exitPrice)}</span>
                     </p>
                     <p>
                          Type: <span className={`font-semibold ${sideUpper === 'BUY' ? 'text-blue-300' : 'text-orange-300'}`}>{sideUpper}</span>
@@ -250,25 +250,25 @@ export default function Portfolio() {
     const totalColor = signColor(summary.totalPnl);
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#0b1020] text-white overflow-hidden">
+        <div className="flex flex-col min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden">
             <h2 className="text-lg md:text-xl font-semibold text-[26px] ml-3 mt-2">Portfolio</h2>
 
             <div className="flex-1 overflow-y-auto px-4 pb-24 mt-3">
                 {/* Summary Card (Portfolio Style) */}
-                <div className="bg-[#121a2b] p-5 rounded-xl shadow mb-6 border border-white/10">
+                <div className="bg-[var(--bg-secondary)] p-5 rounded-xl shadow mb-6 border border-[var(--border-color)]">
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <p className="text-gray-400 text-sm">Total Invested</p>
+                            <p className="text-[var(--text-secondary)] text-sm">Total Invested</p>
                             <p className="text-xl font-bold">{money(summary.invested)}</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-gray-400 text-sm">Realized Value</p>
+                            <p className="text-[var(--text-secondary)] text-sm">Realized Value</p>
                             <p className="text-xl font-bold">{money(summary.current)}</p>
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                        <p className="text-gray-400 text-sm">Total Realized P&L</p>
+                    <div className="flex justify-between items-center pt-3 border-t border-[var(--border-color)]">
+                        <p className="text-[var(--text-secondary)] text-sm">Total Realized P&L</p>
                         <p className={`text-lg font-bold ${totalColor}`}>
                             {signSym(summary.totalPnl)}
                             {Number(summary.totalPnl).toFixed(2)}
@@ -280,7 +280,7 @@ export default function Portfolio() {
                 <h3 className="text-base font-semibold mb-3">Closed Positions ({closedOrders.length})</h3>
 
                 {/* The List */}
-                {loader && <div className="text-center text-gray-500 text-sm">Loading...</div>}
+                {loader && <div className="text-center text-[var(--text-secondary)] text-sm">Loading...</div>}
                 
                 {!loader && closedOrders.map((order, idx) => (
                     <PortfolioItem 
@@ -291,7 +291,7 @@ export default function Portfolio() {
                 ))}
 
                 {!loader && closedOrders.length === 0 && (
-                    <div className="text-gray-400 bg-fuchsia-900/20 border border-fuchsia-700 rounded-lg p-3 text-sm text-center">
+                    <div className="text-[var(--text-secondary)] bg-fuchsia-900/20 border border-fuchsia-700 rounded-lg p-3 text-sm text-center">
                         No closed positions found.
                     </div>
                 )}

@@ -1,19 +1,21 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Shield, IdCard, LogOut, UserCheck } from "lucide-react";
+import { User, Shield, IdCard, LogOut, UserCheck, Moon, Sun } from "lucide-react";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const Row = ({ label, value, icon: Icon }) => (
-  <div className="flex items-center justify-between py-2 border-b border-white/10 last:border-none">
-    <div className="flex items-center gap-2 text-gray-300">
+  <div className="flex items-center justify-between py-2 border-b border-[var(--border-color)] last:border-none">
+    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
       {Icon && <Icon className="w-4 h-4 opacity-80" />}
       <span className="text-sm">{label}</span>
     </div>
-    <span className="text-white font-semibold text-sm">{value || "—"}</span>
+    <span className="text-[var(--text-primary)] font-semibold text-sm">{value || "—"}</span>
   </div>
 );
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { theme, toggleTheme, isDark } = useTheme();
 
   // ------------------ READ LOCAL STORAGE ------------------
   let loggedInUser = null;
@@ -72,12 +74,12 @@ export default function Profile() {
 
   // ------------------ UI ------------------
   return (
-    <div className="p-4 bg-[#0b1020] min-h-screen text-white">
+    <div className="p-4 bg-[var(--bg-primary)] min-h-screen text-[var(--text-primary)]">
       <div className="max-w-xl mx-auto">
         <h2 className="text-2xl font-bold mb-2">Profile</h2>
         <div className="h-1 bg-fuchsia-600 w-16 rounded mb-6" />
 
-        <div className="bg-[#121a2b] border border-white/10 rounded-2xl shadow p-5 space-y-4">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow p-5 space-y-4">
           
           {/* User header */}
           <div className="flex items-center gap-3">
@@ -86,7 +88,7 @@ export default function Profile() {
             </div>
             <div>
               <div className="text-lg font-semibold capitalize">{userName}</div>
-              <div className="text-xs text-gray-400 capitalize">Role: {role}</div>
+              <div className="text-xs text-[var(--text-secondary)] capitalize">Role: {role}</div>
             </div>
           </div>
 
@@ -115,6 +117,27 @@ export default function Profile() {
               </>
             )}
 
+          </div>
+
+          {/* Theme Toggle */}
+          <div className="flex items-center justify-between py-3 border-t border-[var(--border-color)]">
+            <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+              {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              <span className="text-sm">{isDark ? 'Dark Mode' : 'Light Mode'}</span>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${
+                isDark ? 'bg-fuchsia-600' : 'bg-gray-300'
+              }`}
+              aria-label="Toggle theme"
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${
+                  isDark ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Logout Button */}

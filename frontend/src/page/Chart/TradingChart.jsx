@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
 import { useMarketData } from '../../contexts/MarketDataContext.jsx';
+import { useTheme } from '../../contexts/ThemeContext.jsx';
 
 /**
  * Transform Dhan API candle format to Lightweight Charts format
@@ -33,50 +34,68 @@ function TradingChart({
   const resizeObserverRef = useRef(null);
   
   const { ticks, isConnected } = useMarketData();
+  const { isDark } = useTheme();
   const [lastCandleTime, setLastCandleTime] = useState(null);
   const lastUpdateRef = useRef(0); // Throttle updates
+
+  // Theme-aware chart colors
+  const chartColors = isDark ? {
+    background: '#1A1F30',
+    textColor: '#cccccc',
+    gridColor: '#2B2B43',
+    borderColor: '#2B2B43',
+    crosshairColor: '#758696',
+    labelBackground: '#4682B4',
+  } : {
+    background: '#ffffff',
+    textColor: '#333333',
+    gridColor: '#e0e0e0',
+    borderColor: '#d0d0d0',
+    crosshairColor: '#9598a1',
+    labelBackground: '#4682B4',
+  };
 
   // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
     try {
-      // Create chart with dark theme
+      // Create chart with theme-aware colors
       const chart = createChart(chartContainerRef.current, {
         width: chartContainerRef.current.clientWidth,
         height: chartContainerRef.current.clientHeight,
         layout: {
-          background: { color: '#1A1F30' },
-          textColor: '#cccccc',
+          background: { color: chartColors.background },
+          textColor: chartColors.textColor,
         },
         grid: {
-          vertLines: { color: '#2B2B43' },
-          horzLines: { color: '#2B2B43' },
+          vertLines: { color: chartColors.gridColor },
+          horzLines: { color: chartColors.gridColor },
         },
         crosshair: {
           mode: 0, // Normal mode
           vertLine: {
             width: 1,
-            color: '#758696',
+            color: chartColors.crosshairColor,
             style: 1,
-            labelBackgroundColor: '#4682B4',
+            labelBackgroundColor: chartColors.labelBackground,
           },
           horzLine: {
             width: 1,
-            color: '#758696',
+            color: chartColors.crosshairColor,
             style: 1,
-            labelBackgroundColor: '#4682B4',
+            labelBackgroundColor: chartColors.labelBackground,
           },
         },
         rightPriceScale: {
-          borderColor: '#2B2B43',
+          borderColor: chartColors.borderColor,
           scaleMargins: {
             top: 0.1,
             bottom: 0.2,
           },
         },
         timeScale: {
-          borderColor: '#2B2B43',
+          borderColor: chartColors.borderColor,
           timeVisible: true,
           secondsVisible: false,
         },
@@ -162,7 +181,7 @@ function TradingChart({
         chartRef.current = null;
       }
     };
-  }, []);
+  }, [isDark]); // Re-create chart when theme changes
 
   // Load historical candles
   useEffect(() => {
@@ -276,12 +295,12 @@ function TradingChart({
     return (
       <div 
         ref={chartContainerRef}
-        className="relative w-full h-full flex items-center justify-center bg-[#1A1F30] rounded-lg"
+        className="relative w-full h-full flex items-center justify-center bg-[var(--bg-card)] rounded-lg"
         style={{ minHeight: '400px' }}
       >
         <div className="flex flex-col items-center gap-2">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-          <p className="text-gray-400 text-sm">Loading chart...</p>
+          <p className="text-[var(--text-secondary)] text-sm">Loading chart...</p>
         </div>
       </div>
     );
@@ -290,7 +309,7 @@ function TradingChart({
   return (
     <div 
       ref={chartContainerRef}
-      className="relative w-full h-full bg-[#1A1F30] rounded-lg"
+      className="relative w-full h-full bg-[var(--bg-card)] rounded-lg"
       style={{ 
         minHeight: '400px'
       }}

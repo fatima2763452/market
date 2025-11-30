@@ -1,5 +1,58 @@
 @import "tailwindcss";
 
+/* ========== Theme CSS Variables ========== */
+
+/* Light Mode (Default for CSS, but app defaults to dark) */
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-nav: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --bg-input: #f1f5f9;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  --nav-text-inactive: #475569;
+  --nav-text-hover: #0f172a;
+  
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  --bg-primary: #0b1020;
+  --bg-secondary: #121a2b;
+  --bg-card: #21283D;
+  --bg-nav: #21283D;
+  --bg-hover: #172238;
+  --bg-input: #1a2235;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  
+  --nav-text-inactive: #9ca3af;
+  --nav-text-hover: #ffffff;
+  
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-light: rgba(255, 255, 255, 0.05);
+  
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* ========== Base Styles ========== */
+
 html, body, #root {
   height: 100%;
+}
+
+/* Smooth theme transition */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }

@@ -7,7 +7,7 @@ const superBrockerPass = 'abc';
 
 const InputField = ({ iconClass, type, name, placeholder, value, onChange, error }) => (
   <div className="relative mb-6">
-    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
+    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-[var(--text-secondary)]">
       <i className={iconClass}></i>
     </div>
     <input
@@ -16,7 +16,7 @@ const InputField = ({ iconClass, type, name, placeholder, value, onChange, error
       placeholder={placeholder}
       value={value}
       onChange={onChange}
-      className={`w-full p-3 pl-10 rounded-lg bg-gray-700/50 text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-200 border ${
+      className={`w-full p-3 pl-10 rounded-lg bg-[var(--bg-input)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-200 border ${
         error ? 'border-red-500' : 'border-transparent'
       } focus:border-indigo-500 shadow-inner`}
       required
@@ -140,18 +140,18 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#121626] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center p-4">
       <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         crossOrigin="anonymous"
       />
       <div
-        className="w-full max-w-sm p-8 bg-[#21283D] rounded-xl shadow-2xl backdrop-blur-sm border border-white/10"
+        className="w-full max-w-sm p-8 bg-[var(--bg-card)] rounded-xl shadow-2xl backdrop-blur-sm border border-[var(--border-color)]"
         style={{ boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4), 0 0 40px rgba(79, 70, 229, 0.3)' }}
       >
-        <h1 className="text-3xl font-extrabold text-white mb-2 text-center tracking-wide">Sign In</h1>
-        <p className="text-gray-400 text-center mb-8">Welcome back to the trading platform</p>
+        <h1 className="text-3xl font-extrabold text-[var(--text-primary)] mb-2 text-center tracking-wide">Sign In</h1>
+        <p className="text-[var(--text-secondary)] text-center mb-8">Welcome back to the trading platform</p>
 
         {apiMessage.text && (
           <div

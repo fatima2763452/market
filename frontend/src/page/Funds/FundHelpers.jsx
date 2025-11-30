@@ -9,9 +9,9 @@ export const formatCurrency = (value) => {
   })}`;
 };
 
-export const FundMetric = ({ label, value, icon: Icon, valueColorClass = "text-white" }) => (
-  <div className="flex items-center justify-between py-3 border-b border-white/10 last:border-b-0">
-    <div className="flex items-center text-gray-400">
+export const FundMetric = ({ label, value, icon: Icon, valueColorClass = "text-[var(--text-primary)]" }) => (
+  <div className="flex items-center justify-between py-3 border-b border-[var(--border-color)] last:border-b-0">
+    <div className="flex items-center text-[var(--text-secondary)]">
       {Icon && <Icon className="w-5 h-5 mr-3 text-indigo-400" />}
       <span className="font-medium text-sm">{label}</span>
     </div>

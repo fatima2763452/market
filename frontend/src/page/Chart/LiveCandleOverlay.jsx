@@ -196,7 +196,7 @@ function LiveCandleOverlay({
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="fixed z-50 bg-[#1A1F30] border border-gray-700 rounded-lg shadow-xl p-3 text-xs pointer-events-none"
+          className="fixed z-50 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg shadow-xl p-3 text-xs pointer-events-none"
           style={{
             left: tooltip.x + 15,
             top: tooltip.y - 60,
@@ -205,28 +205,28 @@ function LiveCandleOverlay({
         >
           <div className="space-y-1">
             <div className="flex justify-between gap-4">
-              <span className="text-gray-400">Open:</span>
-              <span className="text-white font-medium">{tooltip.candle.open.toFixed(2)}</span>
+              <span className="text-[var(--text-secondary)]">Open:</span>
+              <span className="text-[var(--text-primary)] font-medium">{tooltip.candle.open.toFixed(2)}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-gray-400">High:</span>
+              <span className="text-[var(--text-secondary)]">High:</span>
               <span className="text-green-400 font-medium">{tooltip.candle.high.toFixed(2)}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-gray-400">Low:</span>
+              <span className="text-[var(--text-secondary)]">Low:</span>
               <span className="text-red-400 font-medium">{tooltip.candle.low.toFixed(2)}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-gray-400">Close:</span>
-              <span className="text-white font-medium">{tooltip.candle.close.toFixed(2)}</span>
+              <span className="text-[var(--text-secondary)]">Close:</span>
+              <span className="text-[var(--text-primary)] font-medium">{tooltip.candle.close.toFixed(2)}</span>
             </div>
             {tooltip.candle.volume > 0 && (
-              <div className="flex justify-between gap-4 pt-1 border-t border-gray-700">
-                <span className="text-gray-400">Volume:</span>
+              <div className="flex justify-between gap-4 pt-1 border-t border-[var(--border-color)]">
+                <span className="text-[var(--text-secondary)]">Volume:</span>
                 <span className="text-blue-400 font-medium">{formatVolume(tooltip.candle.volume)}</span>
               </div>
             )}
-            <div className="mt-2 pt-2 border-t border-gray-700">
+            <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
                 <span className="text-green-400 text-[10px] font-semibold">LIVE</span>

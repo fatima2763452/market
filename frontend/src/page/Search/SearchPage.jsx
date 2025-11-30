@@ -5,19 +5,19 @@ import { CheckCircle, XCircle } from "lucide-react"; // Agar lucide-react nahi h
 
 // --- List Item Component ---
 const WatchlistItem = ({ name, exchange, onClick, ltp, percentChange }) => {
-  const priceColor = percentChange == null ? "text-gray-400" : percentChange >= 0 ? "text-green-400" : "text-red-400";
+  const priceColor = percentChange == null ? "text-[var(--text-secondary)]" : percentChange >= 0 ? "text-green-400" : "text-red-400";
   const formattedLtp = ltp != null ? `₹${ltp.toFixed(2)}` : "—";
   const formattedPercent = percentChange != null ? `${percentChange >= 0 ? "▲" : "▼"} ${Math.abs(percentChange).toFixed(2)}%` : "—";
 
   return (
     <li
       onClick={onClick}
-      className="bg-[#121a2b] border border-white/10 p-3 rounded-lg hover:bg-[#172238] transition duration-150 cursor-pointer"
+      className="bg-[var(--bg-secondary)] border border-[var(--border-color)] p-3 rounded-lg hover:bg-[var(--bg-hover)] transition duration-150 cursor-pointer"
     >
       <div className="flex justify-between items-center w-full">
         <div>
-          <span className="font-medium text-white/90 block">{name}</span>
-          <span className="text-xs text-gray-400 block mt-0.5">{exchange}</span>
+          <span className="font-medium text-[var(--text-primary)] opacity-90 block">{name}</span>
+          <span className="text-xs text-[var(--text-secondary)] block mt-0.5">{exchange}</span>
         </div>
         <div className="text-right">
           <span className={`block text-sm font-semibold ${priceColor}`}>{formattedLtp}</span>
@@ -195,7 +195,7 @@ function SearchPage() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#0b1020] flex flex-col relative p-4 pb-20">
+    <div className="w-full min-h-screen bg-[var(--bg-primary)] flex flex-col relative p-4 pb-20">
       
       {/* *** Custom Animation Style *** */}
       <style>{`
@@ -237,7 +237,7 @@ function SearchPage() {
         </div>
       )}
 
-      <h2 className="text-lg md:text-xl font-semibold text-white">Search Instruments</h2>
+      <h2 className="text-lg md:text-xl font-semibold text-[var(--text-primary)]">Search Instruments</h2>
       <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
       
       <ul className="space-y-2 text-sm md:text-base p-2 flex-grow overflow-y-auto mt-4">
@@ -269,7 +269,7 @@ function SearchPage() {
           );
         })}
         {searchResults && searchResults.length === 0 && (
-          <p className="text-center text-gray-500 pt-4">No symbols matched your search.</p>
+          <p className="text-center text-[var(--text-secondary)] pt-4">No symbols matched your search.</p>
         )}
       </ul>
     </div>

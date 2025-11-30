@@ -5,13 +5,13 @@ import { TrendingUp, ShoppingCart, DollarSign, Hash, Zap, TrendingDown, DollarSi
 import { getFundsData } from '../../../Utils/fetchFund.jsx';
 import { logMarketStatus } from '../../../Utils/marketStatus.js'
 
-const DetailRow = ({ Icon, label, value, colorClass = "text-white/90" }) => (
-  <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0">
-    <div className="flex items-center text-gray-400 text-sm">
+const DetailRow = ({ Icon, label, value, colorClass = "text-[var(--text-primary)]" }) => (
+  <div className="flex justify-between items-center py-1 border-b border-[var(--border-color)] last:border-b-0">
+    <div className="flex items-center text-[var(--text-secondary)] text-sm">
       <Icon className="w-4 h-4 mr-2 text-indigo-400" />
       {label}
     </div>
-    <span className={`font-medium text-sm ${value === '—' ? 'text-gray-500' : colorClass}`}>
+    <span className={`font-medium text-sm ${value === '—' ? 'text-[var(--text-muted)]' : colorClass}`}>
       {value}
     </span>
   </div>
@@ -74,7 +74,7 @@ function Summery({
     : '—';
 
   const getProductTypeClass = (mode) => {
-    if (productType !== mode) return 'bg-[#1A1F30] text-gray-400 hover:text-white';
+    if (productType !== mode) return 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]';
     return actionTab === 'Buy' ? 'bg-green-600 text-white shadow-lg' : 'bg-red-600 text-white shadow-lg';
   };
 
@@ -276,35 +276,35 @@ function Summery({
       {/* CMP */}
       <div className="mb-4">
         <p className="text-xl font-bold">
-          <span className="text-gray-300 mr-1">₹</span>
+          <span className="text-[var(--text-secondary)] mr-1">₹</span>
           <span className={
             sheetData?.isPositive === true
               ? "text-green-500"
               : sheetData?.isPositive === false
                 ? "text-red-500"
-                : "text-white"
+                : "text-[var(--text-primary)]"
           }>
             {formattedCMP}
           </span>
           <span className={`text-sm font-normal ml-2 ${sheetData?.isPositive === true ? "text-green-400" :
-            sheetData?.isPositive === false ? "text-red-400" : "text-gray-400"
+            sheetData?.isPositive === false ? "text-red-400" : "text-[var(--text-secondary)]"
             }`}>
             {formattedChangePercent}
           </span>
         </p>
-        <p className="text-xs text-gray-500">Current Market Price (CMP)</p>
+        <p className="text-xs text-[var(--text-muted)]">Current Market Price (CMP)</p>
       </div>
 
       {/* Buy/Sell */}
       <div className="flex space-x-2 mb-2">
         <button
-          className={`flex-1 p-2 rounded-lg font-semibold transition ${actionTab === 'Buy' ? 'bg-green-600 text-white shadow-lg' : 'bg-[#21283D] text-gray-400 hover:text-white'}`}
+          className={`flex-1 p-2 rounded-lg font-semibold transition ${actionTab === 'Buy' ? 'bg-green-600 text-white shadow-lg' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
           onClick={() => setActionTab('Buy')}
         >
           BUY
         </button>
         <button
-          className={`flex-1 p-2 rounded-lg font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white shadow-lg' : 'bg-[#21283D] text-gray-400 hover:text-white'}`}
+          className={`flex-1 p-2 rounded-lg font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white shadow-lg' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
           onClick={() => setActionTab('Sell')}
         >
            SELL
@@ -312,7 +312,7 @@ function Summery({
       </div>
 
       {/* Product type */}
-      <h4 className="text-20 font-semibold mb-2 text-white/80 text-muted">Product Order</h4>
+      <h4 className="text-20 font-semibold mb-2 text-[var(--text-secondary)] text-muted">Product Order</h4>
       <div className="flex space-x-2 mb-4">
         <button className={`flex-1 p-2 rounded-lg  font-semibold transition ${getProductTypeClass('Intraday')}`} onClick={() => setProductType('Intraday')}>Intraday</button>
         <button className={`flex-1 p-2 rounded-lg  font-semibold transition ${getProductTypeClass('Overnight')}`} onClick={() => setProductType('Overnight')}>overnight</button>
@@ -331,14 +331,14 @@ function Summery({
       )}
 
       {/* Order inputs */}
-      <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
-        <h4 className="text-lg font-semibold mb-3 text-white">{actionTab === 'Buy' ? 'Place Buy Order' : 'Place Sell Order'}</h4>
+      <div className="p-3 bg-[var(--bg-secondary)] rounded-lg mb-4">
+        <h4 className="text-lg font-semibold mb-3 text-[var(--text-primary)]">{actionTab === 'Buy' ? 'Place Buy Order' : 'Place Sell Order'}</h4>
 
         <div className="space-y-3">
           {/* Quantity (Lots) Input */}
           <div className="flex items-center space-x-2">
             <div className="flex items-center">
-              <h6 className='text-lg font-semibold  text-white'>Lot</h6>
+              <h6 className='text-lg font-semibold text-[var(--text-primary)]'>Lot</h6>
             </div>
             <input
               key={qtyInputKey}
@@ -348,15 +348,15 @@ function Summery({
               onChange={handleInputChange}
               onBlur={handleQtyBlur}
               placeholder="enter lots (e.g., 1)"
-              className="flex-1 p-2 bg-[#2A314A] text-white rounded-md transition"
+              className="flex-1 p-2 bg-[var(--bg-input)] text-[var(--text-primary)] rounded-md transition border border-[var(--border-color)]"
             />
-            <div className="text-xs text-gray-400 italic">Lot size: <span className="font-medium text-white ml-1">{lotSize}</span></div>
+            <div className="text-xs text-[var(--text-secondary)] italic">Lot size: <span className="font-medium text-[var(--text-primary)] ml-1">{lotSize}</span></div>
           </div>
 
           {/* Jobbing % */}
           {userRole === 'broker' && (
             <div className="flex items-center">
-              <Hash className="w-5 h-5 text-gray-400 mr-2" />
+              <Hash className="w-5 h-5 text-[var(--text-secondary)] mr-2" />
               <input
                 type="number"
                 step="0.01"
@@ -364,26 +364,26 @@ function Summery({
                 placeholder="Jobbing %"
                 value={jobbin_price}
                 onChange={(e) => setJobbin_price(e.target.value)}
-                className="w-55 p-2 bg-[#2A314A] text-white rounded-md transition"
+                className="w-55 p-2 bg-[var(--bg-input)] text-[var(--text-primary)] rounded-md transition border border-[var(--border-color)]"
               />
             </div>
           )}
 
           {userRole === 'broker' && (
-            <div className="text-xs text-gray-400">Applied jobbing: <span className="text-white font-medium">{jobbin_price || '0'}%</span></div>
+            <div className="text-xs text-[var(--text-secondary)]">Applied jobbing: <span className="text-[var(--text-primary)] font-medium">{jobbin_price || '0'}%</span></div>
           )}
 
           {/* Price / share and Total */}
-          <div className="text-sm bg-[#2A314A] rounded-md p-3 flex flex-col">
+          <div className="text-sm bg-[var(--bg-input)] rounded-md p-3 flex flex-col border border-[var(--border-color)]">
             {userRole === 'broker' && (
               <div className="flex justify-between">
-                <span className="text-gray-300">Price / share (Jobbing applied)</span>
-                <span className="text-white font-semibold">{adjustedPricePerShare ? `₹${adjustedPricePerShare.toFixed(4)}` : '—'}</span>
+                <span className="text-[var(--text-secondary)]">Price / share (Jobbing applied)</span>
+                <span className="text-[var(--text-primary)] font-semibold">{adjustedPricePerShare ? `₹${adjustedPricePerShare.toFixed(4)}` : '—'}</span>
               </div>
             )}
             <div className="flex justify-between mt-2">
-              <span className="text-gray-300">Total Order Value</span>
-              <span className="text-white font-semibold">{totalOrderValue ? `₹${totalOrderValue.toFixed(2)}` : '—'}</span>
+              <span className="text-[var(--text-secondary)]">Total Order Value</span>
+              <span className="text-[var(--text-primary)] font-semibold">{totalOrderValue ? `₹${totalOrderValue.toFixed(2)}` : '—'}</span>
             </div>
           </div>
 
@@ -404,7 +404,7 @@ function Summery({
             {/* Cancel Button: Hamesha dikhega taaki user window band kar sake */}
             <button
               onClick={() => setSelectedStock(null)}
-              className={`p-3 rounded-lg bg-[#333846] text-gray-200 font-medium ${(userRole === 'broker' || isOpen) ? '' : 'flex-1'}`}
+              className={`p-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-secondary)] font-medium ${(userRole === 'broker' || isOpen) ? '' : 'flex-1'}`}
             >
               Cancel
             </button>

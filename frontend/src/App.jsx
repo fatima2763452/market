@@ -13,10 +13,12 @@ import Profile from './page/Profile/Profile.jsx';
 import SearchPage from './page/Search/SearchPage.jsx';
 import ChartPage from './page/Chart/ChartPage.jsx';
 import { MarketDataProvider } from './contexts/MarketDataContext.jsx';
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
 
 function App() {
     return (
         <BrowserRouter>
+            <ThemeProvider>
             <MarketDataProvider>
                 <Routes>
                 <Route path="/" element={<LoginForm />} />
@@ -84,6 +86,7 @@ function App() {
                 />
             </Routes>
             </MarketDataProvider>
+            </ThemeProvider>
         </BrowserRouter>
     );
 }

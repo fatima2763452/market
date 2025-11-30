@@ -32,8 +32,8 @@ const NavBar = () => {
                     transition duration-200 ease-in-out relative
                     
                     ${isActive 
-                        ? 'text-indigo-400 lg:bg-indigo-900/40 rounded-lg' 
-                        : 'text-gray-400 hover:text-white lg:hover:bg-gray-700/30'
+                        ? 'text-indigo-500 lg:bg-indigo-500/20 rounded-lg' 
+                        : 'text-[var(--nav-text-inactive)] hover:text-[var(--nav-text-hover)] lg:hover:bg-[var(--bg-hover)]'
                     }
                     
                     ${isActive 
@@ -51,8 +51,8 @@ const NavBar = () => {
     return (
         <>
             {/* Desktop Header/Navigation Bar (Visible at the TOP on large screens) */}
-            <header className="hidden lg:flex justify-between items-center px-6 py-2 bg-[#21283D] border-b border-gray-700">
-                <div className="text-xl font-bold text-white">TradeApp</div>
+            <header className="hidden lg:flex justify-between items-center px-6 py-2 bg-[var(--bg-nav)] border-b border-[var(--border-color)]">
+                <div className="text-xl font-bold text-[var(--text-primary)]">TradeApp</div>
                 <nav className="flex space-x-6">
                     {NAV_ITEMS.map(item => (
                         <NavItem key={item.name} item={item} />
@@ -64,7 +64,7 @@ const NavBar = () => {
             <nav
                 className="
                     fixed bottom-0 left-0 right-0 z-50
-                    bg-[#21283D] grid grid-cols-5 px-2 py-1 border-t border-gray-700
+                    bg-[var(--bg-nav)] grid grid-cols-5 px-2 py-1 border-t border-[var(--border-color)]
                     lg:hidden 
                 "
             >

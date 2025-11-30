@@ -57,14 +57,14 @@ export default function OvernightFund({ availableBalance, holdingsValue, onRefre
   };
 
   return (
-    <div className="bg-[#121a2b] p-4 rounded-xl shadow-inner space-y-2">
-      <h3 className="text-white text-lg font-bold mb-3 border-b border-white/10 pb-2 flex items-center">
+    <div className="bg-[var(--bg-secondary)] p-4 rounded-xl shadow-inner space-y-2">
+      <h3 className="text-[var(--text-primary)] text-lg font-bold mb-3 border-b border-[var(--border-color)] pb-2 flex items-center">
         <Clock className="w-5 h-5 mr-2 text-blue-400" /> Overnight / Delivery Limit
       </h3>
 
       {/* --- Available Limit (Editable Section) --- */}
-      <div className="flex justify-between items-center py-2 border-b border-white/5">
-        <div className="flex items-center text-gray-400 text-sm">
+      <div className="flex justify-between items-center py-2 border-b border-[var(--border-light)]">
+        <div className="flex items-center text-[var(--text-secondary)] text-sm">
           <Wallet className="w-4 h-4 mr-2 text-indigo-400" />
           Available Limit (Cash)
         </div>
@@ -77,7 +77,7 @@ export default function OvernightFund({ availableBalance, holdingsValue, onRefre
                 type="number"
                 value={tempLimit}
                 onChange={(e) => setTempLimit(e.target.value)}
-                className="bg-[#1f2435] text-white text-sm font-bold p-1 rounded border border-indigo-500/50 w-28 focus:outline-none"
+                className="bg-[var(--bg-card)] text-[var(--text-primary)] text-sm font-bold p-1 rounded border border-indigo-500/50 w-28 focus:outline-none"
                 autoFocus
               />
               <button
@@ -97,7 +97,7 @@ export default function OvernightFund({ availableBalance, holdingsValue, onRefre
           ) : (
             // --- Display Mode ---
             <>
-              <span className="text-white font-bold text-base">
+              <span className="text-[var(--text-primary)] font-bold text-base">
                 {formatCurrency(cash)}
               </span>
               
