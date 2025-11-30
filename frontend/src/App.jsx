@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LoginForm from "./page/Login/LoginForm.jsx";
 import BrockerDetailPage from './page/User/BrockerDetailPage.jsx';
 import CustomerDetailsPage from './page/User/CutomerDetailPage.jsx';
+import RecycleBin from './page/User/RecycleBin.jsx';
 import Watchlist from './page/WatchList/Watchlist.jsx';
 import Layout from './page/Layout';
 import Portfolio from './page/Portfolio/Portfolio.jsx';
@@ -25,6 +26,7 @@ function App() {
                 <Route path="/brockerDetail" element={<BrockerDetailPage />} />
                 <Route path="/customerDetail" element={<CustomerDetailsPage />} />
                 <Route path="/broker/:brokerId/customerDetail" element={<CustomerDetailsPage />} />
+                <Route path="/recycle-bin" element={<RecycleBin />} />
 
                 <Route
                     path="/watchlist"

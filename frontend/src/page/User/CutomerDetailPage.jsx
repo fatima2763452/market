@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 
 /* ---------- Add Customer Modal (no external icons) ---------- */
 const AddCustomerModal = ({ isVisible, onClose, onCustomerAdded }) => {
@@ -121,8 +122,10 @@ export default function CustomerDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [errText, setErrText] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // Customer to delete
 
   const handleCustomerAdded = (c) => setCustomers((prev) => [c, ...prev]);
+  const handleCustomerDeleted = (id) => setCustomers((prev) => prev.filter((c) => c.id !== id));
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -163,6 +166,12 @@ export default function CustomerDetailsPage() {
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">
           Customers <span className="ml-2 text-sm font-semibold text-[var(--text-secondary)]">({displayBrokerId})</span>
         </h1>
+        <Link
+          to="/recycle-bin"
+          className="rounded-lg bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          🗑️ Recycle Bin
+        </Link>
       </div>
 
       {/* List */}
@@ -187,10 +196,17 @@ export default function CustomerDetailsPage() {
               </button>
               <Link
                 to={`/profile?customerId=${encodeURIComponent(c.id)}`}
-                className="rounded-md bg-red-600 px-4 py-1 text-sm font-medium text-white hover:bg-red-700"
+                className="rounded-md bg-yellow-600 px-4 py-1 text-sm font-medium text-white hover:bg-yellow-700"
               >
                 Edit
               </Link>
+              <button
+                onClick={() => setDeleteTarget(c)}
+                className="rounded-md bg-red-600 px-4 py-1 text-sm font-medium text-white hover:bg-red-700"
+                type="button"
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}
@@ -222,6 +238,13 @@ export default function CustomerDetailsPage() {
         isVisible={showAddModal}
         onClose={() => setShowAddModal(false)}
         onCustomerAdded={handleCustomerAdded}
+      />
+
+      <ConfirmDeleteDialog
+        isVisible={!!deleteTarget}
+        customer={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={handleCustomerDeleted}
       />
     </div>
   );
