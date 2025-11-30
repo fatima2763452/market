@@ -96,48 +96,80 @@ export default function RecycleBin() {
 
       {/* List */}
       <div className="mx-auto w-full max-w-3xl space-y-4 pb-8">
-        {deletedCustomers.map((c) => (
+        {deletedCustomers.map((c) => {
+          const summary = c.data_summary || {};
+          return (
           <div 
             key={c.id} 
             className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 shadow-md"
           >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              {/* Customer Info */}
-              <div className="space-y-1">
-                <div className="text-lg font-semibold text-[var(--text-primary)]">{c.name}</div>
-                <div className="text-sm">
-                  <span className="text-[var(--text-secondary)]">ID:</span>{' '}
-                  <span className="text-[#8aa2ff]">{c.id}</span>
+            <div className="flex flex-col gap-3">
+              {/* Top Row: Customer Info & Actions */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                {/* Customer Info */}
+                <div className="space-y-1">
+                  <div className="text-lg font-semibold text-[var(--text-primary)]">{c.name}</div>
+                  <div className="text-sm">
+                    <span className="text-[var(--text-secondary)]">ID:</span>{' '}
+                    <span className="text-[#8aa2ff]">{c.id}</span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-[var(--text-secondary)]">Password:</span>{' '}
+                    <span className="font-mono text-green-400">{c.password}</span>
+                  </div>
+                  <div className="text-xs text-[var(--text-secondary)]">
+                    Created: {c.joining_date} | Deleted: {c.deleted_date}
+                  </div>
                 </div>
-                <div className="text-sm">
-                  <span className="text-[var(--text-secondary)]">Password:</span>{' '}
-                  <span className="font-mono text-green-400">{c.password}</span>
-                </div>
-                <div className="text-xs text-[var(--text-secondary)]">
-                  Created: {c.joining_date} | Deleted: {c.deleted_date}
+
+                {/* Actions */}
+                <div className="flex gap-2 sm:flex-col">
+                  <button
+                    onClick={() => handleRestore(c.id)}
+                    disabled={actionLoading === c.id}
+                    className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                  >
+                    {actionLoading === c.id ? '...' : '↩️ Restore'}
+                  </button>
+                  <button
+                    onClick={() => handlePermanentDelete(c.id)}
+                    disabled={actionLoading === c.id}
+                    className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-60"
+                  >
+                    {actionLoading === c.id ? '...' : '🗑️ Delete Forever'}
+                  </button>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 sm:flex-col">
-                <button
-                  onClick={() => handleRestore(c.id)}
-                  disabled={actionLoading === c.id}
-                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
-                >
-                  {actionLoading === c.id ? '...' : '↩️ Restore'}
-                </button>
-                <button
-                  onClick={() => handlePermanentDelete(c.id)}
-                  disabled={actionLoading === c.id}
-                  className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-60"
-                >
-                  {actionLoading === c.id ? '...' : '🗑️ Delete Forever'}
-                </button>
+              {/* Data Summary Section */}
+              <div className="border-t border-[var(--border-color)] pt-3">
+                <div className="text-xs font-medium text-[var(--text-secondary)] mb-2">📦 Archived Data:</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="rounded-lg bg-[var(--bg-primary)] p-2 text-center">
+                    <div className="text-[var(--text-secondary)]">💰 Fund</div>
+                    <div className="font-semibold text-[var(--text-primary)]">₹{(summary.fund_balance || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="rounded-lg bg-[var(--bg-primary)] p-2 text-center">
+                    <div className="text-[var(--text-secondary)]">📊 Orders</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{summary.total_orders || 0}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">
+                      {summary.open_orders || 0} open / {summary.closed_orders || 0} closed
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-[var(--bg-primary)] p-2 text-center">
+                    <div className="text-[var(--text-secondary)]">📈 Holdings</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{summary.total_holdings || 0}</div>
+                  </div>
+                  <div className="rounded-lg bg-[var(--bg-primary)] p-2 text-center">
+                    <div className="text-[var(--text-secondary)]">👁️ Watchlist</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{summary.watchlist_count || 0}</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {!deletedCustomers.length && !errText && (
           <div className="rounded-xl border border-[var(--border-color)] p-6 text-center text-[var(--text-secondary)]">
