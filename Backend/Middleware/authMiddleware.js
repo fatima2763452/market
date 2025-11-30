@@ -20,12 +20,12 @@ const protect = asyncHandler(async (req, res, next) => {
     if (!decoded || !decoded.id) return res.status(401).json({ message: 'Token invalid' });
 
     if (decoded.role === 'broker') {
-      req.user = await BrokerModel.findById(decoded.id).select('-hashed_password');
+      req.user = await BrokerModel.findById(decoded.id).select('-password');
     } else if (decoded.role === 'customer') {
-      req.user = await CustomerModel.findById(decoded.id).select('-hashed_password');
+      req.user = await CustomerModel.findById(decoded.id).select('-password');
     } else {
       // fallback: try to find either
-      req.user = await BrokerModel.findById(decoded.id).select('-hashed_password') || await CustomerModel.findById(decoded.id).select('-hashed_password');
+      req.user = await BrokerModel.findById(decoded.id).select('-password') || await CustomerModel.findById(decoded.id).select('-password');
     }
 
     if (!req.user) return res.status(401).json({ message: 'User not found in database' });

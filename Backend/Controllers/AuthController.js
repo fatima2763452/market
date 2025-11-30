@@ -1,7 +1,6 @@
 // src/Backend/Controllers/AuthController.js
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 
 import BrokerModel from '../Model/BrokerModel.js';
 import CustomerModel from '../Model/CustomerModel.js';
@@ -62,7 +61,7 @@ const handleUserLogin = asyncHandler(async (req, res) => {
   let associatedBrokerStringId = null;    // Broker का 10-digit login_id (string)
 
   // 1) Try Broker first (by login_id)
-  user = await BrokerModel.findOne({ login_id: identifier }).select('+hashed_password');
+  user = await BrokerModel.findOne({ login_id: identifier }).select('+password');
   if (user) {
     role = 'broker';
     attachedMongoBrokerId = user._id;
@@ -72,7 +71,7 @@ const handleUserLogin = asyncHandler(async (req, res) => {
   // 2) Else try Customer (by customer_id)
   if (!user) {
     const customer = await CustomerModel.findOne({ customer_id: identifier })
-      .select('+attached_broker_id +hashed_password');
+      .select('+attached_broker_id +password');
 
     if (customer) {
       user = customer;
@@ -90,15 +89,16 @@ const handleUserLogin = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Invalid ID. User not found.' });
   }
 
-  const hashed = user.hashed_password;
-  if (!hashed) {
+  const storedPassword = user.password;
+  if (!storedPassword) {
     return res.status(500).json({
       success: false,
       message: 'Password field not available on user document.',
     });
   }
 
-  const isMatch = await bcrypt.compare(password, hashed);
+  // Direct password comparison (no hashing)
+  const isMatch = (password === storedPassword);
   if (!isMatch) {
     return res.status(401).json({ success: false, message: 'Invalid credentials.' });
   }

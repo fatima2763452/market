@@ -1,6 +1,5 @@
 // Controllers/CustomerController.js
 import asyncHandler from 'express-async-handler';
-import bcrypt from 'bcryptjs';
 import CustomerModel from '../Model/CustomerModel.js';
 import BrokerModel from '../Model/BrokerModel.js';
 
@@ -23,14 +22,10 @@ const addCustomer = asyncHandler(async (req, res) => {
     return;
   }
 
-  // 1. Hash Password
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
-
-  // 2. Create New Customer
+  // Create New Customer - Password stored as plain text
   const newCustomer = await CustomerModel.create({
     name,
-    hashed_password: hashedPassword,
+    password: password,
     attached_broker_id: brokerIdFromToken, 
     role: 'customer',
   });
@@ -59,7 +54,7 @@ const getBrokerCustomers = asyncHandler(async (req, res) => {
 
   const customers = await CustomerModel
     .find({ attached_broker_id: brokerIdFromToken })
-    .select('-hashed_password'); 
+    .select('-password'); 
 
   const formattedCustomers = customers.map(customer => ({
     id: customer.customer_id,

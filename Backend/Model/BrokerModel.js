@@ -15,7 +15,7 @@ const BrokerSchema = new Schema({
         default: generateId, // ID will be auto-generated upon creation
     },
     
-    hashed_password: {
+    password: {
         type: String,
         required: true,
     },
