@@ -147,6 +147,36 @@ const updateOvernightAvailableLimit = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, data: updatedFund });
 });
 
-// export { getFunds, updateFundBalance, updateIntradayLimit };
 
-export { getFunds, updateNetAvailableBalance, updateIntradayLimit, updateIntradayAvailabeLimit, updateOvernightAvailableLimit };
+
+
+const updateBrokerMobile = asyncHandler(async (req, res) => {
+    const { broker_id_str, customer_id_str, mobile } = req.body;
+
+    if (!broker_id_str || !customer_id_str) {
+        return res.status(400).json({ success: false, message: "Broker ID and Customer ID required" });
+    }
+    
+    if (!mobile) {
+        return res.status(400).json({ success: false, message: "Mobile number is required" });
+    }
+
+    const updatedFund = await Fund.findOneAndUpdate(
+        { broker_id_str, customer_id_str }, // 1. Filter
+        { 
+            $set: { 
+                broker_mobile_number: Number(mobile) 
+            } 
+        }, // 2. Update
+        { new: true, upsert: true } // 3. Options
+    );
+
+    res.status(200).json({ 
+        success: true, 
+        message: "Mobile Number Updated Successfully", 
+        data: updatedFund 
+    });
+});
+
+
+export { getFunds, updateNetAvailableBalance, updateIntradayLimit, updateIntradayAvailabeLimit, updateOvernightAvailableLimit, updateBrokerMobile };

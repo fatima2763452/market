@@ -96,7 +96,7 @@ export default function Profile() {
             {role === "customer" && (
               <>
                 <Row label="Customer ID" value={customerId} icon={IdCard} />
-                <Row label="Broker ID" value={brokerIdStr} icon={Shield} />
+                {/* <Row label="Broker ID" value={brokerIdStr} icon={Shield} /> */}
               </>
             )}
 

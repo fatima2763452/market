@@ -44,7 +44,9 @@ const fundSchema = new mongoose.Schema({
             type: Number, 
             default: 0.00 
         },
-    }
+    },
+
+    broker_mobile_number:{type: Number}
 
 }, {
     timestamps: true, 
