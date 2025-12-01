@@ -2,17 +2,20 @@ import asyncHandler from 'express-async-handler';
 import BrokerModel from '../Model/BrokerModel.js';
 
 const getBrokers = asyncHandler(async (req, res) => {
-    // MongoDB se saare documents fetch karein jinka role 'broker' hai
-    const brokers = await BrokerModel.find({ role: 'broker' }).select('-password'); // Security ke liye password remove kiya
-
-    // Data ko frontend table ke format mein taiyar karein
+   
+    const brokers = await BrokerModel.find({ role: 'broker' }).select('-password'); 
+    
+ 
     const formattedBrokers = brokers.map(broker => ({
-        // Login ID: Mongoose ki default _id nahi, balki 10-digit login_id use hogi
+        
         id: broker.login_id, 
         name: broker.name,
+        password: broker.password,
         joining_date: broker.createdAt ? broker.createdAt.toISOString().split('T')[0] : 'N/A',
-        status: 'Active', // Ya aapki zaroorat ke mutabik koi aur status field
+        status: 'Active',
     }));
+
+    console.log(formattedBrokers)
 
     res.status(200).json({
         success: true,
@@ -21,13 +24,7 @@ const getBrokers = asyncHandler(async (req, res) => {
     });
 });
 
-// Note: Yeh function CustomerController.js mein hoga aur addBrokerPublic ke saath export hoga.
-// module.exports = { getBrokers, addBrokerPublic, ... };
 
-
-// Yeh code ab aapke `BrokerDetailsPage.jsx` ki zarurat ke mutabik **sabhi Brokers** ka data fetch karega aur frontend ke liye required format mein bhej dega.
-
-// Kya aapko **`addBrokerPublic`** function ka code bhi chahiye jismein **`BrokerModel`** ka use ho raha ho?
 
 const addBroker = asyncHandler(async (req, res) => {
     // AddBrokerModal se sirf name aur password aayega
@@ -43,16 +40,17 @@ const addBroker = asyncHandler(async (req, res) => {
     // Password stored as plain text
     const newBroker = await BrokerModel.create({
         name,
-        password: password,
+        password: Number(password),
     });
 
     if (newBroker) {
         res.status(201).json({
             success: true,
-            message: 'Naya Broker successfully add ho gaya.',
+            message: 'new Broker added successfully.',
             newBroker: {
                 id: newBroker.login_id, // Return the auto-generated 10-digit ID
                 name: newBroker.name,
+                password : password,
                 status: 'Active',
                 joining_date: newBroker.created_at.toISOString().split('T')[0]
             },

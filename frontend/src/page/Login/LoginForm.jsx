@@ -36,9 +36,13 @@ const LoginForm = () => {
   const validate = (data) => {
     const newErrors = {};
     const digitRegex = /^\d{10}$/;
-    if (!data.identifier) newErrors.identifier = 'Login ID (10 digits) zaroori hai.';
-    else if (!digitRegex.test(data.identifier)) newErrors.identifier = 'ID 10 ankon (digits) ki honi chahiye.';
-    if (!data.password) newErrors.password = 'Password zaroori hai.';
+    
+    // Translated validation messages
+    if (!data.identifier) newErrors.identifier = 'Login ID (10 digits) is required.';
+    else if (!digitRegex.test(data.identifier)) newErrors.identifier = 'ID must be 10 digits.';
+    
+    if (!data.password) newErrors.password = 'Password is required.';
+    
     return newErrors;
   };
 
@@ -182,7 +186,7 @@ const LoginForm = () => {
             error={errors.password}
           />
 
-         
+          
 
           <button
             type="submit"
