@@ -145,12 +145,6 @@ const executeExit = async (orderData, exitPrice, reason) => {
     }
 };
 
-/**
- * =========================================================
- * 6. THE WATCHMAN (REAL-TIME CHECKER)
- * WebSocket se har tick par call hoga
- * =========================================================
- */
 export const onMarketTick = async ({ token, ltp }) => {
     // 1. Check if we are watching this token
     if (!activeTriggers.has(String(token))) return;
@@ -166,6 +160,7 @@ export const onMarketTick = async ({ token, ltp }) => {
         
         let hit = false;
         let hitReason = "";
+        let hitPrice = 0;
 
         // BUY Logic
         if (order.side === 'BUY') {
@@ -173,11 +168,13 @@ export const onMarketTick = async ({ token, ltp }) => {
             if (order.sl > 0 && currentLtp <= order.sl) {
                 hit = true;
                 hitReason = "STOPLOSS_HIT";
+                hitPrice = order.sl;
             } 
             // Target Hit: Price utha >= Target
             else if (order.target > 0 && currentLtp >= order.target) {
                 hit = true;
                 hitReason = "TARGET_HIT";
+                hitPrice  = order.target;
             }
         } 
         // SELL Logic
@@ -186,17 +183,19 @@ export const onMarketTick = async ({ token, ltp }) => {
             if (order.sl > 0 && currentLtp >= order.sl) {
                 hit = true;
                 hitReason = "STOPLOSS_HIT";
+                hitPrice = order.sl
             } 
             // Target Hit: Price gira <= Target
             else if (order.target > 0 && currentLtp <= order.target) {
                 hit = true;
                 hitReason = "TARGET_HIT";
+                hitPrice = order.target;
             }
         }
 
         // 3. Execute Exit
         if (hit) {
-            await executeExit({ ...order, token: String(token) }, currentLtp, hitReason);
+            await executeExit({ ...order, token: String(token) }, hitPrice, hitReason);
         }
     }
 };

@@ -1,103 +1,71 @@
 import cron from "node-cron";
-import Order from "../../Model/OrdersModel.js";
+import Order from "../../Model/OrdersModel.js"; 
 import { isTradingDay } from "../marketCalendar.js";
 import { attemptSquareoff } from "./attemptSquareoff.js";
 
+// Helper to process list of orders
 async function processCandidates(query, label) {
-  const candidates = await Order.find(query).limit(200).lean();
-  console.log(`[cron] Found ${candidates.length} candidate ${label} orders`);
+  try {
+    const candidates = await Order.find(query).limit(1000); 
+    console.log(`[cron] 🔍 ${label}: Found ${candidates.length} orders`);
 
-  for (const cand of candidates) {
-    const orderDoc = await Order.findById(cand._id);
-    if (!orderDoc) continue;
-
-    const result = await attemptSquareoff(orderDoc);
-    console.log(
-      `[cron] ${label} - ${orderDoc.order_id || orderDoc._id} ->`,
-      result
-    );
+    for (const orderDoc of candidates) {
+      await attemptSquareoff(orderDoc);
+    }
+  } catch (err) {
+    console.error(`[cron] Error in ${label}:`, err);
   }
 }
 
 export function stockSquareoffScheduler() {
-  // open order cron (15:14 IST Mon-Fri)
-  console.log('[cron] Registering schedule: OPEN_INTRADAY ->', "0 58 17 * * 1-5", 'tz=Asia/Kolkata');
-  cron.schedule(
-    "0 28 19 * * 1-5",
-    async () => {
-      try {
-        if (!isTradingDay(new Date())) {
-          console.log("[cron] Not a trading day, skipping");
-          return;
-        }
-        console.log(
-          `[cron] Running intraday open-candidates ${new Date().toLocaleString(
-            "en-IN"
-          )}`
-        );
-        await processCandidates(
-          { order_category: "INTRADAY", order_status: "OPEN" },
-          "OPEN_INTRADAY"
-        );
-      } catch (err) {
-        console.error("[cron] error:", err.stack || err);
-      }
-    },
-    { timezone: "Asia/Kolkata" }
-  );
+  console.log('🚀 Stock Squareoff Scheduler Started...');
 
-  // HOLD orders
-  console.log('[cron] Registering schedule: HOLD_INTRADAY ->', "0 0 0 * * 1-5", 'tz=Asia/Kolkata');
-  cron.schedule(
-    "0 0 0 * * 1-5",
-    async () => {
-      try {
-        if (!isTradingDay(new Date())) return;
-        console.log(
-          `[cron] Running midnight HOLD candidates ${new Date().toLocaleString(
-            "en-IN"
-          )}`
-        );
-        await processCandidates(
-          { order_category: "INTRADAY", order_status: "HOLD" },
-          "HOLD_INTRADAY"
-        );
-      } catch (err) {
-        console.error(err);
+  // =========================================================
+  // 1. INTRADAY SQUARE OFF (Rozana 3:15 PM - Mon-Fri)
+  // =========================================================
+  cron.schedule("15 15 * * 1-5", async () => { 
+      if (!isTradingDay(new Date())) {
+          return console.log("[cron] Market holiday, skipping Intraday.");
       }
-    },
-    { timezone: "Asia/Kolkata" }
-  );
+      
+      console.log(`[cron] ⏰ Running INTRADAY Auto-Squareoff`);
+      
+      // Query: Category=INTRADAY AND Status is (OPEN or HOLD or NULL)
+      await processCandidates(
+        { 
+            order_category: "INTRADAY", 
+            order_status: { $in: ["OPEN", "HOLD", null] } 
+        },
+        "OPEN_INTRADAY"
+      );
+  }, { timezone: "Asia/Kolkata" });
 
-  // overnight
-  console.log('[cron] Registering schedule: OVERNIGHT ->', "0 0 0 * * 1-5", 'tz=Asia/Kolkata');
-  cron.schedule(
-    "0 0 0 * * 1-5",
-    async () => {
-      try {
-        if (!isTradingDay(new Date())) return;
-        console.log(
-          `[cron] Running midnight OVERNIGHT candidates ${new Date().toLocaleString(
-            "en-IN"
-          )}`
-        );
-        await processCandidates({ order_category: "OVERNIGHT" }, "OVERNIGHT");
-      } catch (err) {
-        console.error(err);
-      }
-    },
-    { timezone: "Asia/Kolkata" }
-  );
 
-  // Optional debug schedule: enable by setting CRON_DEBUG=true in env (runs every 10s)
-  if (process.env.CRON_DEBUG === 'true') {
-    console.log('[cron] CRON_DEBUG enabled — registering debug schedule (every 10s)');
-    cron.schedule('*/10 * * * * *', async () => {
-      try {
-        console.log('[cron][debug] heartbeat', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-      } catch (e) {
-        console.error('[cron][debug] error', e);
-      }
-    });
-  }
+  // =========================================================
+  // 2. MIDNIGHT CLEANUP & EXPIRY CHECK (Rozana Raat 12:00 Baje)
+  // =========================================================
+  // Daily (*) chalega taaki Expiry Date check kar sake
+  cron.schedule("16 5 0 * * *", async () => {
+      console.log(`[cron] 🌙 Running Midnight Maintenance`);
+      
+      // A. Intraday Cleanup (Jo galti se bach gaye)
+      await processCandidates(
+        { 
+            order_category: "INTRADAY", 
+            order_status: { $in: ["HOLD"] } 
+        },
+        "INTRADAY_CLEANUP"
+      );
+
+      // B. OVERNIGHT / HOLD Expiry Check
+      // Condition: Category=OVERNIGHT AND Status is (OPEN or HOLD or NULL)
+      await processCandidates(
+        { 
+            order_category: "OVERNIGHT", 
+            order_status: { $in: [null] } 
+        },
+        "OVERNIGHT_EXPIRY_CHECK"
+      );
+
+  }, { timezone: "Asia/Kolkata" });
 }

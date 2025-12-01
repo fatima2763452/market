@@ -39,7 +39,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
     const {
         symbol, side, product, quantity: initialQty, price: initialPrice, jobbin_price,
-        security_Id, segment, _id: orderId, lots,
+        security_Id, segment, _id: orderId, lots, stop_loss, target
     } = selectedOrder;
 
     const lotSize = Number(selectedOrder.lot_size) || Number(selectedOrder.meta?.selectedStock?.lot_size) || 1;
@@ -56,19 +56,18 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const qty = Number(initialQty ?? 0);
     const isBuy = orderSide === 'BUY';
 
-    // 🔹 Brokerage + P&L (entry-only) – helper se
+    // 🔹 Brokerage + P&L (entry-only)
     const {
         grossPnl,
         totalBrokerage,
         netPnl,
-        pct,
     } = calculatePnLAndBrokerage({
         side: orderSide,
         avgPrice: avg,
         ltp,
         qty,
-        brokeragePercentPerSide: 0.01, // 0.01% per side
-        mode: "entry-only",            // open position: sirf entry brokerage
+        brokeragePercentPerSide: 0.01,
+        mode: "entry-only",
     });
 
     const pnlColor = netPnl >= 0 ? "text-green-400" : "text-red-400";
@@ -103,7 +102,6 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const currentLots = Number(lots ?? 0);
     const parsedAddLots = Math.max(0, parseInt(String(addLotInput).trim() || '0', 10));
     
-    // Note: Agar lot add nahi kiya, to same lots rahenge
     const targetTotalLots = currentLots + parsedAddLots;
     const targetTotalQuantity = targetTotalLots * lotSize;
 
@@ -132,32 +130,34 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 const sl = Number(slPrice) || 0;
                 const tgt = Number(targetPrice) || 0;
 
-                // A. Stop Loss & Target Validation
+                // A. Stop Loss & Target Validation (Real Market Rules)
                 if (currentPrice > 0) {
                     if (orderSide === 'BUY') {
-                        // Buy Case: SL < LTP, Target > LTP
+                        // [BUY RULE]: SL must be LOWER than Current Price
                         if (sl > 0 && sl >= currentPrice) {
-                            setFeedback({ type: 'error', message: `Invalid SL: Must be lower than current price (${currentPrice})` });
+                            setFeedback({ type: 'error', message: `Invalid SL: For BUY, SL must be lower than CMP (${currentPrice})` });
                             setSubmitting(false); return;
                         }
+                        // [BUY RULE]: Target must be HIGHER than Current Price
                         if (tgt > 0 && tgt <= currentPrice) {
-                            setFeedback({ type: 'error', message: `Invalid Target: Must be higher than current price (${currentPrice})` });
+                            setFeedback({ type: 'error', message: `Invalid Target: For BUY, Target must be higher than CMP (${currentPrice})` });
                             setSubmitting(false); return;
                         }
                     } else {
-                        // Sell Case: SL > LTP, Target < LTP
+                        // [SELL RULE]: SL must be HIGHER than Current Price
                         if (sl > 0 && sl <= currentPrice) {
-                            setFeedback({ type: 'error', message: `Invalid SL: Must be higher than current price (${currentPrice})` });
+                            setFeedback({ type: 'error', message: `Invalid SL: For SELL, SL must be higher than CMP (${currentPrice})` });
                             setSubmitting(false); return;
                         }
+                        // [SELL RULE]: Target must be LOWER than Current Price
                         if (tgt > 0 && tgt >= currentPrice) {
-                            setFeedback({ type: 'error', message: `Invalid Target: Must be lower than current price (${currentPrice})` });
+                            setFeedback({ type: 'error', message: `Invalid Target: For SELL, Target must be lower than CMP (${currentPrice})` });
                             setSubmitting(false); return;
                         }
                     }
                 }
 
-                // B. Fund Check (Sirf tab jab Lots Add kar rahe ho)
+                // B. Fund Check
                 if (parsedAddLots > 0) {
                     try {
                         const fundsData = await getFundsData();
@@ -167,12 +167,10 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         let availableLimit = 0;
                         
                         if (productType === 'Intraday') {
-                            // Intraday Free = Available - Used
                             const max = fundsData.intraday?.available_limit || 0;
                             const used = fundsData.intraday?.used_limit || 0;
                             availableLimit = max - used;
                         } else {
-                            // Overnight Free
                             availableLimit = (fundsData.overnight?.available_limit || 0);
                         }
 
@@ -201,7 +199,6 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
             let payload;
 
             if (targetStatus === 'OPEN') {
-                // *** UPDATE / BUY MORE LOGIC ***
                 payload = {
                     broker_id_str: brokerId,
                     customer_id_str: customerId,
@@ -260,9 +257,8 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 throw new Error(body?.message || `Server error: ${res.status}`);
             }
 
-            // Success Message Logic
             let successMsg = `${clickedAction} successful.`;
-            if(clickedAction === 'Adjust' && parsedAddLots === 0) successMsg = "SL/Target Updated!";
+            if(clickedAction === 'Adjust' && parsedAddLots === 0) successMsg = "Order Updated Successfully!";
             
             setFeedback({ type: 'success', message: successMsg });
             
@@ -326,6 +322,9 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                     value={`-${money(totalBrokerage)}`}
                     colorClass="text-red-400"
                 />
+                {/* Purani value show kar rahe hain sirf reference ke liye, user ne mana nahi kiya display se, button se mana kiya hai */}
+                {(stop_loss !== 0 && stop_loss != null) && <DetailRow label="Stop Loss" value={stop_loss} colorClass="text-gray-300" />}
+                {(target !== 0 && target != null) && <DetailRow label="Target" value={target} colorClass="text-gray-300" />}
             </div>
 
             <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
@@ -335,6 +334,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         <h6 className='text-lg font-semibold text-white'>Add Lot</h6>
                         <input
                             type="number"
+                            min="0"
                             value={addLotInput}
                             onChange={(e) => setAddLotInput(e.target.value)}
                             placeholder="0"
@@ -392,6 +392,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
             {(userRole === 'broker' || isOpen) && (
                 <div className="space-y-2">
                     <div className="flex space-x-2">
+                        {/* UPDATE BUTTON: Text remains "BUY MORE" or "UPDATING" per user request */}
                         <button
                             onClick={() => handleAction('Adjust', 'OPEN')}
                             disabled={submitting}

@@ -41,7 +41,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
 
     const {
         symbol, side, product, quantity: initialQty, price: initialPrice, jobbin_price,
-        security_Id, segment, _id: orderId, lots,
+        security_Id, segment, _id: orderId, lots, stop_loss, target
     } = selectedOrder;
 
     const lotSize = Number(selectedOrder.lot_size) || Number(selectedOrder.meta?.selectedStock?.lot_size) || 1;
@@ -129,6 +129,38 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
         try {
             // Validation & Fund Check
             if (intendedAction === 'Adjust') {
+                
+                const sl = Number(slPrice) || 0;
+                const tgt = Number(targetPrice) || 0;
+
+                // --- 1. STOP LOSS & TARGET VALIDATION (Real Market Rules) ---
+                if (currentPrice > 0) {
+                    if (orderSide === 'BUY') {
+                        // [BUY RULE]: SL must be LOWER than Current Price
+                        if (sl > 0 && sl >= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid SL: For BUY, SL must be lower than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                        // [BUY RULE]: Target must be HIGHER than Current Price
+                        if (tgt > 0 && tgt <= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid Target: For BUY, Target must be higher than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                    } else {
+                        // [SELL RULE]: SL must be HIGHER than Current Price
+                        if (sl > 0 && sl <= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid SL: For SELL, SL must be higher than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                        // [SELL RULE]: Target must be LOWER than Current Price
+                        if (tgt > 0 && tgt >= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid Target: For SELL, Target must be lower than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                    }
+                }
+
+                // --- 2. FUND CHECK FOR ADDING LOTS ---
                 if (parsedAddLots > 0) { 
                     try {
                         const fundsData = await getFundsData();
@@ -180,7 +212,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                     meta: { from: 'ui_overnight_order_adjustment' }
                 };
             } else if (intendedAction === 'Close') {
-                // *** EXIT LOGIC (brokerage exit + P&L closedOrder me handle kar rahe ho) ***
+                // *** EXIT LOGIC ***
                 const liveLtp = Number(sheetData?.ltp ?? 0);
                 const jobbingRaw = Number(selectedOrder.jobbin_price ?? jobbin_price ?? 0);
                 const jobbingPct = Number.isFinite(jobbingRaw) ? (jobbingRaw / 100) : 0;
@@ -216,7 +248,10 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                 throw new Error(body?.message || `Server error: ${res.status}`);
             }
 
-            setFeedback({ type: 'success', message: `${intendedAction} successful.` });
+            let successMsg = `${intendedAction} successful.`;
+            if(intendedAction === 'Adjust' && parsedAddLots === 0) successMsg = "Order Updated Successfully!";
+
+            setFeedback({ type: 'success', message: successMsg });
             try {
                 window.dispatchEvent(new CustomEvent('orders:changed', { detail: { order: body?.order } }));
             } catch (e) {}
@@ -265,6 +300,8 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                 <DetailRow label="Type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
                 <DetailRow label="Order Instant" value={productType} colorClass="text-gray-300" />
                 <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+                {(stop_loss !== 0 && stop_loss != null) && <DetailRow label="Stop Loss" value={stop_loss} colorClass="text-gray-300" />}
+                {(target !== 0 && target != null) && <DetailRow label="Target" value={target} colorClass="text-gray-300" />}
                 <div className="mt-1 text-right text-[10px] text-gray-500">
                     Est. Brokerage (entry): -{money(brokerageEntry)}
                 </div>
@@ -278,6 +315,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                         <h6 className='text-lg font-semibold text-white'>Add Lot</h6>
                         <input
                             type="number"
+                            min="0"
                             value={addLotInput}
                             onChange={(e) => setAddLotInput(e.target.value)}
                             placeholder="Add Lots"
@@ -339,7 +377,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                         disabled={submitting}
                         className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
                     >
-                        {submitting && action === 'Adjust' ? 'BUY MORE...' : 'BUY MORE'}
+                        {submitting && action === 'Adjust' ? 'UPDATING...' : (parsedAddLots > 0 ? 'BUY MORE...' : 'BUY MORE')}
                     </button>
 
                     <button
