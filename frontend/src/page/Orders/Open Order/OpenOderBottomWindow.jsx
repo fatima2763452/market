@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Target, AlertCircle } from 'lucide-react';
 import { getFundsData } from '../../../Utils/fetchFund.jsx';
-import { logMarketStatus } from '../../../Utils/marketStatus.js'
-
+import { logMarketStatus } from '../../../Utils/marketStatus.js';
+import { calculatePnLAndBrokerage } from '../../../Utils/calculateBrokerage.jsx';
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -25,7 +25,6 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
     if (!selectedOrder) return null;
     const isOpen = logMarketStatus();
     
-
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role;
@@ -53,11 +52,24 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const avg = Number(initialPrice ?? 0);
     const ltp = Number(sheetData?.ltp ?? avg);
     const qty = Number(initialQty ?? 0);
-
-    const diff = orderSide === "BUY" ? (ltp - avg) : (avg - ltp);
-    const pnl = diff * qty;
-    const pnlColor = pnl >= 0 ? "text-green-400" : "text-red-400";
     const isBuy = orderSide === 'BUY';
+
+    // 🔹 Brokerage + P&L (entry-only) – helper se
+    const {
+        grossPnl,
+        totalBrokerage,
+        netPnl,
+        pct,
+    } = calculatePnLAndBrokerage({
+        side: orderSide,
+        avgPrice: avg,
+        ltp,
+        qty,
+        brokeragePercentPerSide: 0.01, // 0.01% per side
+        mode: "entry-only",            // open position: sirf entry brokerage
+    });
+
+    const pnlColor = netPnl >= 0 ? "text-green-400" : "text-red-400";
 
     // States
     const [addLotInput, setAddLotInput] = useState('');
@@ -270,7 +282,9 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
         <div className="open-order-bottom-window fixed bottom-0 left-0 right-0 z-50 bg-[#121A2B] border-t border-white/10 shadow-2xl p-4 transition-transform duration-300">
             <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
                 <h3 className="text-xl text-white font-bold tracking-wide">{tradingsymbol} ({orderSide})</h3>
-                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:text-white transition"><XCircle className="w-6 h-6" /></button>
+                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:text-white transition">
+                    <XCircle className="w-6 h-6" />
+                </button>
             </div>
 
             {feedback && (
@@ -281,12 +295,15 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
             <div className="mb-4 flex justify-between items-end">
                 <div>
-                    <p className="text-xl font-bold"><span className="text-gray-300 mr-1">₹</span><span className={pnlColor}>{formattedCMP}</span></p>
+                    <p className="text-xl font-bold">
+                        <span className="text-gray-300 mr-1">₹</span>
+                        <span className={pnlColor}>{formattedCMP}</span>
+                    </p>
                     <p className="text-xs text-gray-500">Current Market Price</p>
                 </div>
                 <div className="text-right">
-                    <p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p>
-                    <p className="text-xs text-gray-500">Total P&L</p>
+                    <p className={`text-xl font-bold ${pnlColor}`}>{money(netPnl)}</p>
+                    <p className="text-xs text-gray-500">Net P&L (after brokerage)</p>
                 </div>
             </div>
 
@@ -297,6 +314,16 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 <DetailRow label="Type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
                 <DetailRow label="Order Instant" value={productType} colorClass="text-gray-300" />
                 <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+                <DetailRow
+                    label="Gross P&L"
+                    value={money(grossPnl)}
+                    colorClass={grossPnl >= 0 ? "text-green-400" : "text-red-400"}
+                />
+                <DetailRow
+                    label="Est. Brokerage (entry)"
+                    value={`-${money(totalBrokerage)}`}
+                    colorClass="text-red-400"
+                />
             </div>
 
             <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
@@ -312,7 +339,9 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                             className="flex-1 p-2 bg-[#2A314A] text-white rounded-md transition"
                             disabled={orderStatus !== 'OPEN'}
                         />
-                        <div className="text-xs text-gray-400 italic">Size: <span className="font-medium text-white ml-1">{lotSize}</span></div>
+                        <div className="text-xs text-gray-400 italic">
+                            Size: <span className="font-medium text-white ml-1">{lotSize}</span>
+                        </div>
                     </div>
 
                     {/* --- SL & TARGET INPUTS (Half-Half) --- */}
@@ -346,43 +375,50 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         </div>
                     </div>
 
-                    {userRole === 'broker' && <div className="flex items-center">
-                        <Hash className="w-5 h-5 text-gray-400 mr-2" />
-                        <div className="w-75 p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
-                            <span className="text-sm">New Avg. Price</span>
-                            <span className="font-medium">{displayComputedAvg}</span>
+                    {userRole === 'broker' && (
+                        <div className="flex items-center">
+                            <Hash className="w-5 h-5 text-gray-400 mr-2" />
+                            <div className="w-75 p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
+                                <span className="text-sm">New Avg. Price</span>
+                                <span className="font-medium">{displayComputedAvg}</span>
+                            </div>
                         </div>
-                    </div>}
+                    )}
                 </div>
             </div>
 
-            {(userRole === 'broker' || isOpen) && (<div className="space-y-2">
-                <div className="flex space-x-2">
-                    <button
-                        onClick={() => handleAction('Adjust', 'OPEN')}
-                        disabled={submitting}
-                        className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-green-500 hover:bg-blue-700 ${submitting ? 'opacity-50' : ''}`}
-                    >
-                        {/* Change Text based on input */}
-                        {submitting && action === 'Adjust' ? 'UPDATING...' : (parsedAddLots > 0 ? 'BUY MORE..' : 'BUY MORE')}
-                    </button>
-                    <button
-                        onClick={() => handleAction('Adjust', 'CLOSED')}
-                        disabled={submitting}
-                        className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-red-500 hover:bg-yellow-700 ${submitting ? 'opacity-50' : ''}`}
-                    >
-                        EXIT
-                    </button>
-                </div>
+            {(userRole === 'broker' || isOpen) && (
+                <div className="space-y-2">
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => handleAction('Adjust', 'OPEN')}
+                            disabled={submitting}
+                            className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-green-500 hover:bg-blue-700 ${submitting ? 'opacity-50' : ''}`}
+                        >
+                            {submitting && action === 'Adjust'
+                                ? 'UPDATING...'
+                                : (parsedAddLots > 0 ? 'BUY MORE..' : 'BUY MORE')}
+                        </button>
+                        <button
+                            onClick={() => handleAction('Adjust', 'CLOSED')}
+                            disabled={submitting}
+                            className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-red-500 hover:bg-yellow-700 ${submitting ? 'opacity-50' : ''}`}
+                        >
+                            EXIT
+                        </button>
+                    </div>
 
-                {userRole === 'broker' && <button
-                    onClick={() => handleAction('Adjust', 'HOLD')}
-                    disabled={submitting}
-                    className={`w-full p-3 rounded-lg text-white font-semibold transition bg-blue-500 hover:bg-purple-700 ${submitting ? 'opacity-50' : ''}`}
-                >
-                    CONVERT TO HOLD
-                </button>}
-            </div>)}
+                    {userRole === 'broker' && (
+                        <button
+                            onClick={() => handleAction('Adjust', 'HOLD')}
+                            disabled={submitting}
+                            className={`w-full p-3 rounded-lg text-white font-semibold transition bg-blue-500 hover:bg-purple-700 ${submitting ? 'opacity-50' : ''}`}
+                        >
+                            CONVERT TO HOLD
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

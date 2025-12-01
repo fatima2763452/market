@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock, Target, AlertCircle } from 'lucide-react';
 import { getFundsData } from '../../../Utils/fetchFund.jsx';
-import { logMarketStatus } from '../../../Utils/marketStatus.js'
-
+import { logMarketStatus } from '../../../Utils/marketStatus.js';
+import { calculatePnLAndBrokerage } from '../../../Utils/calculateBrokerage.jsx';
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
+
+// Entry side brokerage 0.01%
+const ENTRY_BROKERAGE_PERCENT = 0.01;
 
 const DetailRow = ({ Icon, label, value, colorClass }) => {
     return (
@@ -44,27 +47,44 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const tradingsymbol = selectedOrder.meta?.selectedStock?.tradingSymbol ?? symbol ?? "N/A";
     const orderSide = String(side ?? "").toUpperCase();
 
-    const ltpRaw = sheetData?.ltp != null ? Number(sheetData.ltp) : null;
-    const currentPrice = ltpRaw || Number(initialPrice) || 0;
-    const formattedCMP = currentPrice ? `₹${currentPrice.toFixed(2)}` : '—';
-
-    const avg = Number(initialPrice ?? 0);
-    const ltp = Number(sheetData?.ltp ?? avg);
+    // ---- PRICE / QTY / P&L WITH BROKERAGE ----
+    // Avg: prefer average_price if available
+    const avg = Number(
+        selectedOrder.average_price ?? initialPrice ?? 0
+    );
     const qty = Number(initialQty ?? 0);
 
-    const diff = orderSide === "BUY" ? (ltp - avg) : (avg - ltp);
-    const pnl = currentPrice ? (diff * qty) : 0;
-    const profit = pnl >= 0;
+    // live LTP (sheetData) fallback avg
+    const ltp = Number(sheetData?.ltp ?? avg);
+    const currentPrice = ltp;
+    const formattedCMP = currentPrice ? `₹${currentPrice.toFixed(2)}` : '—';
+
+    // helper se sab calculate
+    const {
+        grossPnl,
+        netPnl,
+        pct,
+        brokerageEntry,
+    } = calculatePnLAndBrokerage({
+        side: orderSide,
+        avgPrice: avg,
+        ltp: currentPrice,
+        qty,
+        brokeragePercentPerSide: ENTRY_BROKERAGE_PERCENT,
+        mode: "entry-only",
+    });
+
+    const profit = netPnl >= 0;
     const pnlColor = profit ? "text-green-400" : "text-red-400";
 
     const isBuy = orderSide === 'BUY';
-    const adjustActionColor = isBuy ? 'bg-green-600' : 'bg-green-600';
+    const adjustActionColor = 'bg-green-600';
     const closeActionColor = 'bg-red-500 hover:bg-red-700';
 
     // --- STATES ---
     const [addLotInput, setAddLotInput] = useState(''); 
     
-    // NEW: SL & Target States
+    // SL & Target
     const [slPrice, setSlPrice] = useState(selectedOrder.stop_loss || '');
     const [targetPrice, setTargetPrice] = useState(selectedOrder.target || '');
 
@@ -120,11 +140,6 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
                         const requiredAmount = (parsedAddLots * currentLotSize) * currentPrice;
                         
-                        // Holdings use Overnight Funds (Available Limit)
-                        // Or if you want Intraday logic for holdings as per your previous message:
-                        // "User requested to use Intraday Fund for this" -> Let's stick to Intraday logic if specifically asked,
-                        // otherwise Holdings are naturally Overnight. 
-                        // Assuming you want Intraday check as per last specific instruction:
                         const maxLimit = fundsData.intraday?.available_limit || 0;
                         const usedLimit = fundsData.intraday?.used_limit || 0;
                         const availableLimit = maxLimit - usedLimit;
@@ -247,22 +262,26 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
             <div className="mb-4 flex justify-between items-end">
                 <div>
-                    <p className="text-xl font-bold"><span className="text-gray-300 mr-1">₹</span><span className={pnlColor}>{formattedCMP}</span></p>
+                    <p className="text-xl font-bold">
+                        <span className="text-gray-300 mr-1">₹</span>
+                        <span className={pnlColor}>{formattedCMP}</span>
+                    </p>
                     <p className="text-xs text-gray-500">Current Market Price</p>
                 </div>
                 <div className="text-right">
-                    <p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p>
-                    <p className="text-xs text-gray-500">Total P&L</p>
+                    <p className={`text-xl font-bold ${pnlColor}`}>{money(netPnl)}</p>
+                    <p className="text-xs text-gray-500">Net P&L (after brokerage)</p>
                 </div>
             </div>
 
             <div className="mb-4 p-2 bg-[#1A1F30] rounded-lg">
                 <DetailRow label="Quantity" value={`${initialQty} shares`} />
                 <DetailRow label="Lots" value={`${lots} lots`} />
-                <DetailRow label="Avg. Buy Price" value={money(initialPrice)} colorClass="text-yellow-300" />
+                <DetailRow label="Avg. Buy Price" value={money(avg)} colorClass="text-yellow-300" />
                 <DetailRow label="Type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
                 <DetailRow label="Order Instant" value={product === 'MIS' ? 'Intraday' : 'Overnight'} colorClass="text-gray-300" />
                 <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+                <DetailRow label="Est. Brokerage (entry)" value={`-${money(brokerageEntry)}`} colorClass="text-gray-400" />
             </div>
 
             <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
@@ -281,19 +300,18 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         <div className="text-xs text-gray-400 italic">Size: <span className="font-medium text-white ml-1">{currentLotSize}</span></div>
                     </div>
 
-
-
-                    {userRole === 'broker' && <div className="flex items-center">
-                        <Hash className="w-5 h-5 text-gray-400 mr-2" />
-                        <div className="w-full p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
-                            <span className="text-sm">New Avg. Price</span>
-                            <span className="font-medium">{displayComputedAvg}</span>
+                    {userRole === 'broker' && (
+                        <div className="flex items-center">
+                            <Hash className="w-5 h-5 text-gray-400 mr-2" />
+                            <div className="w-full p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
+                                <span className="text-sm">New Avg. Price</span>
+                                <span className="font-medium">{displayComputedAvg}</span>
+                            </div>
                         </div>
-                    </div>}
+                    )}
 
-                                        {/* --- SL & TARGET INPUTS --- */}
+                    {/* SL & TARGET INPUTS */}
                     <div className="flex space-x-2">
-                        {/* Stop Loss Input */}
                         <div className="flex-1 flex items-center space-x-2 bg-[#2A314A] p-2 rounded-md">
                             <AlertCircle className="w-4 h-4 text-red-400" />
                             <div className="flex flex-col w-full">
@@ -308,7 +326,6 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                             </div>
                         </div>
 
-                        {/* Target Input */}
                         <div className="flex-1 flex items-center space-x-2 bg-[#2A314A] p-2 rounded-md">
                             <Target className="w-4 h-4 text-green-400" />
                             <div className="flex flex-col w-full">
@@ -323,27 +340,28 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
 
-            {(userRole === 'broker' || isOpen ) && (<div className="flex space-x-2">
-                <button
-                    onClick={() => handleAction('Adjust')}
-                    disabled={submitting}
-                    className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
-                >
-                    {submitting && action === 'Adjust' ? 'BUY MORE...' : 'BUY MORE'}
-                </button>
+            {(userRole === 'broker' || isOpen ) && (
+                <div className="flex space-x-2">
+                    <button
+                        onClick={() => handleAction('Adjust')}
+                        disabled={submitting}
+                        className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
+                    >
+                        {submitting && action === 'Adjust' ? 'BUYING...' : 'BUY MORE'}
+                    </button>
 
-                <button
-                    onClick={() => handleAction('Close')}
-                    disabled={submitting}
-                    className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${closeActionColor} ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
-                >
-                    {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
-                </button>
-            </div>)}
+                    <button
+                        onClick={() => handleAction('Close')}
+                        disabled={submitting}
+                        className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${closeActionColor} ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
+                    >
+                        {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

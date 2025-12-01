@@ -1,327 +1,388 @@
 // HoldOrder.jsx
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import HoldOrderBottomWindow from "./holdOrderBottomWindow.jsx";
-// NOTE: Assuming MOCK_ORDERS is defined or imported somewhere above the component scope if needed, 
-// otherwise we use empty array []
-// import { MOCK_ORDERS } from "../mockData"; 
+import { calculatePnLAndBrokerage } from "../../../Utils/calculateBrokerage.jsx";
 
-// --- MOCK FUNCTION START (Fixed: Stable Reference) ---
-// Ticks map ko bahar define kiya taaki har render pe naya na bane
-const MOCK_TICKS = new Map(); 
+// --- MOCK FUNCTION START (agar context ready nahi hai to) ---
+const MOCK_TICKS = new Map();
 const useMarketData = () => {
-    // Return stable object references
-    return {
-        ticks: MOCK_TICKS,
-        subscribe: async () => {},
-        unsubscribe: async () => {},
-        isConnected: true
-    };
+  return {
+    ticks: MOCK_TICKS,
+    subscribe: async () => {},
+    unsubscribe: async () => {},
+    isConnected: true,
+  };
 };
 // --- MOCK FUNCTION END ---
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
+// Brokerage config – 0.01% per side
+const ENTRY_BROKERAGE_PERCENT = 0.01; // 0.01% (ENTRY ONLY for holdings)
+
 export default function HoldOrder() {
-  // const list = MOCK_ORDERS.filter(o => o.status === "HOLD"); // Assuming MOCK_ORDERS exists if needed
-  const list = [];
+  const list = [];
 
-  // ❌ Removed [allData, setAllData] state
-  const [orders, setOrders] = useState({}); // snapshot map/object
-  const [instrumentData, setInstrumentData] = useState([]);
-  const [loader , setLoader] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedOrderData, setSelectedOrderData] = useState(null);
+  const [orders, setOrders] = useState({});
+  const [instrumentData, setInstrumentData] = useState([]);
+  const [loader, setLoader] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedOrderData, setSelectedOrderData] = useState(null);
 
-  // Add WebSocket connection
-  const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
-    // Keep stable refs for subscribe/unsubscribe to avoid unstable dependencies
-    const subscribeRef = useRef(subscribe);
-    const unsubscribeRef = useRef(unsubscribe);
-    useEffect(() => {
-        subscribeRef.current = subscribe;
-        unsubscribeRef.current = unsubscribe;
-    }, [subscribe, unsubscribe]);
+  const { ticks, subscribe, unsubscribe } = useMarketData();
+  const subscribeRef = useRef(subscribe);
+  const unsubscribeRef = useRef(unsubscribe);
 
-  const activeContextString = localStorage.getItem('activeContext');
-  const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
-  const brokerId = activeContext.brokerId;
-  const customerId = activeContext.customerId;
-    // Use uppercase to match backend values
-    const orderStatus = "HOLD";
+  useEffect(() => {
+    subscribeRef.current = subscribe;
+    unsubscribeRef.current = unsubscribe;
+  }, [subscribe, unsubscribe]);
 
-  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
-  const token = localStorage.getItem("token") || null;
+  const activeContextString = localStorage.getItem("activeContext");
+  const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+  const brokerId = activeContext.brokerId;
+  const customerId = activeContext.customerId;
+  const orderStatus = "HOLD";
 
-  // Segment mapping for tick key generation
-  const segmentStringToNumberMap = useMemo(() => ({
-    "NSE_EQ": 1,
-    "NSE_FNO": 2,
-    "MCX_COMM": 5,
-    "BSE_EQ": 4,
-    "NSE_INDEX": 0,
-    "IDX_I": 0,
-  }), []);
+  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+  const token = localStorage.getItem("token") || null;
 
-  const handleOrderSelect = (orderData) => {
-        setSelectedOrderData(orderData); 
-    };
+  const segmentStringToNumberMap = useMemo(
+    () => ({
+      NSE_EQ: 1,
+      NSE_FNO: 2,
+      MCX_COMM: 5,
+      BSE_EQ: 4,
+      NSE_INDEX: 0,
+      IDX_I: 0,
+    }),
+    []
+  );
 
-    const handleCloseWindow = () => {
-        setSelectedOrderData(null);
-    };
+  const handleOrderSelect = (orderData) => {
+    setSelectedOrderData(orderData);
+  };
 
-    // get instrumentData (extracted to a reusable function so we can re-run it)
-    // 💡 Wrapped in useCallback for stability
-    const fetchInstrumentData = useCallback(async () => {
-        if (!brokerId || !customerId) {
-            setLoader(false);
-            return;
+  const handleCloseWindow = () => {
+    setSelectedOrderData(null);
+  };
+
+  // ---- FETCH HOLD ORDERS ----
+  const fetchInstrumentData = useCallback(async () => {
+    if (!brokerId || !customerId) {
+      setLoader(false);
+      return;
+    }
+
+    setLoader(true);
+    try {
+      const endPoint = `${apiBase.replace(
+        /\/$/,
+        ""
+      )}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=${orderStatus}&product=MIS`;
+
+      const res = await fetch(endPoint, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        setInstrumentData([]);
+        setError("Failed to load instruments");
+        return;
+      }
+
+      const data = await res.json();
+      const instruments = Array.isArray(data?.ordersInstrument)
+        ? data.ordersInstrument
+        : Array.isArray(data)
+        ? data
+        : [];
+
+      setInstrumentData(instruments);
+      setError(null);
+    } catch (err) {
+      console.error("getOrderInstrument exception:", err);
+      setInstrumentData([]);
+      setError(String(err));
+    } finally {
+      setLoader(false);
+    }
+  }, [brokerId, customerId, apiBase, token, orderStatus]);
+
+  useEffect(() => {
+    fetchInstrumentData();
+  }, [fetchInstrumentData]);
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        fetchInstrumentData();
+      } catch {}
+    };
+    window.addEventListener("orders:changed", handler);
+    return () => window.removeEventListener("orders:changed", handler);
+  }, [fetchInstrumentData]);
+
+  // ---- SNAPSHOT + WEBSOCKET ----
+  useEffect(() => {
+    if (!Array.isArray(instrumentData) || instrumentData.length === 0) {
+      setOrders({});
+      return;
+    }
+
+    (async () => {
+      try {
+        const items = instrumentData
+          .map((item) => {
+            const segment = item.segment ?? item.exchange ?? null;
+            const rawSecurityId =
+              item.securityId ?? item.security_Id ?? item.id ?? null;
+            if (!segment || rawSecurityId == null) return null;
+            return { segment, securityId: String(rawSecurityId) };
+          })
+          .filter(Boolean);
+
+        if (items.length === 0) {
+          setOrders({});
+          return;
         }
 
-        setLoader(true);
-        try {
-            // Fetch only MIS (Intraday) holdings
-            const endPoint = `${apiBase.replace(/\/$/, "")}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=${orderStatus}&product=MIS`;
+        try {
+          await (subscribeRef.current
+            ? subscribeRef.current(items, "quote")
+            : subscribe(items, "quote"));
+        } catch (e) {
+          console.warn("[HoldOrder] subscribe failed:", e);
+        }
 
-            const res = await fetch(endPoint, {
-                method: "GET",
-                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                credentials: "include",
-            });
+        const url = `${apiBase.replace(/\/$/, "")}/api/quotes/snapshot`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+          body: JSON.stringify({ items }),
+        });
 
-            if (!res.ok) {
-                let text = "<no-body>";
-                try { text = await res.text(); } catch (e) {}
-                console.error("getOrderInstrument failed:", res.status, res.statusText, text);
-                setInstrumentData([]);
-                setError("Failed to load instruments");
-                return;
-            }
+        if (!res.ok) {
+          setOrders({});
+          return;
+        }
 
-            const data = await res.json();
-            const instruments = Array.isArray(data?.ordersInstrument) ? data.ordersInstrument : (Array.isArray(data) ? data : []);
-            setInstrumentData(instruments);
-            setError(null);
-        } catch (err) {
-            console.error("getOrderInstrument exception:", err);
-            setInstrumentData([]);
-            setError(String(err));
-        } finally {
-            setLoader(false);
-        }
-    }, [brokerId, customerId, apiBase, token, orderStatus]); // Added all dependencies
+        const snapshotData = await res.json();
+        let snapshotMap = {};
 
-    useEffect(() => {
-        // initial fetch uses stable function
-        fetchInstrumentData();
-    }, [fetchInstrumentData]); // Dependency is the stable callback
+        if (
+          snapshotData &&
+          typeof snapshotData === "object" &&
+          !Array.isArray(snapshotData)
+        ) {
+          snapshotMap = snapshotData;
+        } else if (Array.isArray(snapshotData)) {
+          snapshotData.forEach((it) => {
+            const id = String(it.securityId ?? it.security_Id ?? it.id ?? "");
+            if (id) snapshotMap[id] = it;
+            if (it.segment && id) snapshotMap[`${it.segment}|${id}`] = it;
+          });
+        }
 
-    // Listen for 'orders:changed' events
-    useEffect(() => {
-        const handler = (e) => {
-            try {
-                console.debug('[HoldOrder] orders:changed received, refetching orders');
-                fetchInstrumentData(); // Use stable callback
-            } catch (err) {
-                console.warn('[HoldOrder] orders:changed handler error', err);
-            }
-        };
+        setOrders(snapshotMap);
+      } catch (err) {
+        console.error("[HoldOrder] snapshot fetch exception:", err);
+        setOrders({});
+      }
+    })();
 
-        window.addEventListener('orders:changed', handler);
-        return () => window.removeEventListener('orders:changed', handler);
-    }, [fetchInstrumentData]); // Dependency is the stable callback
+    return () => {
+      const items = instrumentData
+        .map((item) => ({
+          segment: item.segment ?? item.exchange ?? null,
+          securityId: String(
+            item.securityId ?? item.security_Id ?? item.id ?? null
+          ),
+        }))
+        .filter((i) => i.segment && i.securityId);
 
-  // Subscribe to WebSocket and fetch snapshot when instrumentData ready
-  useEffect(() => {
-    if (!Array.isArray(instrumentData) || instrumentData.length === 0) {
-      console.log("[HoldOrder] instrument is not array or is empty");
-      setOrders({});
-      return;  
-    }
+      if (items.length > 0) {
+        const fn = unsubscribeRef.current || unsubscribe;
+        fn(items, "quote").catch((e) =>
+          console.warn("[HoldOrder] Unsubscribe failed:", e)
+        );
+      }
+    };
+  }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
 
-    (async () => {
-      try {
-        const items = instrumentData
-          .map(item => {
-            const segment = item.segment ?? item.exchange ?? null;
-            const rawSecurityId = item.securityId ?? item.security_Id ?? item.id ?? null;
-            if (!segment || rawSecurityId == null) return null;
-            return { segment, securityId: String(rawSecurityId) };
-          })
-          .filter(Boolean);
+  // ---- MERGE instruments + snapshots + ticks ----
+  const displayList = useMemo(() => {
+    if (!instrumentData || instrumentData.length === 0) {
+      return list;
+    }
 
-        if (items.length === 0) {
-          console.log("[HoldOrder] items array empty");
-          setOrders({});
-          return;
-        }
+    return instrumentData.map((inst) => {
+      const securityKey = String(
+        inst.security_Id ?? inst.securityId ?? inst.id ?? ""
+      );
+      let snapshot = null;
 
-        // 1️⃣ SUBSCRIBE TO WEBSOCKET FIRST (Critical!)
-        try {
-          console.log(`[HoldOrder] Subscribing to ${items.length} instruments via WebSocket...`);
-          await (subscribeRef.current ? subscribeRef.current(items, 'quote') : subscribe(items, 'quote'));
-        } catch (e) {
-          console.warn("[HoldOrder] ⚠️ WebSocket subscribe failed:", e?.message || e);
-        }
+      if (orders && typeof orders === "object") {
+        snapshot =
+          orders[securityKey] ??
+          orders[String(inst.securityId ?? "")] ??
+          null;
+        if (!snapshot && inst.segment) {
+          snapshot = orders[`${inst.segment}|${securityKey}`] ?? null;
+        }
+      }
 
-        // 2️⃣ THEN FETCH SNAPSHOT
-        const url = `${apiBase.replace(/\/$/, "")}/api/quotes/snapshot`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          credentials: "include",
-          body: JSON.stringify({ items }),
-        });
+      const numericSegment = segmentStringToNumberMap[inst.segment];
+      const tickKey = `${numericSegment}-${securityKey}`;
+      const tick = ticks.get(tickKey) || {};
 
-        if (!res.ok) {
-          let text = "<no-body>";
-          try { text = await res.text(); } catch (e) {}
-          console.error("[HoldOrder] snapshot fetch failed:", res.status, res.statusText, text);
-          setOrders({});
-          return;
-        }
+      const combined = { ...snapshot, ...tick };
+      return { ...inst, snapshot: combined };
+    });
+  }, [instrumentData, orders, ticks, segmentStringToNumberMap, list]);
 
-        const snapshotData = await res.json();
+  const selectedOrderMarketData = useMemo(() => {
+    if (!selectedOrderData) return {};
+    const foundItem = displayList.find(
+      (item) =>
+        item._id === selectedOrderData._id ||
+        (item.security_Id &&
+          item.security_Id === selectedOrderData.security_Id)
+    );
+    return foundItem?.snapshot ?? {};
+  }, [selectedOrderData, displayList]);
 
-        let snapshotMap = {};
-        if (snapshotData && typeof snapshotData === "object" && !Array.isArray(snapshotData)) {
-          snapshotMap = snapshotData;
-        } else if (Array.isArray(snapshotData)) {
-          snapshotData.forEach(it => {
-            const id = String(it.securityId ?? it.security_Id ?? it.id ?? "");
-            if (id) snapshotMap[id] = it;
-            if (it.segment && id) snapshotMap[`${it.segment}|${id}`] = it;
-          });
-        }
+  // ---- UI ----
+  if (loader) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-400 text-xs">Loading holdings...</p>
+      </div>
+    );
+  }
 
-        setOrders(snapshotMap);
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-red-400 text-xs mb-2">{error}</p>
+          <button
+            onClick={fetchInstrumentData}
+            className="px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      } catch (err) {
-        console.error("[HoldOrder] snapshot fetch exception:", err);
-        setOrders({});
-      }
-    })();
+  return (
+    <>
+      <h3 className="text-gray-400 text-sm mb-2">
+        Holdings ({displayList.length})
+      </h3>
+      <ul className="space-y-2 pb-24 overflow-auto">
+        {displayList.map((data, idx) => {
+          const tradingsymbolRaw =
+            data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
+          const tradingsymbol = String(tradingsymbolRaw ?? "");
 
-    // 3️⃣ CLEANUP: Unsubscribe when component unmounts or instruments change
-    return () => {
-      const items = instrumentData
-        .map(item => ({
-          segment: item.segment ?? item.exchange ?? null,
-          securityId: String(item.securityId ?? item.security_Id ?? item.id ?? null),
-        }))
-        .filter(i => i.segment && i.securityId);
+          const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
+          const avg = Number(
+            data.average_price ?? data.price ?? 0 // 🔴 IMPORTANT: use average_price first
+          );
+          const qty = Number(data?.quantity ?? 0);
+          const sideUpper = String(data.side ?? "").toUpperCase();
 
-      if (items.length > 0) {
-        console.log(`[HoldOrder] Unsubscribing from ${items.length} instruments...`);
-        const fn = unsubscribeRef.current || unsubscribe;
-        fn(items, 'quote').catch(e => console.warn("[HoldOrder] Unsubscribe failed:", e));
-      }
-    };
-  }, [instrumentData, subscribe, unsubscribe, apiBase, token, subscribeRef, unsubscribeRef]); // Added stable refs
+          // 🔹 Use shared helper for P&L + entry brokerage (0.01%, entry-only)
+          const {
+            netPnl,
+            pct,
+            brokerageEntry,
+          } = calculatePnLAndBrokerage({
+            side: sideUpper,
+            avgPrice: avg,
+            ltp,
+            qty,
+            brokeragePercentPerSide: ENTRY_BROKERAGE_PERCENT,
+            mode: "entry-only",
+          });
 
-  // 💡 FIX: Merging logic moved to useMemo to prevent infinite loop
-  const displayList = useMemo(() => {
-    if (!instrumentData || instrumentData.length === 0) {
-      return list; // Fallback to mock/initial list
-    }
-    
-    return instrumentData.map(inst => {
-      const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
-      let snapshot = null;
+          const profit = netPnl >= 0;
+          const pnlColor = profit ? "text-green-400" : "text-red-400";
+          const pctText = `${profit ? "+" : ""}${netPnl.toFixed(
+            2
+          )} (${profit ? "+" : ""}${pct.toFixed(2)}%)`;
 
-      // Get snapshot data from API
-      if (orders && typeof orders === 'object') {
-        snapshot = orders[securityKey] ?? orders[String(inst.securityId ?? "")] ?? null;
-        if (!snapshot && inst.segment) {
-          snapshot = orders[`${inst.segment}|${securityKey}`] ?? null;
-        }
-      }
+          return (
+            <li
+              key={
+                data._id ||
+                data.id ||
+                `${data.segment}-${data.security_Id}-${idx}`
+              }
+              className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
+              onClick={() => handleOrderSelect(data)}
+            >
+              <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
 
-      // Get real-time tick data from WebSocket
-      const numericSegment = segmentStringToNumberMap[inst.segment];
-      const tickKey = `${numericSegment}-${securityKey}`;
-      const tick = ticks.get(tickKey) || {};
-
-      const combined = { ...snapshot, ...tick };
-
-      return { ...inst, snapshot: combined };
-    });
-
-  }, [instrumentData, orders, ticks, segmentStringToNumberMap, list]);
-
-
-  const selectedOrderMarketData = useMemo(() => {
-    if (!selectedOrderData) return {};
-    
-   
-    const foundItem = displayList.find(item => 
-      item._id === selectedOrderData._id || 
-      (item.security_Id && item.security_Id === selectedOrderData.security_Id)
-    );
-    
-    return foundItem?.snapshot ?? {};
-  }, [selectedOrderData, displayList]);
-
-
-  return (
-    <>
-    <h3 className="text-gray-400 text-sm mb-2">Holdings ({displayList.length})</h3>
-      <ul className="space-y-2 pb-24 overflow-auto">
-        {
-          displayList.map((data, idx) =>{
-            const tradingsymbolRaw = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
-            const tradingsymbol = String(tradingsymbolRaw ?? "");
-            const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
-
-            const avg = Number(data.price ?? 0);
-            const qty = Number(data?.quantity ?? 0);
-
-            const sideUpper = String(data.side ?? "").toUpperCase();
-
-            const diff = sideUpper === "BUY" ? (ltp - avg) : (avg - ltp);
-            const pnl = ltp ? (diff * qty) : 0;
-            const pct = avg ? (diff / avg) * 100 : 0;
-            const profit = pnl >= 0;
-            const pnlColor = profit ? "text-green-400" : "text-red-400";
-            const pctText = `${profit ? '+' : ''}${pnl.toFixed(2)} (${profit ? '+' : ''}${pct.toFixed(2)}%)`;
-
-             return (
-              <li
-                key={data._id || data.id || `${data.segment}-${data.security_Id}-${idx}`}
-                className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
-                onClick={() => handleOrderSelect(data)}
-              >
-                <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
-                <div className="flex items-center justify-between mb-1">
-                 
-                    <h4 className="text-white font-bold tracking-wide text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1">
-                        {tradingsymbol || '—'} <span className="text-xs text-gray-400">({sideUpper})</span>
-                    </h4>
-                    
-                    <div className={`text-xs font-bold ${pnlColor} whitespace-nowrap flex-shrink-0`}>{pctText}</div>
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="text-white font-bold tracking-wide text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1">
+                  {tradingsymbol || "—"}{" "}
+                  <span className="text-xs text-gray-400">({sideUpper})</span>
+                </h4>
+                <div
+                  className={`text-xs font-bold ${pnlColor} whitespace-nowrap flex-shrink-0`}
+                >
+                  {pctText}
                 </div>
+              </div>
 
-                <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
-                  <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
-                  <div className="text-right text-gray-400">LTP: <span className="text-white font-semibold">{ltp ? `₹${ltp.toFixed(2)}` : '—'}</span></div>
-                  <div className="text-gray-400">Avg: <span className="text-white">{money(avg)}</span></div>
-                  <div className="text-right text-gray-400">Total P&L: <span className={`${pnlColor} font-semibold`}>{money(pnl)}</span></div>
-                </div>
+              <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
+                <div className="text-gray-400">
+                  Qty: <span className="text-white">{qty}</span>
+                </div>
+                <div className="text-right text-gray-400">
+                  LTP:{" "}
+                  <span className="text-white font-semibold">
+                    {ltp ? `₹${ltp.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                <div className="text-gray-400">
+                  Avg: <span className="text-white">{money(avg)}</span>
+                </div>
+                <div className="text-right text-gray-400">
+                  Net P&L:{" "}
+                  <span className={`${pnlColor} font-semibold`}>
+                    {money(netPnl)}
+                  </span>
+                </div>
+                <div className="col-span-2 text-[10px] text-right text-gray-500 mt-1">
+                  Est. Brokerage (entry): -{money(brokerageEntry)}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
 
-              </li>
-            );
-          })
-        }
-      </ul>
-      
-
-      {selectedOrderData && (
-          <HoldOrderBottomWindow
-              selectedOrder={selectedOrderData}
-              onClose={handleCloseWindow}
-              sheetData={selectedOrderMarketData} 
-          />
-      )}
-    </>
-  );
+      {selectedOrderData && (
+        <HoldOrderBottomWindow
+          selectedOrder={selectedOrderData}
+          onClose={handleCloseWindow}
+          sheetData={selectedOrderMarketData}
+        />
+      )}
+    </>
+  );
 }
