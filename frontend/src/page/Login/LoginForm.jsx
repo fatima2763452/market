@@ -36,10 +36,13 @@ const LoginForm = () => {
   const validate = (data) => {
     const newErrors = {};
     const digitRegex = /^\d{10}$/;
+    const adminRegex = /^admin\d+$/; // Allow admin123, admin456, etc.
     
     // Translated validation messages
-    if (!data.identifier) newErrors.identifier = 'Login ID (10 digits) is required.';
-    else if (!digitRegex.test(data.identifier)) newErrors.identifier = 'ID must be 10 digits.';
+    if (!data.identifier) newErrors.identifier = 'Login ID is required.';
+    else if (!digitRegex.test(data.identifier) && !adminRegex.test(data.identifier)) {
+      newErrors.identifier = 'ID must be 10 digits or valid admin ID.';
+    }
     
     if (!data.password) newErrors.password = 'Password is required.';
     
@@ -55,6 +58,10 @@ const LoginForm = () => {
 
   // ---- helper: compute final redirect
   const computeRedirect = (role, assocBrokerId) => {
+    // Admin redirects to registration requests page
+    if (role === 'admin') {
+      return '/admin/registrations';
+    }
     if (role === 'broker') {
       const id = assocBrokerId || localStorage.getItem('associatedBrokerStringId');
       return id ? `/broker/${id}/customerDetail` : '/customerDetail';

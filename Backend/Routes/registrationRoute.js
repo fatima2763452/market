@@ -9,6 +9,7 @@ import {
   getRegistrationById,
   updateRegistrationStatus,
   getRegistrationStats,
+  deleteRegistration,
 } from '../Controllers/RegistrationController.js';
 import { protect } from '../Middleware/authMiddleware.js';
 
@@ -82,5 +83,8 @@ router.get('/:id', protect, getRegistrationById);
 
 // PATCH /api/registration/:id/status - Update status (approve/reject)
 router.patch('/:id/status', protect, updateRegistrationStatus);
+
+// DELETE /api/registration/:id - Delete a registration
+router.delete('/:id', protect, deleteRegistration);
 
 export default router;
