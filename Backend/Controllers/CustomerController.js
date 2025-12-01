@@ -8,6 +8,7 @@ import OrderModel from '../Model/OrdersModel.js';
 import HoldingModel from '../Model/HoldingModel.js';
 import PositionsModel from '../Model/PositionsModel.js';
 import UserWatchlistModel from '../Model/UserWatchlistModel.js';
+import cloudinaryAdapter from '../services/storage/adapters/cloudinaryAdapter.js';
 
 // Utility function to format date (e.g., to YYYY-MM-DD)
 const formatDate = (date) => {
@@ -79,7 +80,8 @@ const getBrokerCustomers = asyncHandler(async (req, res) => {
     id: customer.customer_id,
     name: customer.name,
     joining_date: formatDate(customer.createdAt), 
-    status: customer.status || 'Active', 
+    status: customer.status || 'Active',
+    profile_photo: customer.profile_photo || null,
   }));
 
   res.status(200).json({
@@ -553,11 +555,130 @@ const permanentDeleteCustomer = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Broker uploads/updates customer profile photo
+// @route   PUT /api/auth/customer/:customerId/profile-photo
+// @access  Private (Broker only)
+const uploadProfilePhoto = asyncHandler(async (req, res) => {
+  const brokerIdFromToken = req.user._id;
+  const { customerId } = req.params;
+
+  console.log('[uploadProfilePhoto] Broker ID:', brokerIdFromToken);
+  console.log('[uploadProfilePhoto] Customer ID:', customerId);
+
+  // Verify customer belongs to this broker
+  const customer = await CustomerModel.findOne({
+    customer_id: customerId,
+    attached_broker_id: brokerIdFromToken
+  });
+
+  if (!customer) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Customer not found or not linked to this broker.' 
+    });
+  }
+
+  // Check if file was uploaded
+  if (!req.file) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'No image file provided.' 
+    });
+  }
+
+  console.log('[uploadProfilePhoto] File received:', req.file.originalname, req.file.size, 'bytes');
+
+  // Upload to Cloudinary
+  const filename = `profile_${customerId}_${Date.now()}`;
+  const uploadResult = await cloudinaryAdapter.upload(
+    req.file.buffer,
+    filename,
+    'profile-photos'
+  );
+
+  if (!uploadResult.success) {
+    console.error('[uploadProfilePhoto] Cloudinary upload failed:', uploadResult.error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to upload image. Please try again.' 
+    });
+  }
+
+  console.log('[uploadProfilePhoto] Cloudinary upload successful:', uploadResult.url);
+
+  // Update customer profile photo
+  customer.profile_photo = uploadResult.url;
+  await customer.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Profile photo updated successfully.',
+    profile_photo: uploadResult.url
+  });
+});
+
+// @desc    Get customer details including profile photo
+// @route   GET /api/auth/customer/:customerId
+// @access  Private (Broker or Customer)
+const getCustomerDetails = asyncHandler(async (req, res) => {
+  const { customerId } = req.params;
+  const userFromToken = req.user;
+
+  console.log('[getCustomerDetails] Requested customer:', customerId);
+  console.log('[getCustomerDetails] User role:', userFromToken.role);
+
+  let customer;
+
+  if (userFromToken.role === 'broker') {
+    // Broker can only see their own customers
+    customer = await CustomerModel.findOne({
+      customer_id: customerId,
+      attached_broker_id: userFromToken._id
+    }).select('-password');
+  } else if (userFromToken.role === 'customer') {
+    // Customer can only see their own profile
+    if (userFromToken.customer_id !== customerId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied.' 
+      });
+    }
+    customer = await CustomerModel.findOne({ 
+      customer_id: customerId 
+    }).select('-password');
+  } else {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Access denied.' 
+    });
+  }
+
+  if (!customer) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Customer not found.' 
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    customer: {
+      id: customer.customer_id,
+      name: customer.name,
+      role: customer.role,
+      profile_photo: customer.profile_photo || null,
+      joining_date: formatDate(customer.createdAt),
+    }
+  });
+});
+
 export { 
   addCustomer, 
   getBrokerCustomers, 
   deleteCustomer, 
   getDeletedCustomers, 
   restoreCustomer, 
-  permanentDeleteCustomer 
+  permanentDeleteCustomer,
+  uploadProfilePhoto,
+  getCustomerDetails
 };
