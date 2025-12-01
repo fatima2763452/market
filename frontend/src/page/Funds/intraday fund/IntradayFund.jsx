@@ -22,7 +22,7 @@ export default function IntradayFund({ intradayMaxLimit, intradayUsedMargin, onR
   const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
   const { brokerId, customerId } = activeContext;
   const token = localStorage.getItem("token");
-  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+  const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
 
   // --- API Call to Update Limit ---
   const handleUpdateLimit = async () => {

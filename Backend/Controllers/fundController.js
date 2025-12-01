@@ -40,23 +40,23 @@ const getFunds = asyncHandler(async (req, res) => {
         customer_id_str 
     });
 
-    // // 4. Agar Fund record nahi mila (New User), to Default create karein
-    // if (!fund) {
-    //     fund = await Fund.create({
-    //         broker_id_str,
-    //         customer_id_str,
-    //         net_available_balance: 0,
-    //         intraday: {
-    //             available_limit: 0,
-    //             used_limit: 0
-    //         },
-    //         overnight: {
-    //             available_limit: 0,
-    //             used_limit: 0
-    //         }
-    //     });
-    //     console.log(`New Fund record created for Customer: ${customer_id_str}`);
-    // }
+    // 4. Agar Fund record nahi mila (New User), to Default create karein
+    if (!fund) {
+        fund = await Fund.create({
+            broker_id_str,
+            customer_id_str,
+            net_available_balance: 0,
+            intraday: {
+                available_limit: 0,
+                used_limit: 0
+            },
+            overnight: {
+                available_limit: 0,
+                used_limit: 0
+            }
+        });
+        console.log(`New Fund record created for Customer: ${customer_id_str}`);
+    }
 
     // 5. Response bhejein
     res.status(200).json({
