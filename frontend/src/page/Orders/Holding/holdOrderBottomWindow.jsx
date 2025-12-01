@@ -33,7 +33,9 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const userRole = userObject.role;
 
     // expiry display
-    const expireDate = selectedOrder.meta?.selectedStock?.expiry;
+    // For option chain orders, expiry is in meta.expiry
+    // For regular orders, expiry is in meta.selectedStock.expiry
+    const expireDate = selectedOrder.meta?.expiry || selectedOrder.meta?.selectedStock?.expiry;
     const formattedStockExpireDate = expireDate ?
         new Date(expireDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
         : 'N/A';

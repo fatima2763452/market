@@ -29,7 +29,9 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role;
 
-    const expireDate = selectedOrder.meta?.selectedStock?.expiry;
+    // For option chain orders, expiry is in meta.expiry
+    // For regular orders, expiry is in meta.selectedStock.expiry
+    const expireDate = selectedOrder.meta?.expiry || selectedOrder.meta?.selectedStock?.expiry;
     const date = expireDate ? new Date(expireDate) : null;
     const formattedStockExpireDate = date
         ? String(date.getDate()).padStart(2, '0') + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + date.getFullYear()

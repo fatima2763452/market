@@ -52,7 +52,8 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
     const now = new Date();
     const setSym = new Set();
     for (const o of closedOrders) {
-      const expRaw = o?.meta?.selectedStock?.expiry || o?.expireDate;
+      // For option chain orders, expiry is in meta.expiry
+      const expRaw = o?.meta?.expiry || o?.meta?.selectedStock?.expiry || o?.expireDate;
       const tradingSymbol = o?.meta?.selectedStock?.tradingSymbol ?? o?.symbol ?? "";
       if (!expRaw || !tradingSymbol) continue;
       const exp = new Date(expRaw);
@@ -76,7 +77,7 @@ export default function ClosedOrderFilter({ closedOrders = [], onFilter }) {
     // EXPIRY -> ignore number input, filter by expiry <= today and optional symbol
     if (range === "expiry") {
       const list = closedOrders.filter((o) => {
-        const expRaw = o?.meta?.selectedStock?.expiry || o?.expireDate;
+        const expRaw = o?.meta?.expiry || o?.meta?.selectedStock?.expiry || o?.expireDate;
         if (!expRaw) return false;
         const exp = new Date(expRaw);
         return exp <= end;
