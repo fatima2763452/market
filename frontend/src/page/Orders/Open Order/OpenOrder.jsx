@@ -348,7 +348,18 @@ export default function OpenOrder() {
             data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
           const tradingsymbol = String(tradingsymbolRaw ?? "");
 
-          const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
+          // For option chain orders, the security_Id may be the parent's ID (not the option's)
+          // So live ticks will show the parent's LTP instead of the option's LTP
+          // In this case, use the saved order price as fallback
+          const isOptionChainOrder = data?.meta?.from === 'ui_option_chain';
+          const snapshotLtp = Number(data.snapshot?.ltp ?? 0);
+          
+          // If it's an option chain order and snapshot LTP seems to be parent's LTP (very different from avg),
+          // or if snapshot LTP is 0, use the saved order price
+          const ltp = (isOptionChainOrder && (snapshotLtp === 0 || !data.snapshot?.ltp)) 
+            ? Number(data.price ?? 0) 
+            : (snapshotLtp || Number(data.ltp ?? data.price ?? 0));
+          
           const avg = Number(data.price ?? 0);
           const qty = Number(data?.quantity ?? 0);
 

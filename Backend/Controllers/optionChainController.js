@@ -235,4 +235,75 @@ async function getExpiryList(req, res) {
     }
 }
 
-export { getOptionChain, getExpiryList };
+/**
+ * Lookup the security_Id for an option contract from instruments collection
+ * Query params:
+ *   - underlying_symbol: e.g., "NIFTY", "HDFCBANK"
+ *   - strike: Strike price (number)
+ *   - optionType: "CE" or "PE"
+ *   - expiry: Expiry date in YYYY-MM-DD format
+ */
+async function getOptionSecurityId(req, res) {
+    try {
+        const { underlying_symbol, strike, optionType, expiry } = req.query;
+
+        if (!underlying_symbol || !strike || !optionType || !expiry) {
+            return res.status(400).json({
+                error: 'Missing required parameters',
+                details: 'underlying_symbol, strike, optionType, and expiry are required'
+            });
+        }
+
+        console.log('[getOptionSecurityId] Looking up:', { underlying_symbol, strike, optionType, expiry });
+
+        // Parse expiry date for range query (to handle timezone differences)
+        const expiryDate = new Date(expiry);
+        const expiryStart = new Date(expiryDate);
+        expiryStart.setHours(0, 0, 0, 0);
+        const expiryEnd = new Date(expiryDate);
+        expiryEnd.setHours(23, 59, 59, 999);
+
+        // Find the option contract in instruments collection
+        const instrument = await Instrument.findOne({
+            underlying_symbol: { $regex: new RegExp(`^${underlying_symbol}$`, 'i') },
+            strike: Number(strike),
+            optionType: optionType.toUpperCase(),
+            expiry: { $gte: expiryStart, $lte: expiryEnd },
+            segment: 'NSE_FNO'
+        }).lean();
+
+        if (!instrument) {
+            console.log('[getOptionSecurityId] No instrument found for:', { underlying_symbol, strike, optionType, expiry });
+            return res.status(404).json({
+                error: 'Option contract not found',
+                details: `No option found for ${underlying_symbol} ${strike} ${optionType} expiring ${expiry}`
+            });
+        }
+
+        console.log('[getOptionSecurityId] Found instrument:', {
+            securityId: instrument.securityId,
+            tradingsymbol: instrument.tradingsymbol,
+            lotSize: instrument.lotSize
+        });
+
+        return res.json({
+            ok: true,
+            data: {
+                securityId: instrument.securityId,
+                tradingsymbol: instrument.tradingsymbol,
+                segment: instrument.segment,
+                lotSize: instrument.lotSize,
+                tickSize: instrument.tickSize
+            }
+        });
+
+    } catch (error) {
+        console.error('[getOptionSecurityId] Error:', error);
+        return res.status(500).json({
+            error: 'Failed to lookup option security ID',
+            details: error.message
+        });
+    }
+}
+
+export { getOptionChain, getExpiryList, getOptionSecurityId };
