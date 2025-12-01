@@ -20,10 +20,10 @@ const AdminRegistrations = () => {
     if (userStr) {
       const user = JSON.parse(userStr);
       if (user.role !== 'admin') {
-        navigate('/login');
+        navigate('/');
       }
     } else {
-      navigate('/login');
+      navigate('/');
     }
   }, [navigate]);
 
@@ -96,7 +96,7 @@ const AdminRegistrations = () => {
     localStorage.removeItem('loggedInUser');
     localStorage.removeItem('associatedBrokerStringId');
     localStorage.removeItem('activeContext');
-    navigate('/login');
+    navigate('/');
   };
 
   // Format date
