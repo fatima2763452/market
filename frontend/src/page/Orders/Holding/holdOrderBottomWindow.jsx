@@ -40,7 +40,7 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
     const {
         symbol, side, product, quantity: initialQty, price: initialPrice, jobbin_price,
-        security_Id, segment, _id: orderId, lots, lot_size,
+        security_Id, segment, _id: orderId, lots, lot_size, stop_loss, target
     } = selectedOrder;
 
     const currentLotSize = lot_size || selectedOrder.meta?.selectedStock?.lot_size || 1;
@@ -133,6 +133,38 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
         try {
             // Validation & Fund Check for "BUY MORE"
             if (intendedAction === 'Adjust') {
+                
+                const sl = Number(slPrice) || 0;
+                const tgt = Number(targetPrice) || 0;
+
+                // --- 1. STOP LOSS & TARGET VALIDATION (Real Market Rules) ---
+                if (currentPrice > 0) {
+                    if (orderSide === 'BUY') {
+                        // [BUY RULE]: SL must be LOWER than Current Price
+                        if (sl > 0 && sl >= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid SL: For BUY, SL must be lower than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                        // [BUY RULE]: Target must be HIGHER than Current Price
+                        if (tgt > 0 && tgt <= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid Target: For BUY, Target must be higher than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                    } else {
+                        // [SELL RULE]: SL must be HIGHER than Current Price
+                        if (sl > 0 && sl <= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid SL: For SELL, SL must be higher than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                        // [SELL RULE]: Target must be LOWER than Current Price
+                        if (tgt > 0 && tgt >= currentPrice) {
+                            setFeedback({ type: 'error', message: `Invalid Target: For SELL, Target must be lower than CMP (${currentPrice})` });
+                            setSubmitting(false); return;
+                        }
+                    }
+                }
+
+                // --- 2. FUND CHECK FOR ADDING LOTS ---
                 if (parsedAddLots > 0) {
                     try {
                         const fundsData = await getFundsData();
@@ -140,6 +172,9 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
                         const requiredAmount = (parsedAddLots * currentLotSize) * currentPrice;
                         
+                        // NOTE: Holdings usually consume Delivery/Intraday limit depending on your system logic.
+                        // Assuming Intraday limit logic as per original code, or check if 'Hold' uses different limit.
+                        // Defaulting to original logic:
                         const maxLimit = fundsData.intraday?.available_limit || 0;
                         const usedLimit = fundsData.intraday?.used_limit || 0;
                         const availableLimit = maxLimit - usedLimit;
@@ -232,7 +267,10 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 throw new Error(body.message || 'Server returned failure');
             }
 
-            setFeedback({ type: 'success', message: body?.message || `${intendedAction} successful.` });
+            let successMsg = `${intendedAction} successful.`;
+            if(intendedAction === 'Adjust' && parsedAddLots === 0) successMsg = "Order Updated Successfully!";
+
+            setFeedback({ type: 'success', message: successMsg });
             try {
                 window.dispatchEvent(new CustomEvent('orders:changed', { detail: { order: body?.order } }));
             } catch (e) { }
@@ -281,6 +319,8 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                 <DetailRow label="Type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
                 <DetailRow label="Order Instant" value={product === 'MIS' ? 'Intraday' : 'Overnight'} colorClass="text-gray-300" />
                 <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+                {(stop_loss !== 0 || null || undefined ) && <DetailRow label="stop_loss" value={stop_loss} colorClass="text-gray-300" />}
+                {(target !== 0 || null || undefined ) && <DetailRow label="target" value={target} colorClass="text-gray-300" />}
                 <DetailRow label="Est. Brokerage (entry)" value={`-${money(brokerageEntry)}`} colorClass="text-gray-400" />
             </div>
 
@@ -292,6 +332,7 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         <h6 className='text-lg font-semibold text-white'>Add Lot</h6>
                         <input
                             type="number"
+                            min="0"
                             value={addLotInput}
                             onChange={(e) => setAddLotInput(e.target.value)}
                             placeholder="Add Lots"

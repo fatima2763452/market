@@ -216,15 +216,17 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
 
             {/* Details Grid (Compact) */}
             <div className="mb-2 p-2 bg-[var(--bg-secondary)] rounded-md text-xs">
-                <DetailRow Icon={ShoppingCart} label="Quantity" value={`${qty} shares`} />
-                <DetailRow Icon={Layers} label="Lots (Size)" value={`${lots ?? '-'} (${lot_size ?? '-'})`} />
-                <DetailRow Icon={DollarSign} label="Entry Price" value={money(entryPrice)} colorClass="text-yellow-300" />
-                <DetailRow Icon={DollarSign} label="Exit Price" value={money(exitPrice)} colorClass="text-white" />
-                <DetailRow Icon={Zap} label="Type" value={orderSide} colorClass={orderSide === 'BUY' ? "text-green-400" : "text-red-400"} />
-                <DetailRow Icon={Hash} label="Product" value={productType} colorClass="text-indigo-300" />
-                <DetailRow Icon={Hash} label="From" value={came_From} colorClass="text-indigo-300" />
-                <DetailRow Icon={Clock} label="Closed At" value={closedTime} colorClass="text-gray-400 text-xs" />
-                <DetailRow Icon={Clock} label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-400 text-xs" />
+                <DetailRow  label="Quantity" value={`${qty} shares`} />
+                <DetailRow  label="Lots (Size)" value={`${lots ?? '-'} (${lot_size ?? '-'})`} />
+                <DetailRow  label="Entry Price" value={money(entryPrice)} colorClass="text-yellow-300" />
+                <DetailRow  label="Exit Price" value={money(exitPrice)} colorClass="text-white" />
+                <DetailRow  label="Type" value={orderSide} colorClass={orderSide === 'BUY' ? "text-green-400" : "text-red-400"} />
+                <DetailRow  label="Product" value={productType} colorClass="text-indigo-300" />
+                <DetailRow  label="From" value={came_From} colorClass="text-indigo-300" />
+                <DetailRow  label="Closed At" value={closedTime} colorClass="text-gray-400 text-xs" />
+                <DetailRow  label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-400 text-xs" />
+                {selectedOrder.exit_reason && <DetailRow  label="exit_reason" value={selectedOrder.exit_reason} colorClass="text-gray-400 text-xs" />}
+
             </div>
 
             {/* Actions */}
