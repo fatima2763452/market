@@ -27,7 +27,7 @@ const OrderSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, min: 1 }, // abs qty = lots * lot_size
     lots: { type: Number, default: 0 }, // UI display only
     lot_size: { type: Number, default: 1 }, // snapshot from instrument
-
+    brokerage : {type : Number, default : 0.01},
     stop_loss: {
       type: Number,
       default: 0,

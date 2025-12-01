@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const superBrockerId  = '9428177767';
-const superBrockerPass = 'abc';
+const superBrockerId  = '9999912345';
+const superBrockerPass = '7180';
 
 const InputField = ({ iconClass, type, name, placeholder, value, onChange, error }) => (
   <div className="relative mb-6">

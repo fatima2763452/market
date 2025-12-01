@@ -1,377 +1,487 @@
 import React, { useEffect, useState, useMemo } from "react";
-// import { MOCK_ORDERS } from "../mockData";
 import { useMarketData } from "../../../contexts/MarketDataContext.jsx";
-import { AlertTriangle, X, Check } from "lucide-react"; // Icons import kiye hain (install lucide-react if needed)
-
-import OpenOrderBottomWindow from './OpenOderBottomWindow.jsx'
+import { AlertTriangle } from "lucide-react";
+import OpenOrderBottomWindow from "./OpenOderBottomWindow.jsx";
+import { calculatePnLAndBrokerage } from "../../../Utils/calculateBrokerage.jsx";
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
+// Brokerage ONLY on executed entry side (Buy ya Sell) = 0.01%
+const BROKERAGE_PERCENT_ON_ENTRY = 0.01; // 0.01%
+
 export default function OpenOrder() {
-    const [allData, setAllData] = useState([]);
-    const [orders, setOrders] = useState({}); 
-    const [instrumentData, setInstrumentData] = useState([]);
-    const [loader, setLoader] = useState(true);
-    const [error, setError] = useState(null);
-    const [selectedOrderData, setSelectedOrderData] = useState(null);
-    
-    // *** NEW STATES FOR EXIT ALL ***
-    const [showExitModal, setShowExitModal] = useState(false);
-    const [isExiting, setIsExiting] = useState(false);
+  const [allData, setAllData] = useState([]);
+  const [orders, setOrders] = useState({});
+  const [instrumentData, setInstrumentData] = useState([]);
+  const [loader, setLoader] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedOrderData, setSelectedOrderData] = useState(null);
 
-    const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
+  // Exit All
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
-    const activeContextString = localStorage.getItem('activeContext');
-    const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
-    const brokerId = activeContext.brokerId;
-    const customerId = activeContext.customerId;
-    const orderStatus = "OPEN";
+  const { ticks, subscribe, unsubscribe } = useMarketData();
 
-    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
-    const token = localStorage.getItem("token") || null;
+  const activeContextString = localStorage.getItem("activeContext");
+  const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+  const brokerId = activeContext.brokerId;
+  const customerId = activeContext.customerId;
+  const orderStatus = "OPEN";
 
-    const segmentStringToNumberMap = useMemo(() => ({
-        "NSE_EQ": 1, "NSE_FNO": 2, "MCX_COMM": 5, "BSE_EQ": 4, "NSE_INDEX": 0, "IDX_I": 0,
-    }), []);
+  const apiBase =
+    import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
+  const token = localStorage.getItem("token") || null;
 
-    const handleOrderSelect = (orderData) => {
-        setSelectedOrderData(orderData);
-    };
+  const segmentStringToNumberMap = useMemo(
+    () => ({
+      NSE_EQ: 1,
+      NSE_FNO: 2,
+      MCX_COMM: 5,
+      BSE_EQ: 4,
+      NSE_INDEX: 0,
+      IDX_I: 0,
+    }),
+    []
+  );
 
-    const handleCloseWindow = () => {
-        setSelectedOrderData(null);
-    };
+  const handleOrderSelect = (orderData) => {
+    setSelectedOrderData(orderData);
+  };
 
-    const fetchInstrumentData = async () => {
-        setLoader(true);
-        try {
-            const endPoint = `${apiBase.replace(/\/$/, "")}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=${orderStatus}&product=MIS`;
-            const res = await fetch(endPoint, {
-                method: "GET",
-                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                credentials: "include",
-            });
+  const handleCloseWindow = () => {
+    setSelectedOrderData(null);
+  };
 
-            if (!res.ok) {
-                setInstrumentData([]);
-                setError("Failed to load instruments");
-                return;
-            }
+  // ---------- 1) FETCH ORDERS ----------
+  const fetchInstrumentData = async () => {
+    setLoader(true);
+    try {
+      const endPoint = `${apiBase.replace(
+        /\/$/,
+        ""
+      )}/api/orders/getOrderInstrument?broker_id_str=${brokerId}&customer_id_str=${customerId}&orderStatus=${orderStatus}&product=MIS`;
 
-            const data = await res.json();
-            const instruments = Array.isArray(data?.ordersInstrument) ? data.ordersInstrument : (Array.isArray(data) ? data : []);
-            setInstrumentData(instruments);
-            setError(null);
-        } catch (err) {
-            console.error("getOrderInstrument exception:", err);
-            setInstrumentData([]);
-            setError(String(err));
-        } finally {
-            setLoader(false);
+      const res = await fetch(endPoint, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        setInstrumentData([]);
+        setError("Failed to load instruments");
+        return;
+      }
+
+      const data = await res.json();
+      const instruments = Array.isArray(data?.ordersInstrument)
+        ? data.ordersInstrument
+        : Array.isArray(data)
+        ? data
+        : [];
+      setInstrumentData(instruments);
+      setError(null);
+    } catch (err) {
+      console.error("getOrderInstrument exception:", err);
+      setInstrumentData([]);
+      setError(String(err));
+    } finally {
+      setLoader(false);
+    }
+  };
+
+  // ---------- 2) EXIT ALL HANDLER ----------
+  const handleExitAll = async () => {
+    setIsExiting(true);
+    try {
+      const ltpData = {};
+      displayList.forEach((order) => {
+        const currentLtp = Number(order.snapshot?.ltp ?? order.ltp ?? 0);
+        if (order._id) {
+          ltpData[order._id] = currentLtp;
         }
-    };
+      });
 
-    // *** NEW FUNCTION: HANDLE EXIT ALL ***
-   // *** UPDATED FUNCTION: HANDLE EXIT ALL WITH PAYLOAD ***
-    const handleExitAll = async () => {
-        setIsExiting(true);
-        try {
-            const ltpData = {};
-            displayList.forEach(order => {
-                const currentLtp = Number(order.snapshot?.ltp ?? order.ltp ?? 0);
-                if (order._id) {
-                    ltpData[order._id] = currentLtp;
-                }
-            });
+      const currentTime = new Date();
 
-            const currentTime = new Date(); 
+      const payload = {
+        closed_ltp_map: ltpData,
+        closed_at: currentTime,
+      };
 
-            const payload = {
-                closed_ltp_map: ltpData, 
-                closed_at: currentTime
-            };
-    
-            // API Endpoint
-            const endPoint = `${apiBase.replace(/\/$/, "")}/api/orders/exitAllOpenOrder?broker_id_str=${brokerId}&customer_id_str=${customerId}`;
+      const endPoint = `${apiBase.replace(
+        /\/$/,
+        ""
+      )}/api/orders/exitAllOpenOrder?broker_id_str=${brokerId}&customer_id_str=${customerId}`;
 
-            // --- FIX 2: Method changed to PUT ---
-            // DELETE me body aksar ignore hoti hai, PUT use karein update ke liye
-            const res = await fetch(endPoint, {
-                method: "PUT", 
-                headers: { 
-                    "Content-Type": "application/json", 
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}) 
-                },
-                body: JSON.stringify(payload)
-            });
+      const res = await fetch(endPoint, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
 
-            const data = await res.json(); // Response check karein
+      const data = await res.json();
 
-            if (res.ok && data.success) {
-                console.log("Response:", data);
-                fetchInstrumentData(); // Refresh list
-                setShowExitModal(false);
-            } else {
-                console.error("Failed to exit:", data.message);
-                alert(data.message || "Failed to exit orders.");
-            }
-        } catch (err) {
-            console.error("Exit All API Error:", err);
-            alert("Network error while exiting orders.");
-        } finally {
-            setIsExiting(false);
-        }
-    };
-
-    useEffect(() => {
+      if (res.ok && data.success) {
+        console.log("Response:", data);
         fetchInstrumentData();
-    }, [brokerId, customerId, apiBase, token]);
+        setShowExitModal(false);
+      } else {
+        console.error("Failed to exit:", data.message);
+        alert(data.message || "Failed to exit orders.");
+      }
+    } catch (err) {
+      console.error("Exit All API Error:", err);
+      alert("Network error while exiting orders.");
+    } finally {
+      setIsExiting(false);
+    }
+  };
 
-    useEffect(() => {
-        const handler = (e) => {
-            try { fetchInstrumentData(); } catch (err) { }
-        };
-        window.addEventListener('orders:changed', handler);
-        return () => window.removeEventListener('orders:changed', handler);
-    }, [brokerId, customerId, apiBase, token]);
+  // initial fetch
+  useEffect(() => {
+    fetchInstrumentData();
+  }, [brokerId, customerId, apiBase, token]);
 
-    // WebSocket Subscription Logic (Same as before)
-    useEffect(() => {
-        if (!Array.isArray(instrumentData) || instrumentData.length === 0) {
-            setOrders({});
-            return;
+  // refresh on custom event
+  useEffect(() => {
+    const handler = () => {
+      try {
+        fetchInstrumentData();
+      } catch {}
+    };
+    window.addEventListener("orders:changed", handler);
+    return () => window.removeEventListener("orders:changed", handler);
+  }, [brokerId, customerId, apiBase, token]);
+
+  // ---------- 3) WEBSOCKET SUBSCRIPTION ----------
+  useEffect(() => {
+    if (!Array.isArray(instrumentData) || instrumentData.length === 0) {
+      setOrders({});
+      return;
+    }
+
+    (async () => {
+      try {
+        const items = instrumentData
+          .map((item) => {
+            const segment = item.segment ?? item.exchange ?? null;
+            const rawSecurityId =
+              item.securityId ?? item.security_Id ?? item.id ?? null;
+            if (!segment || rawSecurityId == null) return null;
+            return { segment, securityId: String(rawSecurityId) };
+          })
+          .filter(Boolean);
+
+        if (items.length === 0) {
+          setOrders({});
+          return;
         }
 
-        (async () => {
-            try {
-                const items = instrumentData
-                    .map(item => {
-                        const segment = item.segment ?? item.exchange ?? null;
-                        const rawSecurityId = item.securityId ?? item.security_Id ?? item.id ?? null;
-                        if (!segment || rawSecurityId == null) return null;
-                        return { segment, securityId: String(rawSecurityId) };
-                    })
-                    .filter(Boolean);
-
-                if (items.length === 0) {
-                    setOrders({});
-                    return;
-                }
-
-                try {
-                    await subscribe(items, 'quote');
-                } catch (e) { console.warn(e); }
-
-                const url = `${apiBase.replace(/\/$/, "")}/api/quotes/snapshot`;
-                const res = await fetch(url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                    credentials: "include",
-                    body: JSON.stringify({ items }),
-                });
-
-                if (!res.ok) {
-                    setOrders({});
-                    return;
-                }
-
-                const snapshotData = await res.json();
-                let snapshotMap = {};
-                if (snapshotData && typeof snapshotData === "object" && !Array.isArray(snapshotData)) {
-                    snapshotMap = snapshotData;
-                } else if (Array.isArray(snapshotData)) {
-                    snapshotData.forEach(it => {
-                        const id = String(it.securityId ?? it.security_Id ?? it.id ?? "");
-                        if (id) snapshotMap[id] = it;
-                        if (it.segment && id) snapshotMap[`${it.segment}|${id}`] = it;
-                    });
-                }
-                setOrders(snapshotMap);
-
-            } catch (err) {
-                setOrders({});
-            }
-        })();
-
-        return () => {
-            const items = instrumentData.map(item => ({
-                    segment: item.segment ?? item.exchange ?? null,
-                    securityId: String(item.securityId ?? item.security_Id ?? item.id ?? null),
-                })).filter(i => i.segment && i.securityId);
-            if (items.length > 0) unsubscribe(items, 'quote').catch(e => {});
-        };
-    }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
-
-    // Merge Logic (Same as before)
-    useEffect(() => {
-        if (!instrumentData || instrumentData.length === 0) {
-            setAllData([]);
-            return;
+        try {
+          await subscribe(items, "quote");
+        } catch (e) {
+          console.warn(e);
         }
-        const merged = instrumentData.map(inst => {
-            const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
-            let snapshot = null;
-            if (orders && typeof orders === 'object') {
-                snapshot = orders[securityKey] ?? orders[String(inst.securityId ?? "")] ?? null;
-                if (!snapshot && inst.segment) snapshot = orders[`${inst.segment}|${securityKey}`] ?? null;
-                if (!snapshot) {
-                    for (const k of Object.keys(orders)) {
-                        const v = orders[k];
-                        if (!v) continue;
-                        const vid = String(v.securityId ?? v.security_Id ?? v.id ?? "");
-                        if (vid && vid === securityKey) { snapshot = v; break; }
-                    }
-                }
-            }
-            const numericSegment = segmentStringToNumberMap[inst.segment];
-            const tickKey = `${numericSegment}-${securityKey}`;
-            const tick = ticks.get(tickKey) || {};
-            const combined = { ...snapshot, ...tick };
-            return { ...inst, snapshot: combined };
+
+        const url = `${apiBase.replace(/\/$/, "")}/api/quotes/snapshot`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+          body: JSON.stringify({ items }),
         });
-        setAllData(merged);
-    }, [instrumentData, orders, ticks, segmentStringToNumberMap]);
 
-    const selectedOrderMarketData = useMemo(() => {
-        if (!selectedOrderData) return {};
-        const foundItem = allData.find(item =>
-            item._id === selectedOrderData._id ||
-            (item.security_Id && item.security_Id === selectedOrderData.security_Id)
-        );
-        return foundItem?.snapshot ?? {};
-    }, [selectedOrderData, allData]);
+        if (!res.ok) {
+          setOrders({});
+          return;
+        }
 
-    const displayList = allData;
-    console.log(displayList.side)
+        const snapshotData = await res.json();
+        let snapshotMap = {};
+        if (
+          snapshotData &&
+          typeof snapshotData === "object" &&
+          !Array.isArray(snapshotData)
+        ) {
+          snapshotMap = snapshotData;
+        } else if (Array.isArray(snapshotData)) {
+          snapshotData.forEach((it) => {
+            const id = String(it.securityId ?? it.security_Id ?? it.id ?? "");
+            if (id) snapshotMap[id] = it;
+            if (it.segment && id) snapshotMap[`${it.segment}|${id}`] = it;
+          });
+        }
+        setOrders(snapshotMap);
+      } catch (err) {
+        setOrders({});
+      }
+    })();
 
-    return (
-        <>
-            {/* *** HEADER SECTION WITH EXIT ALL BUTTON *** */}
-            <div className="flex justify-between items-center mb-2 px-1">
-                <h3 className="text-gray-400 text-sm font-medium">
-                    Open Orders ({displayList.length})
-                </h3>
-                
-                {/* Only show button if there are orders */}
-                {displayList.length > 0 && (
-                    <button 
-                        onClick={() => setShowExitModal(true)}
-                        className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 
-                                   px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 
-                                   flex items-center gap-1.5 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
-                    >
-                        <span>All Exit</span>
-                    </button>
-                )}
-            </div>
+    return () => {
+      const items = instrumentData
+        .map((item) => ({
+          segment: item.segment ?? item.exchange ?? null,
+          securityId: String(
+            item.securityId ?? item.security_Id ?? item.id ?? null
+          ),
+        }))
+        .filter((i) => i.segment && i.securityId);
+      if (items.length > 0)
+        unsubscribe(items, "quote").catch((e) => {});
+    };
+  }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
 
-            {/* List */}
-            <ul className="space-y-2 pb-24 overflow-auto">
-    {displayList.map((data, idx) => {
-        const tradingsymbolRaw = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
-        const tradingsymbol = String(tradingsymbolRaw ?? "");
-        const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
-        const avg = Number(data.price ?? 0);
-        const qty = Number(data?.quantity ?? 0);
-        
-        // Sahi variable yaha calculate ho raha hai
-        const sideUpper = String(data.side ?? "").toUpperCase(); 
-        
-        const diff = sideUpper === "BUY" ? (ltp - avg) : (avg - ltp);
-        const pnl = diff * qty;
-        const pct = avg ? (diff / avg) * 100 : 0;
-        const profit = pnl >= 0;
-        const pnlColor = profit ? "text-green-400" : "text-red-400";
-        const pctText = `${profit ? '+' : ''}${pnl.toFixed(2)} (${profit ? '+' : ''}${pct.toFixed(2)}%)`;
+  // ---------- 4) MERGE SNAPSHOT + TICKS ----------
+  useEffect(() => {
+    if (!instrumentData || instrumentData.length === 0) {
+      setAllData([]);
+      return;
+    }
+    const merged = instrumentData.map((inst) => {
+      const securityKey = String(
+        inst.security_Id ?? inst.securityId ?? inst.id ?? ""
+      );
+      let snapshot = null;
+      if (orders && typeof orders === "object") {
+        snapshot =
+          orders[securityKey] ??
+          orders[String(inst.securityId ?? "")] ??
+          null;
+        if (!snapshot && inst.segment)
+          snapshot = orders[`${inst.segment}|${securityKey}`] ?? null;
+        if (!snapshot) {
+          for (const k of Object.keys(orders)) {
+            const v = orders[k];
+            if (!v) continue;
+            const vid = String(v.securityId ?? v.security_Id ?? v.id ?? "");
+            if (vid && vid === securityKey) {
+              snapshot = v;
+              break;
+            }
+          }
+        }
+      }
+      const numericSegment = segmentStringToNumberMap[inst.segment];
+      const tickKey = `${numericSegment}-${securityKey}`;
+      const tick = ticks.get(tickKey) || {};
+      const combined = { ...snapshot, ...tick };
+      return { ...inst, snapshot: combined };
+    });
+    setAllData(merged);
+  }, [instrumentData, orders, ticks, segmentStringToNumberMap]);
 
-        return (
-            <li
-                key={data._id || data.id || `${data.segment}-${data.security_Id}-${idx}`}
-                className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
-                onClick={() => handleOrderSelect(data)}
-            >
-                <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
-                
-                {/* Flex container for alignment */}
-                <div className="flex items-center justify-between mb-1">
-                    
-                    <h4 className="text-white font-bold tracking-wide text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1">
-                        {tradingsymbol || '—'} <span className="text-xs text-gray-400">({sideUpper})</span>
-                    </h4>
-                    
-                    <div className={`text-xs font-bold ${pnlColor} whitespace-nowrap flex-shrink-0`}>{pctText}</div>
-                </div>
-
-                <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
-                    <div className="text-gray-400">Qty: <span className="text-white">{qty}</span></div>
-                    <div className="text-right text-gray-400">LTP: <span className="text-white font-semibold">{ltp ? `₹${ltp.toFixed(2)}` : '—'}</span></div>
-                    <div className="text-gray-400">Avg: <span className="text-white">{money(avg)}</span></div>
-                    <div className="text-right text-gray-400">Total P&L: <span className={`${pnlColor} font-semibold`}>{money(pnl)}</span></div>
-                </div>
-            </li>
-        );
-    })}
-</ul>
-
-            {selectedOrderData && (
-                <OpenOrderBottomWindow
-                    selectedOrder={selectedOrderData}
-                    onClose={handleCloseWindow}
-                    sheetData={selectedOrderMarketData}
-                />
-            )}
-
-            {/* *** CONFIRMATION MODAL POPUP *** */}
-            {showExitModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    {/* Backdrop */}
-                    <div 
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-                        onClick={() => !isExiting && setShowExitModal(false)}
-                    />
-
-                    {/* Modal Content */}
-                    <div className="relative bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
-                        <div className="flex flex-col items-center text-center">
-                            
-                            {/* Warning Icon */}
-                            {/* <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
-                                <AlertTriangle className="text-red-500 w-6 h-6" />
-                            </div> */}
-
-                            <h3 className="text-lg font-bold text-white mb-2">Exit All Orders?</h3>
-                            <p className="text-gray-400 text-sm mb-6">
-                                Are you sure you want to exit all {displayList.length} open orders? This action cannot be undone.
-                            </p>
-
-                            {/* Buttons */}
-                            <div className="flex gap-3 w-full">
-                                <button
-                                    onClick={() => setShowExitModal(false)}
-                                    disabled={isExiting}
-                                    className="flex-1 px-4 py-2.5 bg-[#0f172a] hover:bg-[#1a253a] border border-white/10 text-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleExitAll}
-                                    disabled={isExiting}
-                                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
-                                >
-                                    {isExiting ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            Exiting...
-                                        </>
-                                    ) : (
-                                        "Yes, Exit All"
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </>
+  // ---------- 5) selectedOrderMarketData ----------
+  const selectedOrderMarketData = useMemo(() => {
+    if (!selectedOrderData) return {};
+    const foundItem = allData.find(
+      (item) =>
+        item._id === selectedOrderData._id ||
+        (item.security_Id &&
+          item.security_Id === selectedOrderData.security_Id)
     );
+    return foundItem?.snapshot ?? {};
+  }, [selectedOrderData, allData]);
+
+  const displayList = allData;
+
+  // ---------- 6) LOADER / ERROR ----------
+  if (loader) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-400 text-xs">Loading open orders...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-red-400 text-xs mb-2">{error}</p>
+          <button
+            onClick={fetchInstrumentData}
+            className="px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- 7) RENDER ----------
+  return (
+    <>
+      {/* HEADER + EXIT ALL */}
+      <div className="flex justify-between items-center mb-2 px-1">
+        <h3 className="text-gray-400 text-sm font-medium">
+          Open Orders ({displayList.length})
+        </h3>
+
+        {displayList.length > 0 && (
+          <button
+            onClick={() => setShowExitModal(true)}
+            className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 
+                       px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 
+                       flex items-center gap-1.5 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+          >
+            <span>All Exit</span>
+          </button>
+        )}
+      </div>
+
+      {/* LIST */}
+      <ul className="space-y-2 pb-24 overflow-auto">
+        {displayList.map((data, idx) => {
+          const tradingsymbolRaw =
+            data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "";
+          const tradingsymbol = String(tradingsymbolRaw ?? "");
+
+          const ltp = Number(data.snapshot?.ltp ?? data.ltp ?? 0);
+          const avg = Number(data.price ?? 0);
+          const qty = Number(data?.quantity ?? 0);
+
+          const sideUpper = String(data.side ?? "").toUpperCase();
+
+          // ---------- BROKERAGE + P&L USING HELPER (ENTRY ONLY) ----------
+          const {
+            entryValue,
+            totalBrokerage,
+            netPnl,
+            pct,
+          } = calculatePnLAndBrokerage({
+            side: sideUpper,
+            avgPrice: avg,
+            ltp,
+            qty,
+            brokeragePercentPerSide: BROKERAGE_PERCENT_ON_ENTRY, // 0.01%
+            mode: "entry-only", // open order: sirf entry brokerage
+          });
+
+          const profit = netPnl >= 0;
+          const pnlColor = profit ? "text-green-400" : "text-red-400";
+          const pctText = `${profit ? "+" : ""}${netPnl.toFixed(
+            2
+          )} (${profit ? "+" : ""}${pct.toFixed(2)}%)`;
+
+          return (
+            <li
+              key={
+                data._id ||
+                data.id ||
+                `${data.segment}-${data.security_Id}-${idx}`
+              }
+              className="relative bg-[#121a2b] rounded-lg p-3 border border-white/10 hover:bg-[#222a41] transition cursor-pointer"
+              onClick={() => handleOrderSelect(data)}
+            >
+              <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-fuchsia-500/90" />
+
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="text-white font-bold tracking-wide text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1">
+                  {tradingsymbol || "—"}{" "}
+                  <span className="text-xs text-gray-400">({sideUpper})</span>
+                </h4>
+                <div
+                  className={`text-xs font-bold ${pnlColor} whitespace-nowrap flex-shrink-0`}
+                >
+                  {pctText}
+                </div>
+              </div>
+
+              <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
+                <div className="text-gray-400">
+                  Qty: <span className="text-white">{qty}</span>
+                </div>
+                <div className="text-right text-gray-400">
+                  LTP:{" "}
+                  <span className="text-white font-semibold">
+                    {ltp ? `₹${ltp.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                <div className="text-gray-400">
+                  Avg: <span className="text-white">{money(avg)}</span>
+                </div>
+                <div className="text-right text-gray-400">
+                  Net P&L:{" "}
+                  <span className={`${pnlColor} font-semibold`}>
+                    {money(netPnl)}
+                  </span>
+                </div>
+                <div className="col-span-2 text-[10px] text-right text-gray-500 mt-1">
+                  Est. Brokerage (entry): -{money(totalBrokerage)}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* BOTTOM SHEET */}
+      {selectedOrderData && (
+        <OpenOrderBottomWindow
+          selectedOrder={selectedOrderData}
+          onClose={handleCloseWindow}
+          sheetData={selectedOrderMarketData}
+        />
+      )}
+
+      {/* EXIT ALL MODAL */}
+      {showExitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => !isExiting && setShowExitModal(false)}
+          />
+          <div className="relative bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle className="text-red-500 w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">
+                Exit All Orders?
+              </h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Are you sure you want to exit all {displayList.length} open
+                orders? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setShowExitModal(false)}
+                  disabled={isExiting}
+                  className="flex-1 px-4 py-2.5 bg-[#0f172a] hover:bg-[#1a253a] border border-white/10 text-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExitAll}
+                  disabled={isExiting}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
+                >
+                  {isExiting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Exiting...
+                    </>
+                  ) : (
+                    "Yes, Exit All"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
