@@ -77,10 +77,18 @@ const OptionStrikeBottomWindow = ({
     if (!isOpen) return null;
 
     // --- Name Construction ---
+    // For Option Chain orders, use underlying_symbol (clean base name like "HDFCBANK", "NIFTY")
+    // This prevents names like "HDFCBANK 30 DEC 870 CALL 30 DEC 985 CALL"
     const getInstrumentName = () => {
         if (strikeData?.tradingSymbol) return strikeData.tradingSymbol;
 
-        const symbol = underlyingStock?.tradingSymbol || underlyingStock?.symbol || "UNKNOWN";
+        // Priority: underlying_symbol (clean base name) > symbol_name > symbol > tradingSymbol
+        const symbol = underlyingStock?.underlying_symbol 
+                    || underlyingStock?.symbol_name 
+                    || underlyingStock?.name
+                    || underlyingStock?.symbol 
+                    || "UNKNOWN";
+        
         let expiryStr = "";
         if (expiry) {
             try {
