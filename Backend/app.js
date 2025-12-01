@@ -16,6 +16,7 @@ import debugRoute from "./Routes/debug.js";
 import userWatchlistRoute from "./Routes/UserWatchlistRoute.js";
 import orderRoute from "./Routes/orderRoute.js";
 import fundRoute from "./Routes/fundRoute.js"
+import registrationRoute from "./Routes/registrationRoute.js"
 
 export function createApp() {
   const app = express();
@@ -47,8 +48,8 @@ export function createApp() {
 
   app.set("trust proxy", 1); // Essential for Cloudflare Tunnel to pass correct IPs
   app.use(cookieParser());
-  app.use(express.json({ limit: "2mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
   // ----- Auth helpers -----
   const REQUIRE_AUTH = process.env.NODE_ENV === "production";
@@ -89,6 +90,7 @@ export function createApp() {
   app.use("/api/watchlist", userWatchlistRoute);
   app.use("/api/orders", orderRoute);
   app.use("/api/funds", fundRoute);
+  app.use("/api/registration", registrationRoute); // Public - no auth required
 
 
 
