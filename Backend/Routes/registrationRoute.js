@@ -3,7 +3,14 @@
 
 import express from 'express';
 import multer from 'multer';
-import { submitRegistration } from '../Controllers/RegistrationController.js';
+import { 
+  submitRegistration,
+  getAllRegistrations,
+  getRegistrationById,
+  updateRegistrationStatus,
+  getRegistrationStats,
+} from '../Controllers/RegistrationController.js';
+import { protect } from '../Middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -59,7 +66,21 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-// POST /api/registration/submit
+// ===== PUBLIC ROUTES =====
+// POST /api/registration/submit - Submit new registration
 router.post('/submit', uploadFields, handleMulterError, submitRegistration);
+
+// ===== PROTECTED ROUTES (Super Broker/Admin only) =====
+// GET /api/registration/stats - Get registration statistics
+router.get('/stats', protect, getRegistrationStats);
+
+// GET /api/registration/all - Get all registrations
+router.get('/all', protect, getAllRegistrations);
+
+// GET /api/registration/:id - Get single registration
+router.get('/:id', protect, getRegistrationById);
+
+// PATCH /api/registration/:id/status - Update status (approve/reject)
+router.patch('/:id/status', protect, updateRegistrationStatus);
 
 export default router;
