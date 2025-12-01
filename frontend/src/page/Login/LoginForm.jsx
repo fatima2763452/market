@@ -150,8 +150,7 @@ const LoginForm = () => {
         className="w-full max-w-sm p-8 bg-[var(--bg-card)] rounded-xl shadow-2xl backdrop-blur-sm border border-[var(--border-color)]"
         style={{ boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4), 0 0 40px rgba(79, 70, 229, 0.3)' }}
       >
-        <h1 className="text-3xl font-extrabold text-[var(--text-primary)] mb-2 text-center tracking-wide">Sign In</h1>
-        <p className="text-[var(--text-secondary)] text-center mb-8">Welcome back to the trading platform</p>
+        <h1 className="text-3xl font-extrabold text-[var(--text-primary)] mb-8 text-center tracking-wide">Sign In</h1>
 
         {apiMessage.text && (
           <div
