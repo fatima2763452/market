@@ -8,7 +8,7 @@ import OptionStrikeBottomWindow from './OptionStrikeBottomWindow';
 const STRIKE_OPTIONS = [
     { label: '6 Strikes', value: 6 },
     { label: '12 Strikes', value: 12 },
-    { label: '18 Strikes', value: 18 },
+    
 ];
 
 // Auto-refresh interval (in ms) - 5 seconds for near real-time feel
@@ -241,7 +241,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                         <select 
                             value={strikeCount}
                             onChange={(e) => setStrikeCount(Number(e.target.value))}
-                            className="bg-[var(--bg-secondary)] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border-color)] focus:outline-none text-xs w-14"
+                            className="bg-[var(--bg-secondary)] text-[var(--text-primary)] px-2 py-1 w-30 rounded border border-[var(--border-color)] focus:outline-none text-xs w-14"
                         >
                             {STRIKE_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>
@@ -255,7 +255,7 @@ const OptionChainFullscreen = ({ selectedStock, sheetData, onClose }) => {
                             <select 
                                 value={selectedExpiry || expiries[0]} 
                                 onChange={(e) => setSelectedExpiry(e.target.value)}
-                                className="bg-[var(--bg-secondary)] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border-color)] focus:outline-none text-xs max-w-[90px]"
+                                className="bg-[var(--bg-secondary)] text-[var(--text-primary)] px-2 py-1 w-30 rounded border border-[var(--border-color)] focus:outline-none text-xs max-w-[90px]"
                             >
                                 {expiries.map(exp => (
                                     <option key={exp} value={exp}>

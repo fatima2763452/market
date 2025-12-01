@@ -25,8 +25,11 @@ const AddCustomerModal = ({ isVisible, onClose, onCustomerAdded }) => {
     }
     setIsSubmitting(true);
     try {
+
+    const url = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
+
       const res = await axios.post(
-        `${import.meta.env.VITE_REACT_APP_API_URL}/api/auth/addCustomer`,
+        `${url}/api/auth/addCustomer`,
         formData,
         { headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` } }
       );
@@ -133,8 +136,10 @@ export default function CustomerDetailsPage() {
 
     (async () => {
       try {
+    const url = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
+
         const res = await axios.get(
-          `${import.meta.env.VITE_REACT_APP_API_URL}/api/auth/getCustomers`,
+          `${url}/api/auth/getCustomers`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setCustomers(res.data?.customers || []);
