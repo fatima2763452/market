@@ -18,7 +18,7 @@ const CustomerSchema = new Schema({
     
     password: {
         type: String,
-        required: true,
+        default: '', // Some legacy customers may not have passwords
     },
     
     name: {

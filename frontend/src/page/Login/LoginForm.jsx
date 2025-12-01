@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const superBrockerId  = '9428177767';
-const superBrockerPass = 'abc';
+const superBrockerId  = '9999912345';
+const superBrockerPass = '7180';
 
 const InputField = ({ iconClass, type, name, placeholder, value, onChange, error }) => (
   <div className="relative mb-6">
@@ -200,7 +200,17 @@ const LoginForm = () => {
           </button>
         </form>
 
-        
+        {/* Registration Link */}
+        <div className="mt-6 pt-6 border-t border-[var(--border-color)]">
+          <p className="text-[var(--text-secondary)] text-center mb-3">Don't have an account?</p>
+          <button
+            onClick={() => navigate('/register')}
+            className="w-full py-3 rounded-lg text-lg font-semibold text-indigo-400 border-2 border-indigo-500 hover:bg-indigo-500/20 transition duration-200 flex items-center justify-center space-x-2"
+          >
+            <i className="fas fa-user-plus"></i>
+            <span>Create New Account</span>
+          </button>
+        </div>
       </div>
     </div>
   );

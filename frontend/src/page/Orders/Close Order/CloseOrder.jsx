@@ -1,8 +1,9 @@
+// ClosedOrder.jsx
 import React, { useEffect, useState } from "react";
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Clock, Layers, RefreshCw } from 'lucide-react';
 import ClosedOrderFilter from "./CloseOrderFilter"; // Ensure this path is correct
-import { logMarketStatus } from '../../../Utils/marketStatus.js'
-
+import { logMarketStatus } from '../../../Utils/marketStatus.js';
+import { calculateExitBrokerageAndPnL } from "../../../Utils/calculateBrokerage.jsx";
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 
@@ -37,14 +38,13 @@ const DetailRow = ({ Icon, label, value, colorClass }) => (
 // --- Internal Component: ClosedOrderBottomWindow ---
 const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
     if (!selectedOrder) return null;
-    console.log(selectedOrder)
+    console.log(selectedOrder);
 
     // 1. Get User Role for Permissions
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role; // 'broker' or 'customer'
     const isOpen = logMarketStatus();
-    
 
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
@@ -68,16 +68,26 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
 
     const { qty, entryPrice, exitPrice } = getOrderValues(selectedOrder);
 
-    // P&L Calculation
-    let diff = 0;
-    if (orderSide === 'BUY') {
-        diff = exitPrice - entryPrice;
-    } else {
-        diff = entryPrice - exitPrice;
-    }
-    const pnl = diff * qty;
-    const isZero = Math.abs(pnl) < 0.01;
-    const profit = pnl > 0;
+    // 🔹 EXIT P&L + FULL BROKERAGE (entry + exit) helper se
+    const {
+        entryValue,
+        exitValue,
+        brokerageEntry,
+        brokerageExit,
+        totalBrokerage,
+        grossPnl,
+        netPnl,
+        pct
+    } = calculateExitBrokerageAndPnL({
+        side: orderSide,
+        avgPrice: entryPrice,
+        exitPrice,
+        qty
+    });
+
+    const isZero = Math.abs(netPnl) < 0.01;
+    const profit = netPnl > 0;
+
     let pnlColor = "text-gray-200";
     if (!isZero) {
         pnlColor = profit ? "text-green-400" : "text-red-400";
@@ -89,7 +99,6 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
         const timePart = d.toLocaleTimeString();
         return `${datePart}, ${timePart}`;
     })() : "—";
-
 
     // --- REOPEN LOGIC ---
     const handleReopen = async () => {
@@ -180,8 +189,28 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
                     <p className="text-xs text-[var(--text-muted)]">Exit Price</p>
                 </div>
                 <div className="text-right">
-                    <p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p>
-                    <p className="text-xs text-[var(--text-muted)]">Realized P&L</p>
+                    <p className={`text-xl font-bold ${pnlColor}`}>{money(netPnl)}</p>
+                    <p className="text-xs text-[var(--text-muted)]">Realized P&L (After Brokerage)</p>
+                </div>
+            </div>
+
+            {/* Brokerage Breakdown */}
+            <div className="mb-2 p-2 bg-[var(--bg-secondary)] rounded-md text-[11px]">
+                <div className="flex justify-between text-[var(--text-secondary)]">
+                    <span>Gross P&L</span>
+                    <span>{money(grossPnl)}</span>
+                </div>
+                <div className="flex justify-between text-[var(--text-secondary)]">
+                    <span>Entry Brokerage 0.01%</span>
+                    <span className="text-red-400">-{money(brokerageEntry)}</span>
+                </div>
+                <div className="flex justify-between text-[var(--text-secondary)]">
+                    <span>Exit Brokerage 0.01%</span>
+                    <span className="text-red-400">-{money(brokerageExit)}</span>
+                </div>
+                <div className="flex justify-between mt-1 border-t border-[var(--border-color)] pt-1 font-semibold">
+                    <span>Net P&L</span>
+                    <span className={`${pnlColor}`}>{money(netPnl)} ({pct.toFixed(2)}%)</span>
                 </div>
             </div>
 
@@ -338,26 +367,29 @@ export default function ClosedOrder() {
                                 const { qty, entryPrice, exitPrice } = getOrderValues(data);
                                 const sideUpper = String(data.side ?? "").toUpperCase();
 
-                                let diff = 0;
-                                if (sideUpper === "BUY") {
-                                    diff = exitPrice - entryPrice;
-                                } else {
-                                    diff = entryPrice - exitPrice;
-                                }
+                                const {
+                                    grossPnl,
+                                    brokerageEntry,
+                                    brokerageExit,
+                                    totalBrokerage,
+                                    netPnl,
+                                    pct
+                                } = calculateExitBrokerageAndPnL({
+                                    side: sideUpper,
+                                    avgPrice: entryPrice,
+                                    exitPrice,
+                                    qty
+                                });
 
-                                const pnl = diff * qty;
-                                const pct = entryPrice ? (diff / entryPrice) * 100 : 0;
-                                const isZero = Math.abs(pnl) < 0.01;
-                                const profit = pnl > 0;
+                                const isZero = Math.abs(netPnl) < 0.01;
+                                const profit = netPnl > 0;
 
                                 let pnlColor = "text-gray-200";
                                 if (!isZero) {
                                     pnlColor = profit ? "text-green-400" : "text-red-400";
                                 }
 
-                                const pctText = `${profit && !isZero ? '+' : ''}${pnl.toFixed(2)} (${profit && !isZero ? '+' : ''}${pct.toFixed(2)}%)`;
-
-                                // Sirf <ul> ke andar ka map wala return update karein:
+                                const pctText = `${profit && !isZero ? '+' : ''}${netPnl.toFixed(2)} (${profit && !isZero ? '+' : ''}${pct.toFixed(2)}%)`;
 
                                 return (
                                     <li
@@ -376,20 +408,28 @@ export default function ClosedOrder() {
 
                                         <div className="mt-1 grid grid-cols-2 gap-y-1 text-[12px]">
                                             {/* Qty and Exit */}
-                                            <div className="text-[var(--text-secondary)]">Qty: <span className="text-[var(--text-primary)]">{qty}</span></div>
-                                            <div className="text-right text-[var(--text-secondary)]">Exit: <span className="text-[var(--text-primary)] font-semibold">{money(exitPrice)}</span></div>
+                                            <div className="text-[var(--text-secondary)]">
+                                                Qty: <span className="text-[var(--text-primary)]">{qty}</span>
+                                            </div>
+                                            <div className="text-right text-[var(--text-secondary)]">
+                                                Exit: <span className="text-[var(--text-primary)] font-semibold">{money(exitPrice)}</span>
+                                            </div>
 
                                             {/* Lots and Avg */}
                                             <div className="text-[var(--text-secondary)]">
                                                 Lots: <span className="text-[var(--text-primary)]">{data.lots ?? '-'}</span>
                                                 <span className="text-[var(--text-muted)] ml-1 text-[10px]">({data.lot_size ?? '-'})</span>
                                             </div>
-                                            <div className="text-right text-[var(--text-secondary)]">Avg: <span className="text-[var(--text-primary)]">{money(entryPrice)}</span></div>
+                                            <div className="text-right text-[var(--text-secondary)]">
+                                                Avg: <span className="text-[var(--text-primary)]">{money(entryPrice)}</span>
+                                            </div>
 
                                             {/* Total P&L Row */}
                                             <div className="col-span-2 text-right pt-1 mt-1 border-t border-[var(--border-color)]">
-                                                <span className="text-[var(--text-secondary)] mr-2">Total P&L:</span>
-                                                <span className={`${pnlColor} font-semibold text-sm`}>{money(pnl)}</span>
+                                                <span className="text-[var(--text-secondary)] mr-2">
+                                                    Net P&L (After Brokerage):
+                                                </span>
+                                                <span className={`${pnlColor} font-semibold text-sm`}>{money(netPnl)}</span>
                                             </div>
                                         </div>
                                     </li>

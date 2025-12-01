@@ -24,7 +24,7 @@ const OptionChainView = ({ selectedStock, sheetData }) => {
         expiries, 
         loading, 
         error,
-        refetch 
+        refetch                                                                                                 
     } = useOptionChain({
         segment: selectedStock?.segment,
         securityId: selectedStock?.securityId,

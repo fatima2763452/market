@@ -1,202 +1,239 @@
-import React, { useEffect, useState } from "react";
-import { BarChart, Zap, ShoppingCart, DollarSign, Hash, XCircle, Clock, Layers, RefreshCw } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { 
+  BarChart, Zap, Filter, PieChart, X 
+} from "lucide-react";
 
 // --- Helpers ---
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
 const signColor = (n) => (Number(n) > 0 ? "text-green-400" : Number(n) < 0 ? "text-red-400" : "text-gray-200");
 const signSym = (n) => (Number(n) > 0 ? "+" : "");
 
-// Logic to extract prices from Closed Order Data
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function endOfDay(d) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
 const getOrderValues = (order) => {
     const qty = parseFloat(order.quantity) || 0;
-    
-    // Priority: average_price -> price
     let entryPrice = parseFloat(order.average_price);
     if (!entryPrice) entryPrice = parseFloat(order.price) || 0;
-
-    // Exit: closed_ltp -> ltp
     let exitPrice = parseFloat(order.closed_ltp);
     if (!exitPrice) exitPrice = parseFloat(order.ltp) || 0;
-
     return { qty, entryPrice, exitPrice };
 };
 
-/* ---------------- Internal Component: Bottom Window (For Details/Reopen) ---------------- */
-const DetailRow = ({ Icon, label, value, colorClass = "text-white/90" }) => (
-    <div className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0">
-        <div className="flex items-center text-gray-400 text-sm">
-            <Icon className="w-4 h-4 mr-2 text-indigo-400" />
-            {label}
+// ==========================================
+// 1. CLOSED ORDER FILTER COMPONENT
+// ==========================================
+const RANGE_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "today", label: "Today" },
+  { value: "day", label: "Day(s)" },
+  { value: "month", label: "Month(s)" },
+  { value: "year", label: "Year(s)" },
+  { value: "expiry", label: "Expired Symbol" },
+];
+
+function ClosedOrderFilter({ closedOrders = [], onFilter }) {
+  const [range, setRange] = useState("all");
+  const [nValue, setNValue] = useState(1);
+  const [selectedExpiredSymbol, setSelectedExpiredSymbol] = useState("");
+
+  // compute expired symbols
+  const expiredSymbols = useMemo(() => {
+    const now = new Date();
+    const setSym = new Set();
+    for (const o of closedOrders) {
+      const expRaw = o?.meta?.selectedStock?.expiry || o?.expireDate;
+      const tradingSymbol = o?.meta?.selectedStock?.tradingSymbol ?? o?.symbol ?? "";
+      if (!expRaw || !tradingSymbol) continue;
+      const exp = new Date(expRaw);
+      if (exp <= endOfDay(now)) {
+        setSym.add(tradingSymbol);
+      }
+    }
+    return Array.from(setSym).sort();
+  }, [closedOrders]);
+
+  const computeFiltered = () => {
+    const now = new Date();
+    const end = endOfDay(now);
+
+    if (range === "all") return closedOrders.slice();
+
+    if (range === "expiry") {
+      const list = closedOrders.filter((o) => {
+        const expRaw = o?.meta?.selectedStock?.expiry || o?.expireDate;
+        if (!expRaw) return false;
+        return new Date(expRaw) <= end;
+      });
+      if (!selectedExpiredSymbol) return list;
+      return list.filter((o) => {
+        const tradingSymbol = o?.meta?.selectedStock?.tradingSymbol ?? o?.symbol ?? "";
+        return String(tradingSymbol) === String(selectedExpiredSymbol);
+      });
+    }
+
+    let start = null;
+    if (range === "today") start = startOfDay(now);
+    else if (range === "day") {
+      const s = new Date(now); s.setDate(s.getDate() - Math.max(1, Number(nValue) || 1));
+      start = startOfDay(s);
+    } else if (range === "month") {
+      const s = new Date(now); s.setMonth(s.getMonth() - Math.max(1, Number(nValue) || 1));
+      start = startOfDay(s);
+    } else if (range === "year") {
+      const s = new Date(now); s.setFullYear(s.getFullYear() - Math.max(1, Number(nValue) || 1));
+      start = startOfDay(s);
+    }
+
+    if (!start) return closedOrders.slice();
+
+    return closedOrders.filter((o) => {
+      const closedAtRaw = o?.closed_at || o?.closedAt || o?.updatedAt || o?.createdAt;
+      if (!closedAtRaw) return false;
+      const closed = new Date(closedAtRaw);
+      return closed >= start && closed <= end;
+    });
+  };
+
+  const applyFilter = () => {
+    if (onFilter) onFilter(computeFiltered());
+  };
+
+  const resetFilter = () => {
+    setRange("today");
+    setNValue(1);
+    setSelectedExpiredSymbol("");
+    if (onFilter) onFilter(closedOrders.slice());
+  };
+
+  // Run initial filter on mount (defaults to showing all or today based on preference, here defaulting to ALL via effect in parent)
+  // But strictly per component logic:
+  
+  const showNumberInput = ["day", "month", "year"].includes(range);
+
+  return (
+    <div className="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex justify-between items-center mb-1">
+         <h3 className="text-sm font-semibold text-[var(--text-primary)]">Filter Orders</h3>
+      </div>
+      
+      <div>
+        <label className="text-xs text-[var(--text-secondary)]">Time Range</label>
+        <select
+          value={range}
+          onChange={(e) => { setRange(e.target.value); setSelectedExpiredSymbol(""); setNValue(1); }}
+          className="w-full mt-1 p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)] outline-none focus:border-indigo-500"
+        >
+          {RANGE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
+      </div>
+
+      {showNumberInput && (
+        <div>
+          <label className="text-xs text-[var(--text-secondary)]">Units back</label>
+          <input
+            type="number" min="1" value={nValue}
+            onChange={(e) => setNValue(e.target.value)}
+            className="w-full mt-1 p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
+          />
         </div>
-        <span className={`font-medium text-sm ${value === '—' ? 'text-gray-500' : colorClass}`}>
-            {value}
-        </span>
+      )}
+
+      {range === "expiry" && (
+        <div>
+          <label className="text-xs text-[var(--text-secondary)]">Select Symbol</label>
+          <select
+            value={selectedExpiredSymbol}
+            onChange={(e) => setSelectedExpiredSymbol(e.target.value)}
+            className="w-full mt-1 p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
+          >
+            <option value="">— All expired —</option>
+            {expiredSymbols.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-2">
+        <button onClick={applyFilter} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-medium text-sm transition-colors">Apply Filter</button>
+        <button onClick={resetFilter} className="flex-1 py-2 bg-transparent border border-[var(--border-color)] rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors">Reset</button>
+      </div>
     </div>
-);
+  );
+}
 
-// const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
-//     if (!selectedOrder) return null;
-
-//     const [submitting, setSubmitting] = useState(false);
-//     const [feedback, setFeedback] = useState(null);
-
-//     const {
-//         symbol, side, product, lots, lot_size, closed_at, _id: orderId,
-//         security_Id, segment, quantity, price, came_From
-//     } = selectedOrder;
-
-//     const tradingsymbol = selectedOrder.meta?.selectedStock?.tradingSymbol ?? symbol ?? "N/A";
-//     const orderSide = String(side ?? "").toUpperCase();
-//     const productType = product === 'MIS' ? 'Intraday' : 'Overnight';
-//     const { qty, entryPrice, exitPrice } = getOrderValues(selectedOrder);
-
-//     // P&L Logic
-//     const diff = orderSide === 'BUY' ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
-//     const pnl = diff * qty;
-//     const isZero = Math.abs(pnl) < 0.01;
-//     const pnlColor = isZero ? "text-gray-200" : (pnl > 0 ? "text-green-400" : "text-red-400");
-
-//     const closedTime = closed_at ? new Date(closed_at).toLocaleString() : "—";
-
-//     const handleReopen = async () => {
-//         setSubmitting(true);
-//         setFeedback(null);
-//         try {
-//             const activeContext = JSON.parse(localStorage.getItem('activeContext') || '{}');
-//             const token = localStorage.getItem("token");
-//             let apiBase = typeof window !== 'undefined' ? window.location.origin : '';
-//             apiBase = apiBase.replace(/\/$/, "");
-            
-//             const res = await fetch(`${apiBase}/api/orders/updateOrder`, {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-//                 body: JSON.stringify({
-//                     broker_id_str: activeContext.brokerId,
-//                     customer_id_str: activeContext.customerId,
-//                     order_id: orderId, security_Id, symbol: tradingsymbol, side: orderSide, product, segment,
-//                     lots: String(lots), quantity: Number(quantity), price: Number(price),
-//                     order_status: "OPEN", meta: { from: 'ui_closed_order_reopen' }
-//                 })
-//             });
-
-//             const body = await res.json();
-//             if (!res.ok || body.success === false) throw new Error(body?.message || 'Failed');
-
-//             setFeedback({ type: 'success', message: 'Order Reopened!' });
-//             window.dispatchEvent(new CustomEvent('orders:changed', { detail: { order: body?.order } }));
-//             setTimeout(onClose, 1000);
-//         } catch (err) {
-//             setFeedback({ type: 'error', message: err.message });
-//         } finally {
-//             setSubmitting(false);
-//         }
-//     };
-
-//     return (
-//         <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#121A2B] border-t border-white/10 shadow-2xl p-4">
-//             <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
-//                 <h3 className="text-xl text-white font-bold">{tradingsymbol} ({orderSide})</h3>
-//                 <button onClick={onClose}><XCircle className="w-6 h-6 text-gray-400" /></button>
-//             </div>
-//             {feedback && <div className={`p-2 mb-3 rounded text-sm ${feedback.type === 'error' ? 'text-red-400 bg-red-900/20' : 'text-green-400 bg-green-900/20'}`}>{feedback.message}</div>}
-            
-//             <div className="mb-4 flex justify-between items-end">
-//                 <div><p className="text-xl font-bold">{money(exitPrice)}</p><p className="text-xs text-gray-500">Exit Price</p></div>
-//                 <div className="text-right"><p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p><p className="text-xs text-gray-500">Realized P&L</p></div>
-//             </div>
-
-//             <div className="mb-4 p-2 bg-[#1A1F30] rounded-lg">
-//                 <DetailRow Icon={ShoppingCart} label="Quantity" value={qty} />
-//                 <DetailRow Icon={DollarSign} label="Entry" value={money(entryPrice)} colorClass="text-yellow-300" />
-//                 <DetailRow Icon={Zap} label="Type" value={orderSide} colorClass={orderSide === 'BUY' ? "text-green-400" : "text-red-400"} />
-//                 <DetailRow Icon={Clock} label="Closed" value={closedTime} />
-//             </div>
-
-//             <div className="flex space-x-2">
-//                 <button onClick={onClose} className="flex-1 p-3 rounded-lg bg-[#21283D] text-white border border-white/10">Close</button>
-//                 {(came_From !== 'Hold' && came_From !== 'Overnight') && (
-//                     <button onClick={handleReopen} disabled={submitting} className="flex-1 p-3 rounded-lg bg-blue-600 text-white flex justify-center items-center gap-2">
-//                         {submitting ? "..." : <><RefreshCw className="w-4 h-4" /> To Open</>}
-//                     </button>
-//                 )}
-//             </div>
-//         </div>
-//     );
-// };
-
-/* ---------------- Portfolio Item Card (The UI you want) ---------------- */
+// ==========================================
+// 2. PORTFOLIO ITEM CARD
+// ==========================================
 const PortfolioItem = ({ data, onClick }) => {
     const tradingsymbol = data?.meta?.selectedStock?.tradingSymbol ?? data?.symbol ?? "—";
     const { qty, entryPrice, exitPrice } = getOrderValues(data);
     const sideUpper = String(data.side ?? "").toUpperCase();
 
-    // P&L Logic
     const diff = sideUpper === "BUY" ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
     const pnl = diff * qty;
     const pct = entryPrice ? (diff / entryPrice) * 100 : 0;
-
     const pnlColor = signColor(pnl);
 
     return (
         <div 
             onClick={() => onClick(data)}
-            className="relative bg-[var(--bg-secondary)] p-4 rounded-xl shadow-md border border-[var(--border-color)] hover:bg-[var(--bg-hover)] transition mb-3 cursor-pointer"
+            className="relative bg-[var(--bg-secondary)] p-4 rounded-xl shadow-md border border-[var(--border-color)] hover:bg-[var(--bg-hover)] transition mb-3 cursor-pointer group"
         >
-            {/* Left purple accent bar (Portfolio Style) */}
-            <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-fuchsia-500" />
-
-            {/* Header Row */}
+            <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-fuchsia-500 transition-all group-hover:bg-fuchsia-400" />
+            
             <div className="flex justify-between items-center mb-2">
                 <p className="text-base md:text-lg font-bold text-[var(--text-primary)] tracking-wide">{tradingsymbol}</p>
                 <p className={`text-sm md:text-base font-semibold ${pnlColor}`}>
                     {signSym(pnl)}{money(pnl)} 
-                    <span className="text-[10px] ml-1 opacity-80">
-                        ({signSym(pct)}{pct.toFixed(2)}%)
-                    </span>
+                    <span className="text-[10px] ml-1 opacity-80">({signSym(pct)}{pct.toFixed(2)}%)</span>
                 </p>
             </div>
 
-            {/* Details Row */}
             <div className="flex justify-between text-xs md:text-sm text-[var(--text-secondary)]">
                 <div className="space-y-1">
-                    <p>
-                        Qty: <span className="text-[var(--text-primary)] font-medium">{qty}</span>
-                    </p>
-                    <p>
-                        Entry Avg: <span className="text-[var(--text-primary)] font-medium">{money(entryPrice)}</span>
-                    </p>
+                    <p>Qty: <span className="text-[var(--text-primary)] font-medium">{qty}</span></p>
+                    <p>Entry: <span className="text-[var(--text-primary)] font-medium">{money(entryPrice)}</span></p>
                 </div>
                 <div className="space-y-1 text-right">
-                    <p>
-                        Exit Avg: <span className="text-[var(--text-primary)] font-semibold">{money(exitPrice)}</span>
-                    </p>
-                    <p>
-                         Type: <span className={`font-semibold ${sideUpper === 'BUY' ? 'text-blue-300' : 'text-orange-300'}`}>{sideUpper}</span>
-                    </p>
+                    <p>Exit: <span className="text-[var(--text-primary)] font-semibold">{money(exitPrice)}</span></p>
+                    <p>Type: <span className={`font-semibold ${sideUpper === 'BUY' ? 'text-blue-300' : 'text-orange-300'}`}>{sideUpper}</span></p>
                 </div>
             </div>
-
-            {/* Bottom Link Style */}
-            <div className="mt-2 flex items-center text-fuchsia-300 hover:text-fuchsia-200 text-xs font-medium">
-                <BarChart className="w-3 h-3 mr-1" />
-                View Details
+            
+            <div className="mt-2 flex items-center text-fuchsia-300 group-hover:text-fuchsia-200 text-xs font-medium transition-colors">
+                <BarChart className="w-3 h-3 mr-1" /> View Details
             </div>
         </div>
     );
 };
 
-/* ---------------- Main Portfolio Component ---------------- */
+// ==========================================
+// 3. MAIN PORTFOLIO COMPONENT
+// ==========================================
 export default function Portfolio() {
-    const [closedOrders, setClosedOrders] = useState([]);
+    const [allOrders, setAllOrders] = useState([]); // Raw data from API
+    const [filteredOrders, setFilteredOrders] = useState([]); // Data shown in list
     const [summary, setSummary] = useState({ invested: 0, current: 0, totalPnl: 0 });
     const [loader, setLoader] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
+    
+    // UI State for Switcher
+    const [showFilter, setShowFilter] = useState(false);
 
     // API Params
     const activeContext = JSON.parse(localStorage.getItem('activeContext') || '{}');
     const { brokerId, customerId } = activeContext;
     const token = localStorage.getItem("token");
 
+    // Fetch Data
     const fetchClosedOrders = async () => {
         if (!brokerId || !customerId) { setLoader(false); return; }
         setLoader(true);
@@ -211,7 +248,8 @@ export default function Portfolio() {
             const orders = Array.isArray(data?.ordersInstrument) ? data.ordersInstrument : [];
             const sortedOrders = orders.sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
             
-            setClosedOrders(sortedOrders);
+            setAllOrders(sortedOrders);
+            setFilteredOrders(sortedOrders); // Initially show all
             calculateSummary(sortedOrders);
         } catch (err) {
             console.error(err);
@@ -220,24 +258,31 @@ export default function Portfolio() {
         }
     };
 
+    // Recalculate summary based on visible orders
     const calculateSummary = (orders) => {
         const acc = orders.reduce((a, order) => {
             const { qty, entryPrice, exitPrice } = getOrderValues(order);
             const side = String(order.side ?? "").toUpperCase();
             
-            // For summary
             const investAmount = entryPrice * qty;
             const realizedAmount = exitPrice * qty;
             const diff = side === 'BUY' ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
             const pnl = diff * qty;
 
             a.invested += investAmount;
-            a.current += realizedAmount; // Logic: This is "Realized Value"
+            a.current += realizedAmount;
             a.totalPnl += pnl;
             return a;
         }, { invested: 0, current: 0, totalPnl: 0 });
 
         setSummary(acc);
+    };
+
+    const handleFilterResult = (results) => {
+        setFilteredOrders(results);
+        calculateSummary(results);
+        // Optional: Auto close filter on apply? 
+        // setShowFilter(false); 
     };
 
     useEffect(() => {
@@ -251,38 +296,83 @@ export default function Portfolio() {
 
     return (
         <div className="flex flex-col min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden">
-            <h2 className="text-lg md:text-xl font-semibold text-[26px] ml-3 mt-2">Portfolio</h2>
+            
+            {/* Header with Switcher */}
+            <div className="flex justify-between items-center px-4 pt-4 pb-2">
+                <h2 className="text-[26px] font-semibold leading-none">Portfolio</h2>
+                
+                {/* Switcher Button */}
+                <button 
+                    onClick={() => setShowFilter(!showFilter)}
+                    className={`
+                        flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300
+                        ${showFilter 
+                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/50" 
+                            : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--bg-hover)]"
+                        }
+                    `}
+                >
+                    {showFilter ? (
+                        <>
+                            <PieChart className="w-3.5 h-3.5" />
+                            Show Summary
+                        </>
+                    ) : (
+                        <>
+                            <Filter className="w-3.5 h-3.5" />
+                            Filter
+                        </>
+                    )}
+                </button>
+            </div>
 
-            <div className="flex-1 overflow-y-auto px-4 pb-24 mt-3">
-                {/* Summary Card (Portfolio Style) */}
-                <div className="bg-[var(--bg-secondary)] p-5 rounded-xl shadow mb-6 border border-[var(--border-color)]">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <p className="text-[var(--text-secondary)] text-sm">Total Invested</p>
-                            <p className="text-xl font-bold">{money(summary.invested)}</p>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-[var(--text-secondary)] text-sm">Realized Value</p>
-                            <p className="text-xl font-bold">{money(summary.current)}</p>
-                        </div>
-                    </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-24 mt-2">
+                
+                {/* SWAPPABLE AREA: Summary vs Filter */}
+                <div className="mb-6 relative">
+                    {showFilter ? (
+                         <ClosedOrderFilter 
+                            closedOrders={allOrders} 
+                            onFilter={handleFilterResult} 
+                        />
+                    ) : (
+                        <div className="bg-[var(--bg-secondary)] p-5 rounded-xl shadow border border-[var(--border-color)] animate-in fade-in zoom-in-95 duration-300">
+                             {/* Portfolio Summary Card */}
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <p className="text-[var(--text-secondary)] text-sm">Total Invested</p>
+                                    <p className="text-xl font-bold">{money(summary.invested)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[var(--text-secondary)] text-sm">Realized Value</p>
+                                    <p className="text-xl font-bold">{money(summary.current)}</p>
+                                </div>
+                            </div>
 
-                    <div className="flex justify-between items-center pt-3 border-t border-[var(--border-color)]">
-                        <p className="text-[var(--text-secondary)] text-sm">Total Realized P&L</p>
-                        <p className={`text-lg font-bold ${totalColor}`}>
-                            {signSym(summary.totalPnl)}
-                            {Number(summary.totalPnl).toFixed(2)}
-                        </p>
-                    </div>
+                            <div className="flex justify-between items-center pt-3 border-t border-[var(--border-color)]">
+                                <p className="text-[var(--text-secondary)] text-sm">Total Realized P&L</p>
+                                <p className={`text-lg font-bold ${totalColor}`}>
+                                    {signSym(summary.totalPnl)}
+                                    {Number(summary.totalPnl).toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* List Header */}
-                <h3 className="text-base font-semibold mb-3">Closed Positions ({closedOrders.length})</h3>
+                <h3 className="text-base font-semibold mb-3 flex items-center justify-between">
+                    <span>Closed Positions ({filteredOrders.length})</span>
+                    {/* Show indicator if filtered */}
+                    {allOrders.length !== filteredOrders.length && (
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">Filtered</span>
+                    )}
+                </h3>
 
                 {/* The List */}
-                {loader && <div className="text-center text-[var(--text-secondary)] text-sm">Loading...</div>}
+                {loader && <div className="text-center text-[var(--text-secondary)] text-sm mt-10">Loading positions...</div>}
                 
-                {!loader && closedOrders.map((order, idx) => (
+                {!loader && filteredOrders.map((order, idx) => (
                     <PortfolioItem 
                         key={order._id || idx} 
                         data={order} 
@@ -290,14 +380,16 @@ export default function Portfolio() {
                     />
                 ))}
 
-                {!loader && closedOrders.length === 0 && (
-                    <div className="text-[var(--text-secondary)] bg-fuchsia-900/20 border border-fuchsia-700 rounded-lg p-3 text-sm text-center">
-                        No closed positions found.
+                {!loader && filteredOrders.length === 0 && (
+                    <div className="text-[var(--text-secondary)] bg-fuchsia-900/10 border border-fuchsia-900/30 rounded-lg p-6 text-sm text-center flex flex-col items-center">
+                        <Filter className="w-8 h-8 mb-2 opacity-50" />
+                        <p>No orders found.</p>
+                        {allOrders.length > 0 && <p className="text-xs opacity-60 mt-1">Try adjusting your filters.</p>}
                     </div>
                 )}
             </div>
 
-            {/* Helper Window */}
+            {/* Helper Window - Uncomment when needed */}
             {/* {selectedOrder && (
                 <ClosedOrderBottomWindow 
                     selectedOrder={selectedOrder} 

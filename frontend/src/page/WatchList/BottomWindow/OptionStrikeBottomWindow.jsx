@@ -53,7 +53,9 @@ const OptionStrikeBottomWindow = ({
         return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
     }, [localLotsStr]);
 
-    const qtyNum = useMemo(() => lotsNum * lotSize, [lotsNum, lotSize]);
+    const qtyNum = useMemo(() => {
+        return lotsNum * lotSize;
+    }, [lotsNum, lotSize]);
 
     const jobbinPct = useMemo(() => {
         const v = parseFloat(String(jobbin_price).trim());
@@ -74,8 +76,7 @@ const OptionStrikeBottomWindow = ({
 
     if (!isOpen) return null;
 
-    // --- Name Construction (Symbol) ---
-    // Format: SYMBOL + EXPIRY + STRIKE + TYPE (e.g. MARUTI 30 DEC 16500 CALL)
+    // --- Name Construction ---
     const getInstrumentName = () => {
         if (strikeData?.tradingSymbol) return strikeData.tradingSymbol;
 
@@ -87,7 +88,7 @@ const OptionStrikeBottomWindow = ({
                 const day = String(d.getDate()).padStart(2, '0');
                 const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
                 expiryStr = `${day} ${month}`;
-            } catch(e){}
+            } catch(e) {}
         }
         const typeStr = (optionType === 'CE' || optionType === 'CALL') ? 'CALL' : 'PUT';
         return `${symbol} ${expiryStr} ${strikePrice} ${typeStr}`.trim();
@@ -120,35 +121,49 @@ const OptionStrikeBottomWindow = ({
                 return;
             }
 
-            // 2. ID Validation (Use Strike Price as requested)
-            // --- ERROR FIX IS HERE: Use strikePrice directly ---
-            const finalSecurityId = String(strikePrice);
+            // ============================================================
+            // 🔥 FIX: ROBUST SECURITY ID EXTRACTION
+            // Check both 'security_Id' and 'securityId'
+            // ============================================================
+            const finalSecurityId = String(
+                strikeData?.security_Id || 
+                strikeData?.securityId || 
+                strikeData?.token || 
+                underlyingStock?.security_Id || 
+                underlyingStock?.securityId || // <--- THIS WAS MISSING
+                ''
+            );
 
-            if (!finalSecurityId || finalSecurityId === "0") {
-                setFeedback({ type: 'error', message: "Invalid Strike Price / Security ID." });
+            if (!finalSecurityId) {
+                setFeedback({ type: 'error', message: "Security ID missing. Check console." });
+                console.error("Data Missing for ID:", { strikeData, underlyingStock });
                 setSubmitting(false);
                 return;
             }
 
-            // 3. Fund Validation
+            // 2. Fund Validation
             try {
                 const fundsData = await getFundsData();
                 if (!fundsData) throw new Error("Unable to fetch wallet balance.");
 
                 const requiredAmount = Number(totalOrderValue);
                 let availableLimit = 0;
-                
+                let limitType = "";
+
                 if (productType === 'Intraday') {
-                    // Intraday Free = Available - Used
-                    availableLimit = (fundsData.intraday?.available_limit || 0) - (fundsData.intraday?.used_limit || 0);
+                    const max = fundsData.intraday?.available_limit || 0;
+                    const used = fundsData.intraday?.used_limit || 0;
+                    availableLimit = max - used;
+                    limitType = "Intraday";
                 } else {
                     availableLimit = fundsData.overnight?.available_limit || 0;
+                    limitType = "Overnight";
                 }
 
                 if (requiredAmount > availableLimit) {
                     setFeedback({
                         type: 'error',
-                        message: `Insufficient Funds! Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availableLimit.toFixed(2)}.`
+                        message: `Insufficient ${limitType} Funds! Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availableLimit.toFixed(2)}. Add funds.`
                     });
                     setSubmitting(false);
                     return; 
@@ -159,7 +174,6 @@ const OptionStrikeBottomWindow = ({
                 return;
             }
 
-            // 4. Prepare Payload
             const activeContextString = localStorage.getItem('activeContext');
             const activeContext = activeContextString ? JSON.parse(activeContextString) : null;
             const brokerId = activeContext?.brokerId || '';
@@ -173,9 +187,7 @@ const OptionStrikeBottomWindow = ({
                 broker_id_str: brokerId,
                 customer_id_str: customerId,
                 
-                // Aapki Request: Security ID ki jagah Strike Price bhej rahe hain
-                security_Id: finalSecurityId, 
-                
+                security_Id: finalSecurityId,
                 symbol: instrumentName, 
                 segment: 'NSE_FNO', 
 
@@ -186,7 +198,6 @@ const OptionStrikeBottomWindow = ({
                 lots: lotsNum,
                 lot_size: lotSize,
                 
-                // Mapping Jobbing Price
                 jobbin_price: jobbin_price === '' ? 0 : Number(jobbin_price), 
                 
                 order_status: "OPEN",

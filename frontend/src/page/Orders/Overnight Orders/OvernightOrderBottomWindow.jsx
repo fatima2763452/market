@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, DollarSign, Hash, Zap, XCircle, Target, AlertCircle } from 'lucide-react';
 import { getFundsData } from '../../../Utils/fetchFund.jsx';
 import { logMarketStatus } from '../../../Utils/marketStatus.js';
-
+import { calculatePnLAndBrokerage } from '../../../Utils/calculateBrokerage.jsx';
 
 const money = (n) => `₹${Number(n ?? 0).toFixed(2)}`;
+
+// sirf ENTRY side pe 0.01%
+const ENTRY_BROKERAGE_PERCENT = 0.01;
 
 const DetailRow = ({ Icon, label, value, colorClass }) => {
     return (
@@ -40,13 +43,13 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
     } = selectedOrder;
 
     const lotSize = Number(selectedOrder.lot_size) || Number(selectedOrder.meta?.selectedStock?.lot_size) || 1;
+
     const ltpRaw = sheetData?.ltp != null ? Number(sheetData.ltp) : null;
     const currentPrice = ltpRaw || Number(initialPrice) || 0;
     const formattedCMP = currentPrice ? `₹${currentPrice.toFixed(2)}` : '—';
 
     // States
     const [addLotInput, setAddLotInput] = useState('');
-    // NEW: SL & Target
     const [slPrice, setSlPrice] = useState(selectedOrder.stop_loss || '');
     const [targetPrice, setTargetPrice] = useState(selectedOrder.target || '');
 
@@ -79,11 +82,27 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
     const ltp = Number(sheetData?.ltp ?? avg);
     const qty = Number(initialQty ?? 0);
 
-    const diff = orderSide === "BUY" ? (ltp - avg) : (avg - ltp);
-    const pnl = diff * qty;
-    const pnlColor = pnl >= 0 ? "text-green-400" : "text-red-400";
+    // ---------- BROKERAGE + P&L (ENTRY SIDE ONLY) ----------
+    const {
+        entryValue,
+        currentValue,
+        brokerageEntry,
+        totalBrokerage,
+        grossPnl,
+        netPnl,
+        pct,
+    } = calculatePnLAndBrokerage({
+        side: orderSide,
+        avgPrice: avg,
+        ltp,
+        qty,
+        brokeragePercentPerSide: ENTRY_BROKERAGE_PERCENT,
+        mode: "entry-only",
+    });
+
+    const pnlColor = netPnl >= 0 ? "text-green-400" : "text-red-400";
     const isBuy = orderSide === 'BUY';
-    const adjustActionColor = isBuy ? 'bg-green-600' : 'bg-green-600';
+    const adjustActionColor = 'bg-green-600';
 
     // --- ADD LOT CALCULATION ---
     const currentLots = Number(lots ?? 0);
@@ -99,7 +118,6 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
     }
     const displayComputedAvg = `₹${Number(computedAvg || 0).toFixed(2)}`;
 
-
     // --- ACTION HANDLER ---
     const handleAction = async (intendedAction) => {
         setSubmitting(true);
@@ -109,13 +127,12 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
         try {
             // Validation & Fund Check
             if (intendedAction === 'Adjust') {
-                if (parsedAddLots > 0) { // Only check funds if buying more
+                if (parsedAddLots > 0) { 
                     try {
                         const fundsData = await getFundsData();
                         if (!fundsData) throw new Error("Unable to fetch wallet balance.");
 
                         const requiredAmount = (parsedAddLots * lotSize) * currentPrice;
-                        // Overnight funds are direct Available Limit
                         const availableLimit = fundsData.overnight?.available_limit || 0;
 
                         if (requiredAmount > availableLimit) {
@@ -156,15 +173,12 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                     quantity: Number(targetTotalQuantity),
                     price: Number(Number(computedAvg).toFixed(2)),
                     order_status: null, 
-                    
-                    // --- SEND SL & TARGET ---
                     stop_loss: slPrice ? Number(slPrice) : 0,
                     target: targetPrice ? Number(targetPrice) : 0,
-
                     meta: { from: 'ui_overnight_order_adjustment' }
                 };
             } else if (intendedAction === 'Close') {
-                // *** EXIT LOGIC ***
+                // *** EXIT LOGIC (brokerage exit + P&L closedOrder me handle kar rahe ho) ***
                 const liveLtp = Number(sheetData?.ltp ?? 0);
                 const jobbingRaw = Number(selectedOrder.jobbin_price ?? jobbin_price ?? 0);
                 const jobbingPct = Number.isFinite(jobbingRaw) ? (jobbingRaw / 100) : 0;
@@ -194,7 +208,7 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
             });
 
             let body = null;
-            try { body = await res.json(); } catch (e) { }
+            try { body = await res.json(); } catch (e) {}
 
             if (!res.ok || (body && body.success === false)) {
                 throw new Error(body?.message || `Server error: ${res.status}`);
@@ -230,12 +244,15 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
 
             <div className="mb-4 flex justify-between items-end">
                 <div>
-                    <p className="text-xl font-bold"><span className="text-gray-300 mr-1">₹</span><span className={pnlColor}>{formattedCMP}</span></p>
+                    <p className="text-xl font-bold">
+                        <span className="text-gray-300 mr-1">₹</span>
+                        <span className={pnlColor}>{formattedCMP}</span>
+                    </p>
                     <p className="text-xs text-gray-500">Current Market Price</p>
                 </div>
                 <div className="text-right">
-                    <p className={`text-xl font-bold ${pnlColor}`}>{money(pnl)}</p>
-                    <p className="text-xs text-gray-500">Total P&L</p>
+                    <p className={`text-xl font-bold ${pnlColor}`}>{money(netPnl)}</p>
+                    <p className="text-xs text-gray-500">Net P&L (after entry brokerage)</p>
                 </div>
             </div>
 
@@ -246,6 +263,9 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                 <DetailRow label="Type" value={orderSide} colorClass={isBuy ? "text-green-400" : "text-red-400"} />
                 <DetailRow label="Order Instant" value={productType} colorClass="text-gray-300" />
                 <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-gray-300" />
+                <div className="mt-1 text-right text-[10px] text-gray-500">
+                    Est. Brokerage (entry): -{money(brokerageEntry)}
+                </div>
             </div>
 
             <div className="p-3 bg-[#1F2028] rounded-lg mb-4">
@@ -265,16 +285,15 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                         <div className="text-xs text-gray-400 italic">Size: <span className="font-medium text-white ml-1">{lotSize}</span></div>
                     </div>
 
-                    
-
-                    {userRole === 'broker' && <div className="flex items-center">
-                        <Hash className="w-5 h-5 text-gray-400 mr-2" />
-                        <div className="w-full p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
-                            <span className="text-sm">New Avg. Price</span>
-                            <span className="font-medium">{displayComputedAvg}</span>
+                    {userRole === 'broker' && (
+                        <div className="flex items-center">
+                            <Hash className="w-5 h-5 text-gray-400 mr-2" />
+                            <div className="w-full p-2 bg-[#2A314A] text-white rounded-md transition flex items-center justify-between">
+                                <span className="text-sm">New Avg. Price</span>
+                                <span className="font-medium">{displayComputedAvg}</span>
+                            </div>
                         </div>
-                    </div>}
-
+                    )}
 
                     {/* --- SL & TARGET INPUTS --- */}
                     <div className="flex space-x-2">
@@ -308,27 +327,28 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                             </div>
                         </div>
                     </div>
-                    
                 </div>
             </div>
 
-            {(userRole === 'broker' || isOpen) && (<div className="flex space-x-2">
-                <button
-                    onClick={() => handleAction('Adjust')}
-                    disabled={submitting}
-                    className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
-                >
-                    {submitting && action === 'Adjust' ? 'BUY MORE...' : 'BUY MORE'}
-                </button>
+            {(userRole === 'broker' || isOpen) && (
+                <div className="flex space-x-2">
+                    <button
+                        onClick={() => handleAction('Adjust')}
+                        disabled={submitting}
+                        className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${adjustActionColor} ${submitting && action === 'Adjust' ? 'opacity-50' : ''}`}
+                    >
+                        {submitting && action === 'Adjust' ? 'BUY MORE...' : 'BUY MORE'}
+                    </button>
 
-                <button
-                    onClick={() => handleAction('Close')}
-                    disabled={submitting}
-                    className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-red-500 hover:bg-gray-700 ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
-                >
-                    {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
-                </button>
-            </div>)}
+                    <button
+                        onClick={() => handleAction('Close')}
+                        disabled={submitting}
+                        className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-red-500 hover:bg-gray-700 ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
+                    >
+                        {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
