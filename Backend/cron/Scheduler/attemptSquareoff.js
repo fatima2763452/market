@@ -1,15 +1,15 @@
 import placeMarketOrder from "./placeMarketOrder.js";
+import Order from "../../Model/OrdersModel.js";   // adjust path as needed
+import Fund from "../../Model/FundModel.js";     // adjust path as needed
 
 export async function attemptSquareoff(order) {
   if (!order) return { ok: false, reason: 'no-order' };
 
-  const orderStatus = order.order_status || order.orderStatus; // Can be 'OPEN', 'HOLD', or null/undefined
+  const orderStatus = order.order_status || order.orderStatus; // 'OPEN', 'HOLD', or null/undefined
   const orderCategory = order.order_category || order.orderCategory;
   
-  // Expiry Date nikaalo
+  // Expiry Date
   const expireDateRaw = order.meta?.selectedStock?.expiry || order.expireDate;
-  
-  // Date Comparison ke liye strings (YYYY-MM-DD) - Asia/Kolkata timezone zaroori hai
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   
   let expireDateStr = null;
@@ -17,47 +17,63 @@ export async function attemptSquareoff(order) {
       expireDateStr = new Date(expireDateRaw).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   }
 
-  // --- HELPER: CHECK IF STATUS IS ACTIVE (OPEN, HOLD, or NULL) ---
-  // Agar status null/undefined hai to bhi hum use 'Active' maan rahe hain check karne ke liye
   const isActiveStatus = (status) => {
       return status === 'OPEN' || status === 'HOLD' || status === null || status === undefined;
   };
 
-  // --- LOGIC START ---
-
   try {
-    // ===============================================
     // CASE 1: INTRADAY (Hamesha Close hoga)
-    // ===============================================
     if (orderCategory === 'INTRADAY' && isActiveStatus(orderStatus)) {
         console.log(`✅ [Squareoff] Closing Intraday: ${order._id} (Status: ${orderStatus})`);
         const res = await placeMarketOrder(order._id);
+
+        // Only if placeMarketOrder indicates success, proceed to fund-release for HOLD orders
+        const successFlag = res && (res.ok === true || res.success === true || res.status === 'success' || res.updated);
+        if (successFlag && orderStatus === 'HOLD') {
+          // Release margin_blocked back to fund.intraday.used_limit and set order.margin_blocked = 0
+          const marginToRelease = Number(order.margin_blocked || (order.price * order.quantity) || 0);
+          if (marginToRelease > 0) {
+            const fund = await Fund.findOne({
+              broker_id_str: order.broker_id_str,
+              customer_id_str: order.customer_id_str
+            });
+
+            if (fund) {
+              fund.intraday = fund.intraday || { used_limit: 0, available_limit: 0 };
+              fund.intraday.used_limit = Number(fund.intraday.used_limit || 0) - marginToRelease;
+              if (fund.intraday.used_limit < 0) fund.intraday.used_limit = 0;
+              await fund.save();
+            } else {
+              console.warn(`[Squareoff] Fund not found for order ${order._id} while releasing margin.`);
+            }
+          }
+
+          // Ensure DB order has margin_blocked cleared (in case placeMarketOrder didn't set it)
+          try {
+            await Order.findByIdAndUpdate(order._id, { $set: { margin_blocked: 0, updatedAt: new Date() } }, { new: true });
+          } catch (e) {
+            console.error(`[Squareoff] Failed to clear margin_blocked for order ${order._id}:`, e);
+          }
+        }
+
         return { ok: true, action: 'closed_intraday', result: res };
     }
 
-    // ===============================================
     // CASE 2: OVERNIGHT / HOLD (Sirf Expiry Date par close hoga)
-    // ===============================================
     if (orderCategory === 'OVERNIGHT' && isActiveStatus(orderStatus)) {
-        
-        // Agar expiry date hi nahi hai, to skip karo (Safety)
         if (!expireDateStr) {
-            // console.log(`ℹ️ [Squareoff] Skipped Overnight (No Expiry Date): ${order._id}`);
             return { ok: false, reason: 'no_expiry_date_found' };
         }
 
-        // AGAR (Expiry Date <= Aaj) -> TO CLOSE KARO
-        // Yani agar Expiry Aaj hai ya Nikal chuki hai
         if (expireDateStr <= todayStr) {
             console.log(`✅ [Squareoff] Closing EXPIRED Overnight: ${order._id} (Status: ${orderStatus}, Exp: ${expireDateStr})`);
             const res = await placeMarketOrder(order._id);
+
+            // For overnight HOLD case you did NOT want automatic fund release — so we DON'T touch fund here.
+            // (If you later want release for Overnight HOLD on expiry, we can add similar logic.)
+
             return { ok: true, action: 'closed_expired_overnight', result: res };
-        } 
-        
-        // AGAR (Expiry Date > Aaj) -> KUCH MAT KARO
-        // Yani Expiry Future me hai
-        else {
-            // console.log(`🛡️ [Squareoff] Keeping Active: ${order._id} (Exp: ${expireDateStr} is Future)`);
+        } else {
             return { ok: true, action: 'kept_active_future_expiry' };
         }
     }

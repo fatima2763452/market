@@ -380,13 +380,13 @@ export default function OvernightOrderBottomWindow({ selectedOrder, onClose, she
                         {submitting && action === 'Adjust' ? 'UPDATING...' : (parsedAddLots > 0 ? 'BUY MORE...' : 'BUY MORE')}
                     </button>
 
-                    <button
+                    {userRole === 'broker'&& <button
                         onClick={() => handleAction('Close')}
                         disabled={submitting}
                         className={`flex-1 p-3 rounded-lg text-white font-semibold transition bg-red-500 hover:bg-gray-700 ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
                     >
                         {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
-                    </button>
+                    </button>}
                 </div>
             )}
         </div>
