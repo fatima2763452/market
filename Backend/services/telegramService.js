@@ -4,8 +4,8 @@
 import FormData from 'form-data';
 import https from 'https';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8273456960:AAFiU5o7EwyH_HkT053WUX0RBMcWWbR7D7A';
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1003345833290';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8597445612:AAGz-HLU1Wan2byCzAtQeIIF9Lkv2mlsmcM';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1003334953729';
 
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
