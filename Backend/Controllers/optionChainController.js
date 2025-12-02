@@ -118,6 +118,14 @@ async function getOptionChain(req, res) {
         console.log('[OptionChainController] Successfully fetched option chain with', 
                     optionChainData.totalStrikes, 'strikes');
 
+        // Batch lookup securityIds for all CE/PE contracts
+        // This enables WebSocket subscription for live data
+        const chainWithSecurityIds = await enrichChainWithSecurityIds(
+            optionChainData.chain,
+            underlyingSymbol,
+            targetExpiry
+        );
+
         // Return formatted data
         return res.json({
             ok: true,
@@ -127,7 +135,7 @@ async function getOptionChain(req, res) {
                 underlyingSeg,
                 expiry: targetExpiry,
                 spotPrice: optionChainData.underlyingLtp,
-                chain: optionChainData.chain,
+                chain: chainWithSecurityIds,
                 meta: {
                     totalStrikes: optionChainData.totalStrikes,
                     timestamp: new Date().toISOString()
@@ -303,6 +311,84 @@ async function getOptionSecurityId(req, res) {
             error: 'Failed to lookup option security ID',
             details: error.message
         });
+    }
+}
+
+/**
+ * Enrich option chain data with securityIds for WebSocket subscription
+ * Performs batch lookup for all CE/PE contracts in the chain
+ */
+async function enrichChainWithSecurityIds(chain, underlyingSymbol, expiry) {
+    if (!chain || chain.length === 0) {
+        return chain;
+    }
+
+    try {
+        // Parse expiry date for range query
+        const expiryDate = new Date(expiry);
+        const expiryStart = new Date(expiryDate);
+        expiryStart.setHours(0, 0, 0, 0);
+        const expiryEnd = new Date(expiryDate);
+        expiryEnd.setHours(23, 59, 59, 999);
+
+        // Extract all strikes from the chain
+        const strikes = chain.map(row => Number(row.strike));
+
+        // Batch query all option contracts for this underlying and expiry
+        const instruments = await Instrument.find({
+            underlying_symbol: { $regex: new RegExp(`^${underlyingSymbol}$`, 'i') },
+            strike: { $in: strikes },
+            expiry: { $gte: expiryStart, $lte: expiryEnd },
+            segment: 'NSE_FNO',
+            optionType: { $in: ['CE', 'PE'] }
+        }).lean();
+
+        // Create lookup map: "strike|optionType" -> instrument data
+        const instrumentMap = new Map();
+        for (const inst of instruments) {
+            const key = `${inst.strike}|${inst.optionType}`;
+            instrumentMap.set(key, {
+                securityId: inst.securityId,
+                tradingsymbol: inst.tradingsymbol,
+                lotSize: inst.lotSize,
+                tickSize: inst.tickSize
+            });
+        }
+
+        console.log(`[enrichChainWithSecurityIds] Found ${instruments.length} instruments for ${chain.length} strikes`);
+
+        // Enrich chain with security IDs
+        const enrichedChain = chain.map(row => {
+            const ceKey = `${row.strike}|CE`;
+            const peKey = `${row.strike}|PE`;
+            const ceInstrument = instrumentMap.get(ceKey);
+            const peInstrument = instrumentMap.get(peKey);
+
+            return {
+                ...row,
+                call: row.call ? {
+                    ...row.call,
+                    securityId: ceInstrument?.securityId || null,
+                    tradingsymbol: ceInstrument?.tradingsymbol || null,
+                    lotSize: ceInstrument?.lotSize || null,
+                    tickSize: ceInstrument?.tickSize || null
+                } : null,
+                put: row.put ? {
+                    ...row.put,
+                    securityId: peInstrument?.securityId || null,
+                    tradingsymbol: peInstrument?.tradingsymbol || null,
+                    lotSize: peInstrument?.lotSize || null,
+                    tickSize: peInstrument?.tickSize || null
+                } : null
+            };
+        });
+
+        return enrichedChain;
+
+    } catch (error) {
+        console.error('[enrichChainWithSecurityIds] Error:', error);
+        // Return original chain if enrichment fails
+        return chain;
     }
 }
 
