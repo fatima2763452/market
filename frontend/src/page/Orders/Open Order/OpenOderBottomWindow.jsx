@@ -37,7 +37,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
     const {
         symbol, side, product, quantity: initialQty, price: initialPrice, jobbin_price,
-        security_Id, segment, _id: orderId, lots, stop_loss, target
+        security_Id, segment, _id: orderId, lots, stop_loss, target, margin_blocked
     } = selectedOrder;
 
     const lotSize = Number(selectedOrder.lot_size) || Number(selectedOrder.meta?.selectedStock?.lot_size) || 1;
@@ -210,7 +210,7 @@ export default function OpenOrderBottomWindow({ selectedOrder, onClose, sheetDat
                     price: Number(Number(computedAvg).toFixed(2)),
                     came_From: 'Open',
                     order_status: 'OPEN',
-                    
+                    margin_blocked: Number(margin_blocked),
                     // --- SEND SL & TARGET ---
                     stop_loss: slPrice ? Number(slPrice) : 0,
                     target: targetPrice ? Number(targetPrice) : 0,

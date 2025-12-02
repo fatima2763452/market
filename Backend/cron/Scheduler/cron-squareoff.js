@@ -23,7 +23,7 @@ export function stockSquareoffScheduler() {
   // =========================================================
   // 1. INTRADAY SQUARE OFF (Rozana 3:15 PM - Mon-Fri)
   // =========================================================
-  cron.schedule("15 15 * * 1-5", async () => { 
+  cron.schedule("0 15 15 * 1-5", async () => { 
       if (!isTradingDay(new Date())) {
           return console.log("[cron] Market holiday, skipping Intraday.");
       }
@@ -45,7 +45,7 @@ export function stockSquareoffScheduler() {
   // 2. MIDNIGHT CLEANUP & EXPIRY CHECK (Rozana Raat 12:00 Baje)
   // =========================================================
   // Daily (*) chalega taaki Expiry Date check kar sake
-  cron.schedule("16 5 0 * * *", async () => {
+  cron.schedule("0 0 0 * * *", async () => {
       console.log(`[cron] 🌙 Running Midnight Maintenance`);
       
       // A. Intraday Cleanup (Jo galti se bach gaye)
@@ -69,3 +69,7 @@ export function stockSquareoffScheduler() {
 
   }, { timezone: "Asia/Kolkata" });
 }
+
+
+
+

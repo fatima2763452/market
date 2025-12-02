@@ -394,13 +394,13 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                         {submitting && action === 'Adjust' ? 'BUYING...' : 'BUY MORE'}
                     </button>
 
-                    <button
+                    {userRole === 'broker'&&<button
                         onClick={() => handleAction('Close')}
                         disabled={submitting}
                         className={`flex-1 p-3 rounded-lg text-white font-semibold transition ${closeActionColor} ${submitting && action === 'Close' ? 'opacity-50' : ''}`}
                     >
                         {submitting && action === 'Close' ? 'EXITING...' : 'EXIT'}
-                    </button>
+                    </button>}
                 </div>
             )}
         </div>
