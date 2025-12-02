@@ -296,10 +296,11 @@ function Watchlist() {
     const loadAllInstruments = async () => {
       try {
         setIsLoading(true);
-        const nifty50Res = await fetch(`${apiBase}/api/instruments/search?q=Nifty 50&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
-        const bankNiftyRes = await fetch(`${apiBase}/api/instruments/search?q=Nifty Bank&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
-        const nifty50Inst = nifty50Res.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
-        const bankNiftyInst = bankNiftyRes.find(i => (i.display_name === "Nifty Bank" || i.tradingsymbol === "Nifty Bank") && i.segment === "NSE_INDEX");
+        
+        // Fetch index instruments from dedicated endpoint
+        const indexRes = await fetch(`${apiBase}/api/instruments/indexes`, { credentials: "include" }).then(res => res.json());
+        const nifty50Inst = indexRes.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
+        const bankNiftyInst = indexRes.find(i => (i.display_name === "Nifty Bank" || i.tradingsymbol === "Nifty Bank") && i.segment === "NSE_INDEX");
         const indexInstrumentsRaw = [nifty50Inst, bankNiftyInst].filter(Boolean);
         const formattedIndexes = formatInstruments(indexInstrumentsRaw);
         setIndexInstruments(formattedIndexes);

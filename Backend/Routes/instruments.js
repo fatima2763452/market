@@ -33,10 +33,31 @@ router.get("/search", async (req, res) => {
             case "Commodity":
                 segmentFilter = ["MCX_COMM", "NSE_COMM"];
                 break;
+            case "NSE_INDEX":
+            case "Index":
+                segmentFilter = ["NSE_INDEX"];
+                break;
             case "All":
             default:
                 segmentFilter = ["NSE_FNO", "MCX_COMM"];
                 break;
+        }
+
+        // --- Special case: Index search (no ATM filtering needed) ---
+        if (category === "NSE_INDEX" || category === "Index") {
+            const indexResults = await Instrument.find({
+                segment: "NSE_INDEX",
+                $or: [
+                    { tradingsymbol: regex },
+                    { symbol_name: regex },
+                    { display_name: regex }
+                ]
+            })
+            .limit(50)
+            .lean();
+            
+            console.log(`[Search] Index search for "${q}" found ${indexResults.length} results`);
+            return res.json(indexResults);
         }
 
         // --- Step 1: Find unique underlying symbols that match the search ---
@@ -256,6 +277,33 @@ router.get("/watchlist", async (req, res) => {
         res.json(instruments);
     } catch (e) {
         console.error("instruments/watchlist error:", e);
+        res.status(500).json({ error: "failed" });
+    }
+});
+
+// Dedicated endpoint for index instruments (NIFTY 50, BANKNIFTY)
+// Used by watchlist stats cards
+router.get("/indexes", async (req, res) => {
+    try {
+        // Fetch NIFTY 50 and NIFTY BANK indices
+        const indexes = await Instrument.find({
+            segment: "NSE_INDEX",
+            $or: [
+                { tradingsymbol: { $regex: /^Nifty 50$/i } },
+                { display_name: { $regex: /^Nifty 50$/i } },
+                { tradingsymbol: { $regex: /^Nifty Bank$/i } },
+                { display_name: { $regex: /^Nifty Bank$/i } }
+            ]
+        })
+        .select("securityId segment tradingsymbol symbol_name display_name instrumentType")
+        .lean();
+
+        console.log(`[Indexes] Found ${indexes.length} index instruments:`, 
+            indexes.map(i => `${i.display_name || i.tradingsymbol} (${i.securityId})`).join(', '));
+        
+        res.json(indexes);
+    } catch (e) {
+        console.error("instruments/indexes error:", e);
         res.status(500).json({ error: "failed" });
     }
 });
