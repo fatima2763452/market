@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { User, Shield, IdCard, LogOut, UserCheck, Moon, Sun, Camera, Loader2 } from "lucide-react";
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { User, Shield, IdCard, LogOut, UserCheck, Moon, Sun, CurlyBraces } from "lucide-react";
 import { useTheme } from "../../contexts/ThemeContext";
 
 const Row = ({ label, value, icon: Icon }) => (
@@ -32,15 +32,18 @@ export default function Profile() {
   let loggedInUser = null;
   try {
     loggedInUser = JSON.parse(localStorage.getItem("loggedInUser") || "null");
+    
   } catch {
     loggedInUser = null;
   }
 
   const role = loggedInUser?.role || "customer";
+
   const userName = loggedInUser?.name || "User";
 
   const brokerIdStr = localStorage.getItem("associatedBrokerStringId") || "";
-
+  
+  const customerName = role === 'broker'? localStorage.getItem('customerName') : "—";
   let activeContext = null;
   try {
     activeContext = JSON.parse(localStorage.getItem("activeContext") || "null");
@@ -214,13 +217,12 @@ export default function Profile() {
                 className="hidden"
               />
             </div>
+            <div>
+              <div className="text-lg font-semibold capitalize">{userName}</div>
+              <div className="text-xs text-[var(--text-secondary)] capitalize">Role: {role}</div>
+              {role === 'broker' && <div className="text-xs text-[var(--text-secondary)] capitalize">customer Name: {customerName}</div>}
 
-            <div className="flex-1">
-              <div className="text-lg font-semibold capitalize">{displayName}</div>
-              <div className="text-xs text-[var(--text-secondary)] capitalize">Role: {displayRole}</div>
-              {isBrokerViewingCustomer && (
-                <div className="text-xs text-fuchsia-400 mt-1">Click photo to change</div>
-              )}
+
             </div>
           </div>
 

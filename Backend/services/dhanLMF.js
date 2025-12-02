@@ -3,6 +3,7 @@ import WebSocket from "ws";
 import { config } from "../config.js";
 import { getIO } from "../sockets/io.js";
 import { onMarketTick } from "../Utils/OrderManager.js";
+// import { fundOnMarketTick } from "../Utils/fundrenewManager.js";
 
 const roomFor = (securityId) => `sec:${securityId}`;
 
@@ -296,6 +297,7 @@ export class DhanLMF {
 
             if (ltp > 0) {
                 onMarketTick({ token: String(securityId), ltp: ltp });
+                // fundOnMarketTick({token : String(securityId), ltp :ltp})
             }
 
             break;

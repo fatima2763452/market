@@ -117,7 +117,7 @@ export default function FundsView() {
                 </div>
             ) : (
                 <div className="flex items-center gap-3">
-                    <p className="text-3xl font-extrabold text-[var(--text-primary)]">{formatCurrency(d.net_available_balance)}</p>
+                    <p className="text-3xl font-extrabold ">{formatCurrency(d.net_available_balance)}</p>
                     {userRole === 'broker' && (
                         <button onClick={() => { setTempBalance(d.net_available_balance); setIsEditing(true); }} className="text-gray-500 hover:text-indigo-400 transition p-1 rounded-full hover:bg-white/5"><Pencil size={16} /></button>
                     )}

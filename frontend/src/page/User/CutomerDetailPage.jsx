@@ -26,7 +26,7 @@ const AddCustomerModal = ({ isVisible, onClose, onCustomerAdded }) => {
     setIsSubmitting(true);
     try {
 
-    const url = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
+      const url = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
 
       const res = await axios.post(
         `${url}/api/auth/addCustomer`,
@@ -136,13 +136,16 @@ export default function CustomerDetailsPage() {
 
     (async () => {
       try {
-    const url = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
+        const url = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
 
         const res = await axios.get(
           `${url}/api/auth/getCustomers`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+
+        console.log(res)
         setCustomers(res.data?.customers || []);
+        console.log(customers)
       } catch (e) {
         setErrText(e?.response?.data?.message || '❌ Failed to load customers.');
         if (e?.response?.status === 401) window.location.href = '/';
@@ -153,14 +156,27 @@ export default function CustomerDetailsPage() {
   }, []);
 
   // View → open watchlist with brokerId(from localStorage) + customerId
-  const openWatchlist = (customerId) => {
+ const openWatchlist = (customerId) => {
     const brokerId10 = loggedInUser?.id || displayBrokerId;
+    
     if (!brokerId10) return alert('Broker ID missing.');
     if (!customerId) return alert('Customer ID missing.');
 
+    // ✅ STEP 1: Find the specific customer object from the array
+    const selectedCustomer = customers.find((c) => c.id === customerId);
+    
+    // ✅ STEP 2: Get the name safely
+    const customerName = selectedCustomer ? selectedCustomer.name : "Unknown Customer";
+
+    console.log('Selected Customer Name:', customerName);
+
     localStorage.setItem('activeContext', JSON.stringify({ brokerId: brokerId10, customerId }));
+    
+    // ✅ STEP 3: Save the name correctly
+    localStorage.setItem('customerName', customerName); 
+
     navigate(`/watchlist?brokerId=${encodeURIComponent(brokerId10)}&customerId=${encodeURIComponent(customerId)}`);
-  };
+};
 
   if (loading) return <div className="p-6 text-[var(--text-secondary)]">Loading customers…</div>;
 
@@ -184,11 +200,19 @@ export default function CustomerDetailsPage() {
         {customers.map((c) => (
           <div key={c.id} className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 shadow-md transition hover:bg-[var(--bg-hover)]">
             <div className="flex items-start justify-between">
-              <div className="text-sm font-semibold">
-                <span className="text-[var(--text-secondary)]">ID:</span>{' '}
-                <span className="text-[#8aa2ff]">{c.id}</span>
+              <div className='flex flex-col space-y-2'>
+                <div className="text-sm font-semibold">
+                  <span className="text-[var(--text-secondary)]">ID:</span>{' '}
+                  <span className="text-[#8aa2ff]">{c.id}</span>
+                </div>
+               
+                <div className="text-sm font-semibold">
+                  <span className="text-[var(--text-secondary)]">password:</span>{' '}
+                  <span className="text-[#8aa2ff]">{c.password}</span>
+                </div>
               </div>
-              <div className="text-right text-[var(--text-primary)]">{c.name}</div>
+              <div className="text-right text-[var(--text-primary)]">{c.name} </div>
+
             </div>
 
             <div className="mt-3 flex gap-2">
