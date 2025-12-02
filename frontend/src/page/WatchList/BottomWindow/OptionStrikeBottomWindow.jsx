@@ -293,12 +293,12 @@ const OptionStrikeBottomWindow = ({
                         >
                             BUY
                         </button>
-                        <button
+                        {userRole === 'broker' && (<button
                             className={`flex-1 py-2.5 rounded-lg font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white' : 'bg-[#252B3B] text-gray-400'}`}
                             onClick={() => setActionTab('Sell')}
                         >
                             SELL
-                        </button>
+                        </button>)}
                     </div>
 
                     {/* Product Type */}

@@ -80,6 +80,7 @@ const LoginForm = () => {
       localStorage.setItem('token', fakeToken);
       localStorage.setItem('authToken', fakeToken);
       localStorage.setItem('loggedInUser', JSON.stringify(user));
+     
       localStorage.setItem('associatedBrokerStringId', superBrockerId);
 
       axios.defaults.headers.common['Authorization'] = `Bearer ${fakeToken}`;
