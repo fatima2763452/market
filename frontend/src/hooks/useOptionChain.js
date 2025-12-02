@@ -5,7 +5,7 @@ import { useMarketData } from '../contexts/MarketDataContext';
 const apiBase = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
 
 /**
- * Custom hook to fetch and manage option chain data with live updates
+ * Custom hook to fetch and manage option chain data with live WebSocket updates
  * @param {Object} params - { segment, securityId, expiry }
  * @returns {Object} - { chainData, loading, error, spotPrice, expiries, refetch }
  */
@@ -18,9 +18,12 @@ export function useOptionChain({ segment, securityId, expiry }) {
   
   const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
   
-  // Track subscribed option instruments to avoid duplicate subscriptions
-  const subscribedInstrumentsRef = useRef(new Set());
+  // Track subscribed option securityIds for cleanup
+  const subscribedSecurityIdsRef = useRef([]);
   const lastFetchParamsRef = useRef(null);
+  
+  // Store securityId to chain position mapping for tick updates
+  const securityIdMapRef = useRef(new Map());
 
   /**
    * Fetch option chain data from backend
@@ -120,114 +123,94 @@ export function useOptionChain({ segment, securityId, expiry }) {
   }, [segment, securityId]);
 
   /**
-   * Subscribe to live data for all option strikes in the chain
+   * Subscribe to live ticker data for all option strikes in the chain
+   * Uses 'ticker' packet type for LTP-only updates (most efficient)
    */
-  const subscribeToOptionStrikes = useCallback(async (chainArray) => {
+  const subscribeToOptionStrikes = useCallback((chainArray) => {
     if (!chainArray || chainArray.length === 0 || !isConnected) {
       console.warn('[useOptionChain] Cannot subscribe - no chain data or socket disconnected');
       return;
     }
 
-    console.log('[useOptionChain] Subscribing to', chainArray.length, 'strikes');
-
-    // Build subscription list for all call and put options
+    // Build subscription list and securityId mapping
     const subscriptionList = [];
-    const subscriptionKeys = new Set();
+    const newSecurityIdMap = new Map();
 
-    chainArray.forEach(row => {
-      // For now, we subscribe to the underlying's full packet which includes all options
-      // This is a simplified approach - ideally backend would provide option securityIds
-      
-      // Add call option if exists
-      if (row.call) {
-        const key = `${segment}-call-${row.strike}`;
-        if (!subscribedInstrumentsRef.current.has(key)) {
-          subscriptionKeys.add(key);
-        }
+    chainArray.forEach((row, index) => {
+      // Subscribe to CE (call) option if has securityId
+      if (row.call?.securityId) {
+        subscriptionList.push({
+          segment: 'NSE_FNO',
+          securityId: String(row.call.securityId)
+        });
+        // Map securityId to chain position for tick updates
+        newSecurityIdMap.set(String(row.call.securityId), { 
+          index, 
+          type: 'call',
+          strike: row.strike 
+        });
       }
 
-      // Add put option if exists
-      if (row.put) {
-        const key = `${segment}-put-${row.strike}`;
-        if (!subscribedInstrumentsRef.current.has(key)) {
-          subscriptionKeys.add(key);
-        }
+      // Subscribe to PE (put) option if has securityId
+      if (row.put?.securityId) {
+        subscriptionList.push({
+          segment: 'NSE_FNO',
+          securityId: String(row.put.securityId)
+        });
+        newSecurityIdMap.set(String(row.put.securityId), { 
+          index, 
+          type: 'put',
+          strike: row.strike 
+        });
       }
     });
 
-    if (subscriptionKeys.size === 0) {
-      console.log('[useOptionChain] All strikes already subscribed');
+    if (subscriptionList.length === 0) {
+      console.warn('[useOptionChain] No securityIds found in chain data');
       return;
     }
 
-    // For now, we'll rely on the underlying's full subscription
-    // In a production setup, you'd subscribe to individual option instruments
-    console.log('[useOptionChain] Option strikes tracked:', subscriptionKeys.size);
+    // Store mapping for tick updates
+    securityIdMapRef.current = newSecurityIdMap;
     
-    // Mark as subscribed
-    subscriptionKeys.forEach(key => subscribedInstrumentsRef.current.add(key));
+    // Store for cleanup
+    subscribedSecurityIdsRef.current = subscriptionList;
 
-  }, [segment, isConnected]);
+    console.log(`[useOptionChain] Subscribing to ${subscriptionList.length} option contracts (ticker mode)`);
+    
+    // Subscribe with 'ticker' packet type for LTP-only updates
+    subscribe(subscriptionList, 'ticker');
+
+  }, [isConnected, subscribe]);
 
   /**
    * Unsubscribe from option strikes
    */
-  const unsubscribeFromOptionStrikes = useCallback(async () => {
-    if (subscribedInstrumentsRef.current.size === 0) return;
+  const unsubscribeFromOptionStrikes = useCallback(() => {
+    if (subscribedSecurityIdsRef.current.length === 0) return;
 
-    console.log('[useOptionChain] Unsubscribing from option strikes');
+    console.log('[useOptionChain] Unsubscribing from', subscribedSecurityIdsRef.current.length, 'option contracts');
     
-    // Clear subscription tracking
-    subscribedInstrumentsRef.current.clear();
+    unsubscribe(subscribedSecurityIdsRef.current, 'ticker');
+    
+    // Clear tracking
+    subscribedSecurityIdsRef.current = [];
+    securityIdMapRef.current.clear();
     lastFetchParamsRef.current = null;
 
-  }, []);
-
-  /**
-   * Update chain data with live ticks
-   * This merges WebSocket updates into the chain data
-   */
-  useEffect(() => {
-    if (!chainData || chainData.length === 0 || ticks.size === 0) return;
-
-    // Create a map for quick lookup
-    const segmentToNumberMap = {
-      'IDX_I': 0,
-      'NSE_EQ': 1,
-      'NSE_FNO': 2,
-      'NSE_CURRENCY': 3,
-      'BSE_EQ': 4,
-      'BSE_CURRENCY': 5,
-      'MCX_COMM': 5,
-      'NSE_INDEX': 0,
-    };
-
-    const numericSegment = segmentToNumberMap[segment] ?? 0;
-
-    // Check if any relevant ticks exist
-    let hasUpdates = false;
-    const updatedChain = chainData.map(row => {
-      // For simplicity, we'll update based on matching data from ticks
-      // In production, you'd match by option securityId
-      
-      // This is a placeholder - actual implementation would need option-specific securityIds
-      return row;
-    });
-
-    if (hasUpdates) {
-      setChainData(updatedChain);
-    }
-
-  }, [ticks, chainData, segment]);
+  }, [unsubscribe]);
 
   /**
    * Initial fetch when params change
    */
   useEffect(() => {
-    if (!segment || !securityId || !isConnected) return;
+    if (!segment || !securityId) return;
+
+    // Unsubscribe from previous subscriptions
+    unsubscribeFromOptionStrikes();
 
     fetchOptionChain().then(data => {
-      if (data?.chain) {
+      if (data?.chain && isConnected) {
         subscribeToOptionStrikes(data.chain);
       }
     });
@@ -239,6 +222,80 @@ export function useOptionChain({ segment, securityId, expiry }) {
       unsubscribeFromOptionStrikes();
     };
   }, [segment, securityId, expiry, isConnected, fetchOptionChain, fetchExpiries, subscribeToOptionStrikes, unsubscribeFromOptionStrikes]);
+
+  /**
+   * Re-subscribe when socket reconnects
+   */
+  useEffect(() => {
+    if (isConnected && chainData && subscribedSecurityIdsRef.current.length === 0) {
+      console.log('[useOptionChain] Socket reconnected - re-subscribing');
+      subscribeToOptionStrikes(chainData);
+    }
+  }, [isConnected, chainData, subscribeToOptionStrikes]);
+
+  /**
+   * Update chain data with live ticks from WebSocket
+   * Maps incoming ticker updates to the correct CE/PE in the chain
+   * Uses ref to track current chain to avoid dependency loop
+   */
+  const chainDataRef = useRef(chainData);
+  useEffect(() => {
+    chainDataRef.current = chainData;
+  }, [chainData]);
+
+  useEffect(() => {
+    if (!chainDataRef.current || chainDataRef.current.length === 0 || ticks.size === 0) return;
+    if (securityIdMapRef.current.size === 0) return;
+
+    // NSE_FNO exchangeSegment = 2
+    const NSE_FNO_SEGMENT = 2;
+    
+    let hasUpdates = false;
+    let updateCount = 0;
+    const currentChain = chainDataRef.current;
+    // Create new array with new row objects for proper React state update
+    const updatedChain = currentChain.map(row => ({ ...row }));
+
+    // Iterate through our subscribed securityIds and check for tick updates
+    securityIdMapRef.current.forEach((position, securityId) => {
+      const tickKey = `${NSE_FNO_SEGMENT}-${securityId}`;
+      const tick = ticks.get(tickKey);
+      
+      if (tick?.ltp !== undefined && tick.ltp > 0) {
+        const { index, type } = position;
+        const row = updatedChain[index];
+        
+        if (row) {
+          const currentLtp = type === 'call' ? row.call?.ltp : row.put?.ltp;
+          
+          // Only update if LTP has changed
+          if (currentLtp !== tick.ltp) {
+            hasUpdates = true;
+            updateCount++;
+            
+            if (type === 'call' && row.call) {
+              updatedChain[index] = {
+                ...row,
+                call: { ...row.call, ltp: tick.ltp }
+              };
+            } else if (type === 'put' && row.put) {
+              updatedChain[index] = {
+                ...row,
+                put: { ...row.put, ltp: tick.ltp }
+              };
+            }
+          }
+        }
+      }
+    });
+
+    if (hasUpdates) {
+      console.log(`[useOptionChain] 🔴 LIVE UPDATE: ${updateCount} LTPs changed`);
+      // Update ref immediately so next tick comparison uses fresh data
+      chainDataRef.current = updatedChain;
+      setChainData(updatedChain);
+    }
+  }, [ticks]); // Only depend on ticks, use ref for chainData
 
   return {
     chainData,

@@ -40,6 +40,12 @@ const CustomerSchema = new Schema({
         required: true, // Customer hamesha kisi Broker se attached hoga
     },
 
+    // 📷 PROFILE PHOTO: Cloudinary URL
+    profile_photo: {
+        type: String,
+        default: null,
+    },
+
     // NOTE: 'timestamps: true' set hai, jo automatic 'createdAt' aur 'updatedAt' field banata hai.
 }, { timestamps: true }); // <--- Yeh 'createdAt' field provide karega
 

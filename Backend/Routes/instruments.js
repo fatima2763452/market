@@ -1,23 +1,25 @@
 // Routes/instruments.js
 import { Router } from "express";
-import Instrument from "../Model/InstrumentModel.js";   // ✅ .js zaroori
+import Instrument from "../Model/InstrumentModel.js";
+import { getSpotPrice } from "../services/spotPriceCache.js";
 
 const router = Router();
 
-// /api/instruments/search?q=TEXT&category=CATEGORY
+// ATM filter percentage - strikes within ±X% of spot are considered ATM
+const ATM_RANGE_PERCENT = 0.08; // ±8% range
+
+/**
+ * Smart search with ATM strike filtering
+ * For options, only returns strikes near the current spot price
+ */
 router.get("/search", async (req, res) => {
     try {
         const q = String(req.query.q || "").trim();
         const category = String(req.query.category || "All").trim();
         if (!q) return res.json([]);
 
-        // --- 1. Keyword & Pattern Detection ---
         const upperQ = q.toUpperCase();
-        const intent = {
-            isFuture: /FUT|FUTURE/.test(upperQ),
-            isOption: /OPT|OPTION|CE|CALL|PE|PUT/.test(upperQ),
-            isCommodity: /GOLD|SILVER|CRUDE|NATURALGAS/.test(upperQ),
-        };
+        const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 
         // Define segment lists based on category
         let segmentFilter;
@@ -31,99 +33,219 @@ router.get("/search", async (req, res) => {
             case "Commodity":
                 segmentFilter = ["MCX_COMM", "NSE_COMM"];
                 break;
+            case "NSE_INDEX":
+            case "Index":
+                segmentFilter = ["NSE_INDEX"];
+                break;
             case "All":
             default:
-                segmentFilter = ["NSE_EQ", "BSE_EQ", "NSE_FNO", "MCX_COMM", "NSE_COMM", "NSE_INDEX"];
+                segmentFilter = ["NSE_FNO", "MCX_COMM"];
                 break;
         }
 
-        const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-        
-        // --- 2. Dynamic Scoring Logic in Aggregation Pipeline ---
-        const rows = await Instrument.aggregate([
-            {
-                $match: {
-                    segment: { $in: segmentFilter },
-                    $or: [
-                        { tradingsymbol: regex },
-                        { symbol_name:  regex },
-                        { display_name: regex }
-                    ]
+        // --- Special case: Index search (no ATM filtering needed) ---
+        if (category === "NSE_INDEX" || category === "Index") {
+            const indexResults = await Instrument.find({
+                segment: "NSE_INDEX",
+                $or: [
+                    { tradingsymbol: regex },
+                    { symbol_name: regex },
+                    { display_name: regex }
+                ]
+            })
+            .limit(50)
+            .lean();
+            
+            console.log(`[Search] Index search for "${q}" found ${indexResults.length} results`);
+            return res.json(indexResults);
+        }
+
+        // --- Step 1: Find unique underlying symbols that match the search ---
+        const underlyingMatches = await Instrument.distinct("underlying_symbol", {
+            segment: { $in: segmentFilter },
+            underlying_symbol: { $exists: true, $ne: null },
+            $or: [
+                { tradingsymbol: regex },
+                { symbol_name: regex },
+                { display_name: regex },
+                { underlying_symbol: regex }
+            ]
+        });
+
+        // --- Step 2: Get spot prices for all matching underlyings ---
+        const spotPrices = new Map();
+        await Promise.all(
+            underlyingMatches.slice(0, 10).map(async (underlying) => { // Limit to 10 underlyings
+                const spot = await getSpotPrice(underlying);
+                if (spot && spot > 0) {
+                    spotPrices.set(underlying.toUpperCase(), spot);
                 }
-            },
-            {
-                $addFields: {
-                    relevanceScore: {
-                        $let: {
-                            vars: {
-                                textScore: {
-                                    $switch: {
-                                        branches: [
-                                            { case: { $eq: ["$tradingsymbol", upperQ] }, then: 100 },
-                                            { case: { $eq: ["$symbol_name", upperQ] }, then: 90 },
-                                            { case: { $regexMatch: { input: "$tradingsymbol", regex: `^${q}$`, options: "i" } }, then: 80 },
-                                            { case: { $regexMatch: { input: "$symbol_name", regex: `^${q}$`, options: "i" } }, then: 70 },
-                                        ],
-                                        default: 10
-                                    }
-                                },
-                                categoryBoost: {
-                                    $cond: {
-                                        if: { $and: [ { $eq: [category, "Commodity"] }, { $in: ["$segment", ["MCX_COMM", "NSE_COMM"]] } ] },
-                                        then: 500,
-                                        else: 0
-                                    }
-                                },
-                                intentBoost: {
-                                    $cond: {
-                                        if: { $and: [ intent.isFuture, { $in: ["$instrumentType", ["FUTIDX", "FUTSTK", "FUTCOM", "FUTCUR"]] } ] },
-                                        then: 200,
-                                        else: {
-                                            $cond: {
-                                                if: { $and: [ intent.isOption, { $in: ["$instrumentType", ["OPTIDX", "OPTSTK", "OPTFUT", "OPTCUR"]] } ] },
-                                                then: 200,
-                                                else: {
-                                                    $cond: {
-                                                        if: { $and: [ intent.isCommodity, { $in: ["$segment", ["MCX_COMM", "NSE_COMM"]] } ] },
-                                                        then: 200,
-                                                        else: 0
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            in: { $add: ["$$textScore", "$$categoryBoost", "$$intentBoost"] }
+            })
+        );
+
+        console.log(`[Search] Found spot prices for ${spotPrices.size} underlyings:`, 
+            Array.from(spotPrices.entries()).map(([k, v]) => `${k}:${v.toFixed(2)}`).join(', '));
+
+        // --- Step 3: Build smart query with ATM filtering ---
+        const now = new Date();
+        
+        // First, get futures (always include - they have liquidity)
+        const futuresQuery = {
+            segment: { $in: segmentFilter },
+            instrumentType: { $in: ['FUTIDX', 'FUTSTK', 'FUTCOM', 'FUTCUR'] },
+            expiry: { $gte: now },
+            $or: [
+                { tradingsymbol: regex },
+                { symbol_name: regex },
+                { display_name: regex },
+                { underlying_symbol: regex }
+            ]
+        };
+
+        const futures = await Instrument.find(futuresQuery)
+            .sort({ expiry: 1 }) // Nearest expiry first
+            .limit(50)
+            .lean();
+
+        // --- Step 4: Get ATM options for each underlying ---
+        let options = [];
+        
+        for (const [underlying, spotPrice] of spotPrices) {
+            const minStrike = spotPrice * (1 - ATM_RANGE_PERCENT);
+            const maxStrike = spotPrice * (1 + ATM_RANGE_PERCENT);
+            
+            // Find nearest expiry for this underlying
+            const nearestExpiry = await Instrument.findOne({
+                underlying_symbol: { $regex: new RegExp(`^${underlying}$`, 'i') },
+                segment: { $in: segmentFilter },
+                instrumentType: { $in: ['OPTIDX', 'OPTSTK', 'OPTFUT', 'OPTCUR'] },
+                expiry: { $gte: now }
+            })
+            .sort({ expiry: 1 })
+            .select('expiry')
+            .lean();
+
+            if (!nearestExpiry) continue;
+
+            // Get ATM options for nearest expiry
+            const atmOptions = await Instrument.find({
+                underlying_symbol: { $regex: new RegExp(`^${underlying}$`, 'i') },
+                segment: { $in: segmentFilter },
+                instrumentType: { $in: ['OPTIDX', 'OPTSTK', 'OPTFUT', 'OPTCUR'] },
+                expiry: nearestExpiry.expiry,
+                strike: { $gte: minStrike, $lte: maxStrike }
+            })
+            .sort({ strike: 1 })
+            .limit(100) // Max 100 options per underlying (50 strikes x 2 CE/PE)
+            .lean();
+
+            options = options.concat(atmOptions);
+        }
+
+        // --- Step 5: If no spot prices found, fall back to basic search with filters ---
+        if (spotPrices.size === 0) {
+            console.log(`[Search] No spot prices available, using fallback search`);
+            
+            // Fallback: prioritize futures and limit options
+            const fallbackResults = await Instrument.aggregate([
+                {
+                    $match: {
+                        segment: { $in: segmentFilter },
+                        expiry: { $gte: now },
+                        $or: [
+                            { tradingsymbol: regex },
+                            { symbol_name: regex },
+                            { display_name: regex }
+                        ]
+                    }
+                },
+                {
+                    $addFields: {
+                        // Boost futures over options
+                        typeScore: {
+                            $cond: {
+                                if: { $in: ["$instrumentType", ["FUTIDX", "FUTSTK", "FUTCOM", "FUTCUR"]] },
+                                then: 1000,
+                                else: 0
+                            }
+                        },
+                        // Boost nearest expiry
+                        expiryScore: {
+                            $subtract: [0, { $toLong: "$expiry" }]
                         }
                     }
+                },
+                { $sort: { typeScore: -1, expiryScore: -1 } },
+                { $limit: 200 },
+                {
+                    $project: {
+                        _id: 1,
+                        securityId: 1,
+                        segment: 1,
+                        tradingsymbol: 1,
+                        symbol_name: 1,
+                        display_name: 1,
+                        expiry: 1,
+                        lotSize: 1,
+                        instrumentType: 1,
+                        strike: 1,
+                        optionType: 1
+                    }
                 }
-            },
-            {
-                $sort: {
-                    relevanceScore: -1 // Sort by the new score in descending order
-                }
-            },
-            {
-                $limit: 100
-            },
-            {
-                $project: {
-                    _id: 1,
-                    securityId: 1,
-                    segment: 1,
-                    tradingsymbol: 1,
-                    symbol_name: 1,
-                    display_name: 1,
-                    expiry: 1,
-                    lotSize: 1,
-                    instrumentType: 1,
-                    relevanceScore: 1 // Optional: for debugging
-                }
-            }
-        ]);
+            ]);
+            
+            return res.json(fallbackResults);
+        }
 
-        res.json(rows);
+        // --- Step 6: Combine and sort results ---
+        const combined = [...futures, ...options];
+        
+        // Remove duplicates by securityId
+        const seen = new Set();
+        const unique = combined.filter(item => {
+            if (seen.has(item.securityId)) return false;
+            seen.add(item.securityId);
+            return true;
+        });
+
+        // Sort: futures first, then by expiry, then by distance from ATM
+        unique.sort((a, b) => {
+            // Futures before options
+            const aIsFuture = ['FUTIDX', 'FUTSTK', 'FUTCOM', 'FUTCUR'].includes(a.instrumentType);
+            const bIsFuture = ['FUTIDX', 'FUTSTK', 'FUTCOM', 'FUTCUR'].includes(b.instrumentType);
+            if (aIsFuture && !bIsFuture) return -1;
+            if (!aIsFuture && bIsFuture) return 1;
+            
+            // Then by expiry (nearest first)
+            const expiryDiff = new Date(a.expiry) - new Date(b.expiry);
+            if (expiryDiff !== 0) return expiryDiff;
+            
+            // Then by strike (for options with same underlying)
+            if (a.strike && b.strike) {
+                return a.strike - b.strike;
+            }
+            
+            return 0;
+        });
+
+        // Format response - return up to 200 results
+        const results = unique.slice(0, 200).map(item => ({
+            _id: item._id,
+            securityId: item.securityId,
+            segment: item.segment,
+            tradingsymbol: item.tradingsymbol,
+            symbol_name: item.symbol_name,
+            display_name: item.display_name,
+            expiry: item.expiry,
+            lotSize: item.lotSize,
+            instrumentType: item.instrumentType,
+            strike: item.strike,
+            optionType: item.optionType
+        }));
+
+        console.log(`[Search] Returning ${results.length} results (${futures.length} futures, ${options.length} ATM options)`);
+        res.json(results);
+
     } catch (e) {
         console.error("instruments/search error:", e);
         res.status(500).json({ error: "failed" });
@@ -155,6 +277,33 @@ router.get("/watchlist", async (req, res) => {
         res.json(instruments);
     } catch (e) {
         console.error("instruments/watchlist error:", e);
+        res.status(500).json({ error: "failed" });
+    }
+});
+
+// Dedicated endpoint for index instruments (NIFTY 50, BANKNIFTY)
+// Used by watchlist stats cards
+router.get("/indexes", async (req, res) => {
+    try {
+        // Fetch NIFTY 50 and NIFTY BANK indices
+        const indexes = await Instrument.find({
+            segment: "NSE_INDEX",
+            $or: [
+                { tradingsymbol: { $regex: /^Nifty 50$/i } },
+                { display_name: { $regex: /^Nifty 50$/i } },
+                { tradingsymbol: { $regex: /^Nifty Bank$/i } },
+                { display_name: { $regex: /^Nifty Bank$/i } }
+            ]
+        })
+        .select("securityId segment tradingsymbol symbol_name display_name instrumentType")
+        .lean();
+
+        console.log(`[Indexes] Found ${indexes.length} index instruments:`, 
+            indexes.map(i => `${i.display_name || i.tradingsymbol} (${i.securityId})`).join(', '));
+        
+        res.json(indexes);
+    } catch (e) {
+        console.error("instruments/indexes error:", e);
         res.status(500).json({ error: "failed" });
     }
 });

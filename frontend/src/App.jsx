@@ -14,6 +14,7 @@ import Orders from './page/Orders/Order.jsx';
 import Profile from './page/Profile/Profile.jsx';
 import SearchPage from './page/Search/SearchPage.jsx';
 import ChartPage from './page/Chart/ChartPage.jsx';
+import AdminRegistrations from './page/Admin/AdminRegistrations.jsx';
 import { MarketDataProvider } from './contexts/MarketDataContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
 
@@ -29,6 +30,9 @@ function App() {
                 <Route path="/customerDetail" element={<CustomerDetailsPage />} />
                 <Route path="/broker/:brokerId/customerDetail" element={<CustomerDetailsPage />} />
                 <Route path="/recycle-bin" element={<RecycleBin />} />
+
+                {/* Admin Routes */}
+                <Route path="/admin/registrations" element={<AdminRegistrations />} />
 
                 <Route
                     path="/watchlist"

@@ -60,10 +60,11 @@ const handleUserLogin = asyncHandler(async (req, res) => {
   let attachedMongoBrokerId = null;       // Broker का Mongo _id (customer के case में attached broker)
   let associatedBrokerStringId = null;    // Broker का 10-digit login_id (string)
 
-  // 1) Try Broker first (by login_id)
+  // 1) Try Broker/Admin first (by login_id)
   user = await BrokerModel.findOne({ login_id: identifier }).select('+password');
   if (user) {
-    role = 'broker';
+    // Check if user is admin or broker
+    role = user.role || 'broker';
     attachedMongoBrokerId = user._id;
     associatedBrokerStringId = user.login_id;
   }

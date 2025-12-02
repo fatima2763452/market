@@ -1,10 +1,14 @@
 import { io } from "socket.io-client";
-import { useRef, useState, useEffect, useMemo, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 
 export function useMarketTicks(url, opts = {}) {
   const socket = useRef(null);
   const [ticks, setTicks] = useState(new Map());
   const [isConnected, setIsConnected] = useState(false);
+  
+  // Track last subscribed instruments for instant refresh on tab return
+  const lastSubscribedRef = useRef([]);
+  const lastSubscriptionTypeRef = useRef('full');
 
   // Store opts in ref to avoid recreating socket on every render
   const optsRef = useRef(opts);
@@ -14,34 +18,95 @@ export function useMarketTicks(url, opts = {}) {
 
   // Stable subscribe function (wrapped in useCallback)
   const subscribe = useCallback(async (list, subscriptionType = 'full') => {
+    // Store for instant refresh on tab visibility change
+    if (list && list.length > 0) {
+      lastSubscribedRef.current = list;
+      lastSubscriptionTypeRef.current = subscriptionType;
+    }
+    
     if (socket.current?.connected) {
       socket.current.emit("subscribe", list, subscriptionType);
     } else {
       console.warn("[useMarketTicks] Subscribe called while socket is not connected.");
     }
-  }, []); // No dependencies - uses socket.current which is a ref
+  }, []);
 
   // Stable unsubscribe function (wrapped in useCallback)
   const unsubscribe = useCallback(async (list, subscriptionType = 'full') => {
     if (socket.current?.connected) {
       socket.current.emit("unsubscribe", list, subscriptionType);
     }
-  }, []); // No dependencies - uses socket.current which is a ref
+  }, []);
+
+  // INSTANT refresh - called immediately when user returns to tab
+  const refreshSubscriptions = useCallback(() => {
+    if (socket.current?.connected && lastSubscribedRef.current.length > 0) {
+      console.log("[useMarketTicks] INSTANT refresh on tab return");
+      socket.current.emit("subscribe", lastSubscribedRef.current, lastSubscriptionTypeRef.current);
+    }
+  }, []);
+
+  // Handle visibility change - INSTANT refresh when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Tab is now visible - INSTANT refresh
+        console.log("[useMarketTicks] Tab visible - instant refresh");
+        
+        if (!socket.current?.connected) {
+          // Socket disconnected - reconnect immediately
+          socket.current?.connect();
+        } else {
+          // Socket connected - refresh subscriptions immediately
+          refreshSubscriptions();
+        }
+      }
+    };
+
+    // Also handle window focus for faster response
+    const handleFocus = () => {
+      console.log("[useMarketTicks] Window focused - instant refresh");
+      if (socket.current?.connected) {
+        refreshSubscriptions();
+      } else {
+        socket.current?.connect();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [refreshSubscriptions]);
 
   // Effect for socket setup and cleanup
   useEffect(() => {
-    console.log("[useMarketTicks] useEffect RUNNING. Creating new socket...");
+    console.log("[useMarketTicks] Creating socket connection...");
 
     const newSocket = io(url, {
       ...optsRef.current,
       path: "/socket.io",
       transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 2000,
+      timeout: 5000,
     });
     socket.current = newSocket;
 
     const onConnect = () => {
       console.log("✅ market connected:", newSocket.id);
       setIsConnected(true);
+      
+      // Instant re-subscribe on reconnect
+      if (lastSubscribedRef.current.length > 0) {
+        console.log("[useMarketTicks] Re-subscribing after reconnect");
+        newSocket.emit("subscribe", lastSubscribedRef.current, lastSubscriptionTypeRef.current);
+      }
     };
 
     const onDisconnect = (reason) => {
@@ -54,7 +119,6 @@ export function useMarketTicks(url, opts = {}) {
         setTicks((prev) => {
           const copy = new Map(prev);
           const key = `${update.exchangeSegment}-${update.securityId}`;
-          // Merge new data with old, so partial updates (like OI) don't wipe other fields
           const existing = copy.get(key) || {};
           copy.set(key, { ...existing, ...update });
           return copy;
@@ -73,7 +137,7 @@ export function useMarketTicks(url, opts = {}) {
     newSocket.on("disconnect", onDisconnect);
 
     return () => {
-      console.log(`[useMarketTicks] useEffect CLEANUP function called. Disconnecting socket ${newSocket.id}.`);
+      console.log("[useMarketTicks] Disconnecting socket");
       newSocket.off("connect", onConnect);
       newSocket.off("market_update", onMarketUpdate);
       newSocket.off("index_update", onMarketUpdate);
@@ -88,5 +152,5 @@ export function useMarketTicks(url, opts = {}) {
     };
   }, [url]);
 
-  return { ticks, subscribe, unsubscribe, isConnected };
+  return { ticks, subscribe, unsubscribe, isConnected, refreshSubscriptions };
 }

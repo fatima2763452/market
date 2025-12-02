@@ -77,11 +77,16 @@ function SearchPage() {
       _id: one._id,
       id: `${one.segment}-${one.securityId}-${one.expiry || "na"}`,
       tradingSymbol: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
+      name: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
       exchange: one.segment === "MCX_COMM" ? "MCX" : "NSE",
       segment: one.segment,
       securityId: String(one.securityId),
       expiry: one.expiry || null,
-      lotSize: one.lotSize ?? null,
+      lotSize: one.lotSize ?? one.lot_size ?? null,
+      lot_size: one.lotSize ?? one.lot_size ?? null,
+      // For Option Chain orders - clean base symbol
+      underlying_symbol: one.underlying_symbol || null,
+      symbol_name: one.symbol_name || null,
     }));
   };
 

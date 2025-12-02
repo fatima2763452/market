@@ -25,11 +25,11 @@ const BrokerSchema = new Schema({
         required: true,
     },
     
-    // Broker ka role fixed hai
+    // Broker/Admin role
     role: {
         type: String,
+        enum: ['broker', 'admin'],
         default: 'broker',
-        immutable: true,
     },
 
     created_at: {

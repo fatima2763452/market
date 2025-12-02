@@ -372,10 +372,38 @@ const getRegistrationStats = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @desc    Delete a registration
+ * @route   DELETE /api/registration/:id
+ * @access  Private (Admin only)
+ */
+const deleteRegistration = asyncHandler(async (req, res) => {
+  const registration = await RegistrationModel.findById(req.params.id);
+
+  if (!registration) {
+    return res.status(404).json({ success: false, message: 'Registration not found' });
+  }
+
+  // Optionally delete documents from Cloudinary
+  // const { documents } = registration;
+  // if (documents?.aadhaarFront?.publicId) await StorageService.remove(documents.aadhaarFront.publicId);
+  // ... etc
+
+  await RegistrationModel.findByIdAndDelete(req.params.id);
+
+  console.log('[Registration] Deleted:', req.params.id);
+
+  res.status(200).json({
+    success: true,
+    message: 'Registration deleted successfully',
+  });
+});
+
 export { 
   submitRegistration,
   getAllRegistrations,
   getRegistrationById,
   updateRegistrationStatus,
   getRegistrationStats,
+  deleteRegistration,
 };

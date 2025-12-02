@@ -49,7 +49,9 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
 
-    const expireDate = selectedOrder.meta?.selectedStock?.expiry;
+    // For option chain orders, expiry is in meta.expiry
+    // For regular orders, expiry is in meta.selectedStock.expiry
+    const expireDate = selectedOrder.meta?.expiry || selectedOrder.meta?.selectedStock?.expiry;
     const date = expireDate ? new Date(expireDate) : null;
     const formattedStockExpireDate = date ? (
         String(date.getDate()).padStart(2, '0') + '-' +

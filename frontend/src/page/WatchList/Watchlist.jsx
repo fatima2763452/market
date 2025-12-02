@@ -183,12 +183,17 @@ function Watchlist() {
     return instruments.map(one => ({
       id: `${one.segment}-${one.securityId}-${one.expiry || "na"}`,
       tradingSymbol: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
+      name: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
       exchange: one.segment === "MCX_COMM" ? "MCX" : "NSE",
       segment: one.segment,
       securityId: String(one.securityId),
       expiry: one.expiry || null,
-      lotSize: one.lotSize ?? null,
+      lotSize: one.lotSize ?? one.lot_size ?? null,
+      lot_size: one.lotSize ?? one.lot_size ?? null,
       canonKey: one.canon_key,
+      // For Option Chain orders - clean base symbol
+      underlying_symbol: one.underlying_symbol || null,
+      symbol_name: one.symbol_name || null,
     }));
   };
 
@@ -291,10 +296,11 @@ function Watchlist() {
     const loadAllInstruments = async () => {
       try {
         setIsLoading(true);
-        const nifty50Res = await fetch(`${apiBase}/api/instruments/search?q=Nifty 50&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
-        const bankNiftyRes = await fetch(`${apiBase}/api/instruments/search?q=Nifty Bank&category=NSE_INDEX`, { credentials: "include" }).then(res => res.json());
-        const nifty50Inst = nifty50Res.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
-        const bankNiftyInst = bankNiftyRes.find(i => (i.display_name === "Nifty Bank" || i.tradingsymbol === "Nifty Bank") && i.segment === "NSE_INDEX");
+        
+        // Fetch index instruments from dedicated endpoint
+        const indexRes = await fetch(`${apiBase}/api/instruments/indexes`, { credentials: "include" }).then(res => res.json());
+        const nifty50Inst = indexRes.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
+        const bankNiftyInst = indexRes.find(i => (i.display_name === "Nifty Bank" || i.tradingsymbol === "Nifty Bank") && i.segment === "NSE_INDEX");
         const indexInstrumentsRaw = [nifty50Inst, bankNiftyInst].filter(Boolean);
         const formattedIndexes = formatInstruments(indexInstrumentsRaw);
         setIndexInstruments(formattedIndexes);

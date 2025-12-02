@@ -77,10 +77,18 @@ const OptionStrikeBottomWindow = ({
     if (!isOpen) return null;
 
     // --- Name Construction ---
+    // For Option Chain orders, use underlying_symbol (clean base name like "HDFCBANK", "NIFTY")
+    // This prevents names like "HDFCBANK 30 DEC 870 CALL 30 DEC 985 CALL"
     const getInstrumentName = () => {
         if (strikeData?.tradingSymbol) return strikeData.tradingSymbol;
 
-        const symbol = underlyingStock?.tradingSymbol || underlyingStock?.symbol || "UNKNOWN";
+        // Priority: underlying_symbol (clean base name) > symbol_name > symbol > tradingSymbol
+        const symbol = underlyingStock?.underlying_symbol 
+                    || underlyingStock?.symbol_name 
+                    || underlyingStock?.name
+                    || underlyingStock?.symbol 
+                    || "UNKNOWN";
+        
         let expiryStr = "";
         if (expiry) {
             try {
@@ -113,6 +121,8 @@ const OptionStrikeBottomWindow = ({
         setSubmitting(true);
         setFeedback(null);
 
+        const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+
         try {
             // 1. Input Validation
             if (!lotsNum || lotsNum < 1) {
@@ -122,17 +132,57 @@ const OptionStrikeBottomWindow = ({
             }
 
             // ============================================================
-            // 🔥 FIX: ROBUST SECURITY ID EXTRACTION
-            // Check both 'security_Id' and 'securityId'
+            // 🔥 FIX: LOOKUP CORRECT OPTION SECURITY ID FROM INSTRUMENTS
+            // The option chain API doesn't return security_Id for strikes,
+            // so we look it up from our instruments collection
             // ============================================================
-            const finalSecurityId = String(
+            let finalSecurityId = String(
                 strikeData?.security_Id || 
                 strikeData?.securityId || 
                 strikeData?.token || 
-                underlyingStock?.security_Id || 
-                underlyingStock?.securityId || // <--- THIS WAS MISSING
                 ''
             );
+
+            // If strikeData doesn't have security_Id, look it up from instruments
+            if (!finalSecurityId && strikePrice && optionType && expiry) {
+                try {
+                    const underlyingSymbol = underlyingStock?.underlying_symbol 
+                        || underlyingStock?.symbol_name 
+                        || underlyingStock?.name 
+                        || '';
+                    
+                    const lookupParams = new URLSearchParams({
+                        underlying_symbol: underlyingSymbol,
+                        strike: strikePrice,
+                        optionType: optionType === 'CE' || optionType === 'CALL' ? 'CE' : 'PE',
+                        expiry: expiry
+                    });
+
+                    console.log('[OptionOrder] Looking up security ID:', lookupParams.toString());
+
+                    const lookupRes = await fetch(`${apiBase}/api/option-chain/security-id?${lookupParams.toString()}`);
+                    
+                    if (lookupRes.ok) {
+                        const lookupData = await lookupRes.json();
+                        if (lookupData.data?.securityId) {
+                            finalSecurityId = String(lookupData.data.securityId);
+                            console.log('[OptionOrder] Found security ID:', finalSecurityId);
+                        }
+                    }
+                } catch (lookupErr) {
+                    console.warn('[OptionOrder] Security ID lookup failed:', lookupErr);
+                }
+            }
+
+            // Last resort fallback to parent's security ID (not ideal but prevents order failure)
+            if (!finalSecurityId) {
+                finalSecurityId = String(
+                    underlyingStock?.security_Id || 
+                    underlyingStock?.securityId || 
+                    ''
+                );
+                console.warn('[OptionOrder] Using parent security ID as fallback:', finalSecurityId);
+            }
 
             if (!finalSecurityId) {
                 setFeedback({ type: 'error', message: "Security ID missing. Check console." });
@@ -213,8 +263,6 @@ const OptionStrikeBottomWindow = ({
             };
 
             console.log('Option Order Payload:', payload);
-            
-            const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
             
             const res = await fetch(`${apiBase}/api/orders/postOrder`, {
                 method: 'POST',

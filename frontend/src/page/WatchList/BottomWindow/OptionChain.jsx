@@ -1,5 +1,5 @@
-// OptionChainView.jsx - Clean ATM-Centered Option Chain
-import React, { useState, useMemo, useEffect } from 'react';
+// OptionChainView.jsx - Clean ATM-Centered Option Chain with Live WebSocket Updates
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrendingDown, Loader, RefreshCw, AlertCircle } from 'lucide-react';
 import { useOptionChain } from '../../../hooks/useOptionChain';
 
@@ -10,13 +10,11 @@ const STRIKE_OPTIONS = [
     { label: '18', value: 18 },
 ];
 
-// Auto-refresh interval (5 seconds)
-const AUTO_REFRESH_INTERVAL = 5000;
-
 const OptionChainView = ({ selectedStock, sheetData }) => {
     const [selectedExpiry, setSelectedExpiry] = useState(null);
     const [strikeCount, setStrikeCount] = useState(6); // Default to 6 for compact view
     const [lastUpdateTime, setLastUpdateTime] = useState(null);
+    const updateCountRef = useRef(0);
     
     const { 
         chainData, 
@@ -34,21 +32,11 @@ const OptionChainView = ({ selectedStock, sheetData }) => {
     // Use live spot price from hook, fallback to sheetData
     const currentPrice = spotPrice || sheetData?.ltp || 0;
 
-    // Auto-refresh for near real-time data
-    useEffect(() => {
-        const interval = setInterval(() => {
-            refetch();
-            setLastUpdateTime(new Date());
-        }, AUTO_REFRESH_INTERVAL);
-
-        setLastUpdateTime(new Date());
-        return () => clearInterval(interval);
-    }, [refetch]);
-
-    // Update timestamp when data changes
+    // Update timestamp when chain data changes (live WebSocket updates)
     useEffect(() => {
         if (chainData) {
             setLastUpdateTime(new Date());
+            updateCountRef.current += 1;
         }
     }, [chainData]);
 
