@@ -21,34 +21,38 @@ export function stockSquareoffScheduler() {
   console.log('🚀 Stock Squareoff Scheduler Started...');
 
   // =========================================================
-  // 1. INTRADAY SQUARE OFF (Rozana 3:15 PM - Mon-Fri)
+  // 1. INTRADAY SQUARE OFF (Updated Time: 10:46 PM Mon-Fri)
   // =========================================================
-  cron.schedule("0 15 15 * 1-5", async () => { 
+  // Format: "Minute Hour * * DayOfWeek"
+  // "46 22 * * 1-5" = 10:46 PM, Monday to Friday
+  
+  cron.schedule("15 15 * * 1-5", async () => { 
       if (!isTradingDay(new Date())) {
           return console.log("[cron] Market holiday, skipping Intraday.");
       }
       
       console.log(`[cron] ⏰ Running INTRADAY Auto-Squareoff`);
       
-      // Query: Category=INTRADAY AND Status is (OPEN or HOLD or NULL)
       await processCandidates(
         { 
             order_category: "INTRADAY", 
-            order_status: { $in: ["OPEN", "HOLD", null] } 
+            order_status: { $in: ["OPEN"] } 
         },
         "OPEN_INTRADAY"
       );
-  }, { timezone: "Asia/Kolkata" });
+  },{
+      scheduled: true,
+      timezone: "Asia/Kolkata" 
+  }); 
 
 
   // =========================================================
-  // 2. MIDNIGHT CLEANUP & EXPIRY CHECK (Rozana Raat 12:00 Baje)
-  // =========================================================
-  // Daily (*) chalega taaki Expiry Date check kar sake
-  cron.schedule("0 0 0 * * *", async () => {
+  // 2. MIDNIGHT CLEANUP & EXPIRY CHECK (Daily 12:00 AM)
+
+  cron.schedule("2 0 * * *", async () => {
       console.log(`[cron] 🌙 Running Midnight Maintenance`);
       
-      // A. Intraday Cleanup (Jo galti se bach gaye)
+      // A. Intraday Cleanup
       await processCandidates(
         { 
             order_category: "INTRADAY", 
@@ -57,8 +61,8 @@ export function stockSquareoffScheduler() {
         "INTRADAY_CLEANUP"
       );
 
-      // B. OVERNIGHT / HOLD Expiry Check
-      // Condition: Category=OVERNIGHT AND Status is (OPEN or HOLD or NULL)
+      // B. OVERNIGHT / HOLD Expiry Check 
+      // Sabhi active overnight orders check karo (null included)
       await processCandidates(
         { 
             order_category: "OVERNIGHT", 
@@ -67,9 +71,8 @@ export function stockSquareoffScheduler() {
         "OVERNIGHT_EXPIRY_CHECK"
       );
 
-  }, { timezone: "Asia/Kolkata" });
+  },{
+      scheduled: true,
+      timezone: "Asia/Kolkata" // ✅ Timezone Added Here
+  });
 }
-
-
-
-

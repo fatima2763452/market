@@ -52,9 +52,7 @@ const addCustomer = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Broker gets a list of their attached customers
-// @route   GET /api/auth/getCustomers
-// @access  Private (Broker only, requires token)
+
 const getBrokerCustomers = asyncHandler(async (req, res) => {
   const brokerIdFromToken = req.user._id; // Use _id for consistency
 
@@ -62,25 +60,29 @@ const getBrokerCustomers = asyncHandler(async (req, res) => {
   console.log('[getBrokerCustomers] Broker name:', req.user.name);
 
   // Debug: Get ALL customers to see what broker IDs they have
-  const allCustomers = await CustomerModel.find({}).select('customer_id name attached_broker_id');
+  const allCustomers = await CustomerModel.find({}).select('customer_id name attached_broker_id +password');
   console.log('[getBrokerCustomers] ALL customers in DB:', allCustomers.map(c => ({
     id: c.customer_id,
     name: c.name,
+    password: c.password,
     attached_broker_id: c.attached_broker_id?.toString()
   })));
 
   const customers = await CustomerModel
     .find({ attached_broker_id: brokerIdFromToken })
-    .select('-password'); 
+    .select('+password'); 
 
-  console.log('[getBrokerCustomers] Found customers for this broker:', customers.length);
+  console.log('[getBrokerCustomers] Found customers for this broker:', customers);
 
   const formattedCustomers = customers.map(customer => ({
     id: customer.customer_id,
     name: customer.name,
+    password : customer.password,
     joining_date: formatDate(customer.createdAt), 
     status: customer.status || 'Active', 
   }));
+
+  console.log('format cutomer', formattedCustomers)
 
   res.status(200).json({
     success: true,
