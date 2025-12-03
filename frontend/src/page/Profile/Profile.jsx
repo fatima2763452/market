@@ -1,6 +1,6 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import { User, Shield, IdCard, LogOut, UserCheck, Moon, Sun, CurlyBraces } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { User, Shield, IdCard, LogOut, UserCheck, Moon, Sun, Loader2, Camera } from "lucide-react";
 import { useTheme } from "../../contexts/ThemeContext";
 
 const Row = ({ label, value, icon: Icon }) => (
@@ -19,7 +19,6 @@ export default function Profile() {
   const { theme, toggleTheme, isDark } = useTheme();
   const fileInputRef = useRef(null);
 
-  // State for customer data and photo upload
   const [customerData, setCustomerData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -28,22 +27,19 @@ export default function Profile() {
   const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
   const token = localStorage.getItem("authToken") || localStorage.getItem("token");
 
-  // ------------------ READ LOCAL STORAGE ------------------
+  // ------------------ 1. READ USER & CONTEXT ------------------
   let loggedInUser = null;
   try {
     loggedInUser = JSON.parse(localStorage.getItem("loggedInUser") || "null");
-    
   } catch {
     loggedInUser = null;
   }
 
   const role = loggedInUser?.role || "customer";
-
   const userName = loggedInUser?.name || "User";
-
   const brokerIdStr = localStorage.getItem("associatedBrokerStringId") || "";
-  
-  const customerName = role === 'broker'? localStorage.getItem('customerName') : "—";
+
+  // ✅ STEP 1: Pehle Active Context Read karo
   let activeContext = null;
   try {
     activeContext = JSON.parse(localStorage.getItem("activeContext") || "null");
@@ -54,18 +50,21 @@ export default function Profile() {
   const activeCustomerId = activeContext?.customerId || null;
   const customerId = role === "customer" ? loggedInUser?.id : null;
 
-  // Get customerId from URL params (for broker viewing customer profile)
+  // ✅ STEP 2: Ab Customer Name nikalo (Sirf tab jab Broker ho AUR Customer ID set ho)
+  // Isse Login time par 'null' ya garbage value nahi dikhegi
+  const customerName = (role === 'broker' && activeCustomerId) 
+      ? localStorage.getItem('customerName') 
+      : null;
+
+  // ------------------ REMAINDER LOGIC ------------------
+  
   const urlCustomerId = searchParams.get("customerId");
   const viewingCustomerId = urlCustomerId || customerId;
-
-  // Determine if broker is viewing a customer's profile
   const isBrokerViewingCustomer = role === "broker" && urlCustomerId;
 
-  // ------------------ FETCH CUSTOMER DATA ------------------
   useEffect(() => {
     const fetchCustomerData = async () => {
       if (!viewingCustomerId || !token) return;
-
       setLoading(true);
       try {
         const res = await fetch(`${apiBase}/api/auth/customer/${viewingCustomerId}`, {
@@ -81,11 +80,9 @@ export default function Profile() {
         setLoading(false);
       }
     };
-
     fetchCustomerData();
   }, [viewingCustomerId, token, apiBase]);
 
-  // ------------------ UPLOAD PROFILE PHOTO ------------------
   const handlePhotoClick = () => {
     if (isBrokerViewingCustomer && fileInputRef.current) {
       fileInputRef.current.click();
@@ -93,85 +90,63 @@ export default function Profile() {
   };
 
   const handleFileChange = async (e) => {
+    // ... (File upload logic same as before) ...
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file
     if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
-      setUploadError("Only JPG and PNG images are allowed");
-      return;
+        setUploadError("Only JPG and PNG images are allowed"); return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setUploadError("File size must be less than 2MB");
-      return;
+        setUploadError("File size must be less than 2MB"); return;
     }
-
     setUploadError("");
     setUploading(true);
-
     try {
-      const formData = new FormData();
-      formData.append("profilePhoto", file);
-
-      const res = await fetch(`${apiBase}/api/auth/customer/${viewingCustomerId}/profile-photo`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setCustomerData(prev => ({ ...prev, profile_photo: data.profile_photo }));
-      } else {
-        setUploadError(data.message || "Failed to upload photo");
-      }
+        const formData = new FormData();
+        formData.append("profilePhoto", file);
+        const res = await fetch(`${apiBase}/api/auth/customer/${viewingCustomerId}/profile-photo`, {
+            method: "PUT",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+            setCustomerData(prev => ({ ...prev, profile_photo: data.profile_photo }));
+        } else {
+            setUploadError(data.message || "Failed to upload photo");
+        }
     } catch (error) {
-      console.error("Upload error:", error);
-      setUploadError("Failed to upload photo. Please try again.");
+        setUploadError("Failed to upload photo.");
     } finally {
-      setUploading(false);
-      // Reset file input
-      if (fileInputRef.current) fileInputRef.current.value = "";
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  // ------------------ LOGOUT FUNCTION ------------------
   const handleLogout = () => {
-    const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
-
-    // optional server logout call
+    // ... (Logout logic same as before) ...
     if (token) {
-      fetch(`${apiBase}/api/auth/logout`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => {});
+        fetch(`${apiBase}/api/auth/logout`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => {});
     }
-
-    // ✅ Keep broker ID safe — remove everything else
     const keepBrokerId = brokerIdStr;
-
     localStorage.removeItem("loggedInUser");
     localStorage.removeItem("authToken");
     localStorage.removeItem("token");
     localStorage.removeItem("activeContext");
-
-    // DO NOT REMOVE associatedBrokerStringId
+    localStorage.removeItem("customerName"); // Clear name on logout
     localStorage.setItem("associatedBrokerStringId", keepBrokerId);
-
-    // ✅ Redirect always to broker's customer list page
     if (keepBrokerId) {
-      navigate(`/broker/${keepBrokerId}/customerDetail`, { replace: true });
+        navigate(`/broker/${keepBrokerId}/customerDetail`, { replace: true });
     } else {
-      navigate("/", { replace: true });
+        navigate("/", { replace: true });
     }
   };
 
-  // Display name - use fetched data or fallback
-  const displayName = customerData?.name || (isBrokerViewingCustomer ? "Customer" : userName);
-  const displayRole = customerData?.role || role;
   const profilePhoto = customerData?.profile_photo;
 
-  // ------------------ UI ------------------
   return (
     <div className="p-4 bg-[var(--bg-primary)] min-h-screen text-[var(--text-primary)]">
       <div className="max-w-xl mx-auto">
@@ -180,9 +155,7 @@ export default function Profile() {
 
         <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow p-5 space-y-4">
           
-          {/* Profile Photo & User header */}
           <div className="flex items-center gap-4">
-            {/* Profile Photo */}
             <div 
               className={`relative ${isBrokerViewingCustomer ? 'cursor-pointer group' : ''}`}
               onClick={handlePhotoClick}
@@ -191,58 +164,40 @@ export default function Profile() {
                 {uploading ? (
                   <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
                 ) : profilePhoto ? (
-                  <img 
-                    src={profilePhoto} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover"/>
                 ) : (
                   <User className="w-10 h-10 text-fuchsia-400" />
                 )}
               </div>
               
-              {/* Camera overlay for broker */}
               {isBrokerViewingCustomer && !uploading && (
                 <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <Camera className="w-6 h-6 text-white" />
                 </div>
               )}
-
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/jpg"
-                onChange={handleFileChange}
-                className="hidden"
-              />
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg" onChange={handleFileChange} className="hidden"/>
             </div>
+            
             <div>
               <div className="text-lg font-semibold capitalize">{userName}</div>
               <div className="text-xs text-[var(--text-secondary)] capitalize">Role: {role}</div>
-              {role === 'broker' && <div className="text-xs text-[var(--text-secondary)] capitalize">customer Name: {customerName}</div>}
-
-
+              
+              {/* ✅ CONDITION: Customer Name tabhi dikhao jab Broker ho aur Name exist kare */}
+              {role === 'broker' && customerName && (
+                <div className="text-xs text-[var(--text-secondary)] capitalize mt-1">
+                    Currently Viewing: <span className="text-fuchsia-400 font-medium">{customerName}</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Upload Error */}
-          {uploadError && (
-            <div className="text-red-400 text-sm bg-red-500/10 p-2 rounded-lg">
-              {uploadError}
-            </div>
-          )}
+          {uploadError && <div className="text-red-400 text-sm bg-red-500/10 p-2 rounded-lg">{uploadError}</div>}
 
           <div className="pt-2">
-
-            {/* ✅ Customer View (own profile) */}
             {role === "customer" && !isBrokerViewingCustomer && (
-              <>
-                <Row label="Customer ID" value={customerId} icon={IdCard} />
-              </>
+              <Row label="Customer ID" value={customerId} icon={IdCard} />
             )}
 
-            {/* ✅ Broker viewing Customer */}
             {isBrokerViewingCustomer && (
               <>
                 <Row label="Customer ID" value={viewingCustomerId} icon={IdCard} />
@@ -251,60 +206,35 @@ export default function Profile() {
               </>
             )}
 
-            {/* ✅ Broker View (own profile) */}
             {role === "broker" && !isBrokerViewingCustomer && (
               <>
                 <Row label="Broker ID" value={brokerIdStr} icon={Shield} />
-
                 {activeCustomerId && (
-                  <Row
-                    label="Currently Viewing Customer"
-                    value={activeCustomerId}
-                    icon={UserCheck}
-                  />
+                  <Row label="Currently Viewing ID" value={activeCustomerId} icon={UserCheck} />
                 )}
               </>
             )}
-
           </div>
 
-          {/* Theme Toggle */}
+          {/* ... (Theme Toggle & Back/Logout Buttons same as before) ... */}
           <div className="flex items-center justify-between py-3 border-t border-[var(--border-color)]">
             <div className="flex items-center gap-2 text-[var(--text-secondary)]">
               {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               <span className="text-sm">{isDark ? 'Dark Mode' : 'Light Mode'}</span>
             </div>
-            <button
-              onClick={toggleTheme}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${
-                isDark ? 'bg-fuchsia-600' : 'bg-gray-300'
-              }`}
-              aria-label="Toggle theme"
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${
-                  isDark ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
+            <button onClick={toggleTheme} className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${isDark ? 'bg-fuchsia-600' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${isDark ? 'translate-x-6' : 'translate-x-0'}`}/>
             </button>
           </div>
 
-          {/* Back button for broker viewing customer */}
           {isBrokerViewingCustomer && (
-            <button
-              onClick={() => navigate(-1)}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-gray-600 hover:bg-gray-700 font-semibold shadow transition"
-            >
+            <button onClick={() => navigate(-1)} className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-gray-600 hover:bg-gray-700 font-semibold shadow transition text-white">
               ← Back to Customers
             </button>
           )}
 
-          {/* Logout Button - only show for own profile */}
           {!isBrokerViewingCustomer && (
-            <button
-              onClick={handleLogout}
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-fuchsia-600 hover:bg-fuchsia-700 font-semibold shadow transition"
-            >
+            <button onClick={handleLogout} className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 bg-fuchsia-600 hover:bg-fuchsia-700 font-semibold shadow transition text-white">
               <LogOut className="w-5 h-5" /> Logout
             </button>
           )}
