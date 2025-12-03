@@ -77,7 +77,7 @@ export default function IntradayFund({ intradayMaxLimit, intradayUsedMargin, onR
                 type="number"
                 value={tempLimit}
                 onChange={(e) => setTempLimit(e.target.value)}
-                className="bg-[var(--bg-card)] text-white text-sm font-bold p-1 rounded border border-indigo-500/50 w-28 focus:outline-none"
+                className="bg-[var(--bg-card)] text-[var(--text-primary)] text-sm font-bold p-1 rounded border border-indigo-500/50 w-28 focus:outline-none"
                 autoFocus
               />
               <button
