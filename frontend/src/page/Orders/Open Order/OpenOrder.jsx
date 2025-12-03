@@ -29,6 +29,10 @@ export default function OpenOrder() {
   const customerId = activeContext.customerId;
   const orderStatus = "OPEN";
 
+    const userString = localStorage.getItem('loggedInUser');
+    const userObject = userString ? JSON.parse(userString) : {};
+    const userRole = userObject.role;
+
   const apiBase =
     import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
   const token = localStorage.getItem("token") || null;
@@ -329,12 +333,12 @@ export default function OpenOrder() {
           Open Orders ({displayList.length})
         </h3>
 
-        {displayList.length > 0 && (
+        {displayList.length > 0 && userRole === 'broker' && (
           <button
             onClick={() => setShowExitModal(true)}
             className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 
-                       px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 
-                       flex items-center gap-1.5 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                        px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 
+                        flex items-center gap-1.5 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
           >
             <span>All Exit</span>
           </button>

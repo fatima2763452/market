@@ -388,6 +388,7 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
 
             {(userRole === 'broker' || isOpen ) && (
                 <div className="flex space-x-2">
+                    { userRole === 'broker'&&
                     <button
                         onClick={() => handleAction('Adjust')}
                         disabled={submitting}
@@ -395,6 +396,7 @@ export default function HoldOrderBottomWindow({ selectedOrder, onClose, sheetDat
                     >
                         {submitting && action === 'Adjust' ? 'BUYING...' : 'BUY MORE'}
                     </button>
+                    }
 
                     {userRole === 'broker'&&<button
                         onClick={() => handleAction('Close')}
