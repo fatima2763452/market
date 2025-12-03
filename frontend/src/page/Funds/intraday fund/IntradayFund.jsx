@@ -97,7 +97,7 @@ export default function IntradayFund({ intradayMaxLimit, intradayUsedMargin, onR
           ) : (
             // Display Mode
             <>
-              <span className="text-white font-bold text-base">
+              <span className="text-[var(--text-primary)] font-bold text-base">
                 {formatCurrency(max)}
               </span>
               {userRole === 'broker' && (
@@ -122,7 +122,7 @@ export default function IntradayFund({ intradayMaxLimit, intradayUsedMargin, onR
         label="Free Limit (Unused)" 
         value={free} 
         icon={DollarSign} 
-        valueColorClass="text-white" 
+        valueColorClass="text-[var(--text-primary)]" 
       />
 
       {/* --- 3. Used Limit (Blocked) --- */}
@@ -130,7 +130,7 @@ export default function IntradayFund({ intradayMaxLimit, intradayUsedMargin, onR
         label="Used Limit (Blocked)" 
         value={used} 
         icon={XCircle} 
-        valueColorClass="text-white" 
+        valueColorClass="text-[var(--text-primary)]" 
       />
     </div>
   );
