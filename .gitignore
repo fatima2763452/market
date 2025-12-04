@@ -19,18 +19,10 @@ logs/
 .DS_Store
 
 # Environment files
-.env
-.env.local
-.env.*.local
-**/.env
-**/.env.local
-
 # Backend specific
 Backend/token.json
 
 # Frontend specific
-frontend/.env
-frontend/.env.local
 
 # Data files that shouldn't be tracked
 Backend/data/master-detailed.csv

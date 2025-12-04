@@ -4,15 +4,27 @@
 import FormData from 'form-data';
 import https from 'https';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8597445612:AAGz-HLU1Wan2byCzAtQeIIF9Lkv2mlsmcM';
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1003334953729';
+// IMPORTANT: Set these in your .env file
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+// Validate required env vars
+if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  console.warn('⚠️  [Telegram] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set. Telegram notifications will be disabled.');
+}
+
+const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : null;
 
 /**
  * Send a text message to Telegram
  */
 export const sendTelegramMessage = async (message) => {
+  // Skip if Telegram is not configured
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log('[Telegram] Skipping - not configured');
+    return { success: true, skipped: true };
+  }
+
   try {
     const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
       method: 'POST',

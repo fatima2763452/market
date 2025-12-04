@@ -3,11 +3,16 @@
 
 import { v2 as cloudinary } from 'cloudinary';
 
+// IMPORTANT: Set these in your .env file
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+  console.warn('⚠️  [Cloudinary] Missing CLOUDINARY credentials. File uploads will fail.');
+}
+
 // Configure Cloudinary
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dwr4pw8rw',
-  api_key: process.env.CLOUDINARY_API_KEY || '149874119833299',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'bAKxBtJFPP4kMVPJUiNQuXt5v3Y',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 /**

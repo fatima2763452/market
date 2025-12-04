@@ -19,7 +19,7 @@ export function createIO(server) {
   const defaultOrigins = [
     "http://localhost:5173",       // Local Vite frontend
     "http://127.0.0.1:5173",       // Local IP
-    "https://devaki-brokerage.onrender.com"  // Render frontend
+    "https://devakibrokerage.in"  // Render frontend
   ];
 
   const configOrigins = (config.origin || "")
