@@ -71,6 +71,24 @@ function SearchPage() {
     [apiBase]
   );
 
+  // Helper function to get proper exchange display name based on segment and instrument type
+  const getExchangeDisplayName = (segment, instrumentType) => {
+    if (segment === 'NSE_EQ' || segment === 'BSE_EQ') return 'NSE Equity';
+    if (segment === 'NSE_INDEX') return 'NSE Index';
+    if (segment === 'BSE_INDEX') return 'BSE Index';
+    if (segment === 'NSE_FNO') {
+      if (['FUTIDX', 'FUTSTK'].includes(instrumentType)) return 'NSE Futures';
+      if (['OPTIDX', 'OPTSTK'].includes(instrumentType)) return 'NSE Options';
+      return 'NSE F&O';
+    }
+    if (segment === 'MCX_COMM') {
+      if (instrumentType === 'FUTCOM') return 'MCX Futures';
+      if (instrumentType === 'OPTFUT') return 'MCX Options';
+      return 'MCX Commodity';
+    }
+    return segment || 'Unknown';
+  };
+
   const formatInstruments = (instruments) => {
     if (!Array.isArray(instruments)) return [];
     return instruments.map((one) => ({
@@ -78,8 +96,9 @@ function SearchPage() {
       id: `${one.segment}-${one.securityId}-${one.expiry || "na"}`,
       tradingSymbol: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
       name: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
-      exchange: one.segment === "MCX_COMM" ? "MCX" : "NSE",
+      exchange: getExchangeDisplayName(one.segment, one.instrumentType),
       segment: one.segment,
+      instrumentType: one.instrumentType || null,
       securityId: String(one.securityId),
       expiry: one.expiry || null,
       lotSize: one.lotSize ?? one.lot_size ?? null,
@@ -159,7 +178,7 @@ function SearchPage() {
 
   const segmentStringToNumberMap = useMemo(() => ({
     "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3,
-    "BSE_EQ": 4, "BSE_CURRENCY": 5, "MCX_COMM": 5, "NSE_INDEX": 0,
+    "BSE_EQ": 4, "BSE_CURRENCY": 5, "MCX_COMM": 5, "NSE_INDEX": 0, "BSE_INDEX": 14,
   }), []);
 
   const num = (v) => (v == null || v === "" ? null : Number(v));

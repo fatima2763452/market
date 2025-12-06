@@ -165,6 +165,9 @@ function Watchlist() {
   const openedInstrumentRef = useRef(null);
   const isUpgradingRef = useRef(false);
 
+  // *** Filter State ***
+  const [activeFilter, setActiveFilter] = useState('all');
+
   // *** Toast State ***
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
 
@@ -177,15 +180,33 @@ function Watchlist() {
     logMarketStatus();
   }, []);
 
-  // ... (formatInstruments function same)
+  // Helper function to get proper exchange display name based on segment and instrument type
+  const getExchangeDisplayName = (segment, instrumentType) => {
+    if (segment === 'NSE_EQ' || segment === 'BSE_EQ') return 'NSE Equity';
+    if (segment === 'NSE_INDEX') return 'NSE Index';
+    if (segment === 'BSE_INDEX') return 'BSE Index';
+    if (segment === 'NSE_FNO') {
+      if (['FUTIDX', 'FUTSTK'].includes(instrumentType)) return 'NSE Futures';
+      if (['OPTIDX', 'OPTSTK'].includes(instrumentType)) return 'NSE Options';
+      return 'NSE F&O';
+    }
+    if (segment === 'MCX_COMM') {
+      if (instrumentType === 'FUTCOM') return 'MCX Futures';
+      if (instrumentType === 'OPTFUT') return 'MCX Options';
+      return 'MCX Commodity';
+    }
+    return segment || 'Unknown';
+  };
+
   const formatInstruments = (instruments) => {
     if (!Array.isArray(instruments)) return [];
     return instruments.map(one => ({
       id: `${one.segment}-${one.securityId}-${one.expiry || "na"}`,
       tradingSymbol: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
       name: one.display_name || one.tradingsymbol || one.symbol_name || "Unknown",
-      exchange: one.segment === "MCX_COMM" ? "MCX" : "NSE",
+      exchange: getExchangeDisplayName(one.segment, one.instrumentType),
       segment: one.segment,
+      instrumentType: one.instrumentType || null,
       securityId: String(one.securityId),
       expiry: one.expiry || null,
       lotSize: one.lotSize ?? one.lot_size ?? null,
@@ -300,8 +321,8 @@ function Watchlist() {
         // Fetch index instruments from dedicated endpoint
         const indexRes = await fetch(`${apiBase}/api/instruments/indexes`, { credentials: "include" }).then(res => res.json());
         const nifty50Inst = indexRes.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
-        const bankNiftyInst = indexRes.find(i => (i.display_name === "Nifty Bank" || i.tradingsymbol === "Nifty Bank") && i.segment === "NSE_INDEX");
-        const indexInstrumentsRaw = [nifty50Inst, bankNiftyInst].filter(Boolean);
+        const sensexInst = indexRes.find(i => i.securityId === "51" && i.segment === "BSE_INDEX");
+        const indexInstrumentsRaw = [nifty50Inst, sensexInst].filter(Boolean);
         const formattedIndexes = formatInstruments(indexInstrumentsRaw);
         setIndexInstruments(formattedIndexes);
 
@@ -322,7 +343,22 @@ function Watchlist() {
         const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(item => [item.id ?? item._id ?? item.securityId, item])).values());
         
         setStocks(uniqueWatchlist);
-        if (formattedIndexes.length > 0) await subscribeAndSnapshot(formattedIndexes, 'quote');
+        
+        // Subscribe NSE and BSE indexes separately to avoid segment conflicts
+        if (formattedIndexes.length > 0) {
+          const nseIndexes = formattedIndexes.filter(i => i.segment === 'NSE_INDEX');
+          const bseIndexes = formattedIndexes.filter(i => i.segment === 'BSE_INDEX');
+          
+          if (nseIndexes.length > 0) {
+            console.log('[INDEX SUB] NSE indexes with quote (should use response_code 4):', nseIndexes.map(i => `${i.segment}:${i.securityId}`));
+            await subscribeAndSnapshot(nseIndexes, 'quote');
+          }
+          if (bseIndexes.length > 0) {
+            console.log('[INDEX SUB] BSE indexes with quote (should use response_code 4):', bseIndexes.map(i => `${i.segment}:${i.securityId}`));
+            await subscribeAndSnapshot(bseIndexes, 'quote');
+          }
+        }
+        
         if (uniqueWatchlist.length > 0) await subscribeAndSnapshot(uniqueWatchlist, 'quote');
       } catch (e) {
         console.error("Failed to load:", e);
@@ -333,7 +369,7 @@ function Watchlist() {
     loadAllInstruments();
   }, [isConnected, apiBase, token, subscribeAndSnapshot]);
 
-  const segmentStringToNumberMap = useMemo(() => ({ "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3, "BSE_EQ": 4, "BSE_CURRENCY": 5, "MCX_COMM": 5, "NSE_INDEX": 0 }), []);
+  const segmentStringToNumberMap = useMemo(() => ({ "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3, "BSE_EQ": 4, "BSE_CURRENCY": 5, "MCX_COMM": 5, "NSE_INDEX": 0, "BSE_INDEX": 14 }), []);
 
   // ... (prices useMemo - SAME AS BEFORE)
   const prices = useMemo(() => {
@@ -421,10 +457,43 @@ function Watchlist() {
     return byId;
   }, [ticks, snapshots, indexInstruments, segmentStringToNumberMap]);
 
-  const bankNiftyInst = indexInstruments.find(i => i.tradingSymbol === "Nifty Bank");
+  const sensexInst = indexInstruments.find(i => i.securityId === "51" && i.segment === "BSE_INDEX");
   const nifty50Inst = indexInstruments.find(i => i.tradingSymbol === "Nifty 50");
-  const bankNiftyPrice = bankNiftyInst ? indexPrices[bankNiftyInst.id] : {};
+  const sensexPrice = sensexInst ? indexPrices[sensexInst.id] : {};
   const nifty50Price = nifty50Inst ? indexPrices[nifty50Inst.id] : {};
+
+  // *** Segment Filter Logic ***
+  const SEGMENT_FILTER_MAP = useMemo(() => ({
+    all: null, // null means show all
+    index: ['NSE_INDEX', 'BSE_INDEX'],
+    equity: ['NSE_EQ', 'BSE_EQ'],
+    fno: ['NSE_FNO'],
+    commodity: ['MCX_COMM']
+  }), []);
+
+  const filteredStocks = useMemo(() => {
+    if (activeFilter === 'all') return stocks;
+    const allowedSegments = SEGMENT_FILTER_MAP[activeFilter];
+    if (!allowedSegments) return stocks;
+    return stocks.filter(stock => allowedSegments.includes(stock.segment));
+  }, [stocks, activeFilter, SEGMENT_FILTER_MAP]);
+
+  // Get count for each filter category
+  const getFilterCount = useCallback((filterKey) => {
+    if (filterKey === 'all') return stocks.length;
+    const allowedSegments = SEGMENT_FILTER_MAP[filterKey];
+    if (!allowedSegments) return 0;
+    return stocks.filter(stock => allowedSegments.includes(stock.segment)).length;
+  }, [stocks, SEGMENT_FILTER_MAP]);
+
+  // Filter tabs configuration
+  const FILTER_TABS = [
+    { key: 'all', label: 'All' },
+    { key: 'index', label: 'Index' },
+    { key: 'equity', label: 'Equity' },
+    { key: 'fno', label: 'F&O' },
+    { key: 'commodity', label: 'Commodity' }
+  ];
 
   return (
     <div className="w-full h-full bg-[var(--bg-primary)] md:w-1/2 lg:w-3/12 md:border-r border-[var(--border-color)] flex flex-col relative min-h-0">
@@ -433,7 +502,7 @@ function Watchlist() {
       <Toast message={notification.message} type={notification.type} show={notification.show} />
 
       {/* Header */}
-      <div className="pt-3 pb-2 px-4 mb-0 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-primary)] z-20">
+      <div className="pt-3 pb-2 px-4 border-b border-[var(--border-color)] bg-[var(--bg-primary)] flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-[var(--border-color)]">
@@ -448,23 +517,51 @@ function Watchlist() {
       </div>
 
       {/* Index Cards */}
-      <div className="px-2 pb-2 pt-2 flex sticky top-[64px] bg-[var(--bg-primary)] z-10 border-b border-[var(--border-color)] mt-0">
-        <IndexCard name="NIFTY BANK" price={bankNiftyPrice?.ltp?.toFixed(2) || "—"} change={bankNiftyPrice?.percentChange?.toFixed(2) || "—"} isPositive={bankNiftyPrice?.isPositive} />
-        <IndexCard name="Nifty" price={nifty50Price?.ltp?.toFixed(2) || "—"} change={nifty50Price?.percentChange?.toFixed(2) || "—"} isPositive={nifty50Price?.isPositive} />
+      <div className="px-2 py-2 flex bg-[var(--bg-primary)] border-b border-[var(--border-color)] flex-shrink-0">
+        <IndexCard name="SENSEX" price={sensexPrice?.ltp?.toFixed(2) || "—"} change={sensexPrice?.percentChange?.toFixed(2) || "—"} isPositive={sensexPrice?.isPositive} />
+        <IndexCard name="Nifty 50" price={nifty50Price?.ltp?.toFixed(2) || "—"} change={nifty50Price?.percentChange?.toFixed(2) || "—"} isPositive={nifty50Price?.isPositive} />
       </div>
 
-      {/* Search Button */}
-      <div className="p-2 sticky top-[150px] bg-[var(--bg-primary)] z-10 border-b border-[var(--border-color)]">
-        <Link to="/search" className="flex items-center gap-3 w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] px-3 py-2.5 rounded-lg transition-all duration-200 group">
-          <Search size={18} className="group-hover:text-[var(--text-primary)] transition-colors" />
+      {/* Search Button + Filter Tabs Combined */}
+      <div className="px-2 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-color)] flex-shrink-0 space-y-2">
+        <Link to="/search" className="flex items-center gap-3 w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] px-3 py-2 rounded-lg transition-all duration-200 group">
+          <Search size={16} className="group-hover:text-[var(--text-primary)] transition-colors" />
           <span className="text-sm font-medium group-hover:text-[var(--text-primary)] transition-colors">Search & add instruments...</span>
         </Link>
+        
+        {/* Filter Tabs - Auto-sizing to fill available width */}
+        <div className="flex w-full">
+          {FILTER_TABS.map(({ key, label }) => {
+            const count = getFilterCount(key);
+            const isActive = activeFilter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveFilter(key)}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium whitespace-nowrap transition-all duration-150 border-b-2 ${
+                  isActive
+                    ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500'
+                    : 'bg-transparent text-[var(--text-secondary)] border-transparent hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {label}
+                <span className={`text-[10px] ${
+                  isActive 
+                    ? 'text-indigo-300' 
+                    : 'text-[var(--text-muted)]'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Swipeable List */}
       <ul className="space-y-0 p-2 flex-1 overflow-y-auto pb-28 min-h-0 mt-0">
         <AnimatePresence>
-          {stocks.map((stock) => {
+          {filteredStocks.map((stock) => {
             const p = prices[stock.id] || {};
             return (
               <motion.div
@@ -486,18 +583,24 @@ function Watchlist() {
         </AnimatePresence>
 
         {/* Empty State */}
-        {stocks.length === 0 && (
+        {filteredStocks.length === 0 && (
           <div className="flex flex-col items-center justify-center pt-8 px-4 text-center">
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-3" />
                 <p className="text-[var(--text-secondary)]">Loading instruments…</p>
               </>
-            ) : (
+            ) : stocks.length === 0 ? (
               <>
                 <Search className="w-12 h-12 text-[var(--text-muted)] mb-3" />
                 <h3 className="text-[var(--text-primary)] font-semibold text-lg mb-2">Your Watchlist is Empty</h3>
                 <p className="text-[var(--text-secondary)] text-sm mb-4">Search above to add stocks</p>
+              </>
+            ) : (
+              <>
+                <Search className="w-10 h-10 text-[var(--text-muted)] mb-3" />
+                <h3 className="text-[var(--text-primary)] font-semibold text-base mb-1">No {FILTER_TABS.find(t => t.key === activeFilter)?.label} Instruments</h3>
+                <p className="text-[var(--text-secondary)] text-sm">Add some from the search or switch filter</p>
               </>
             )}
           </div>

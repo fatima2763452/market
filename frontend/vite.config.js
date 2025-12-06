@@ -9,10 +9,11 @@ export default defineConfig({
         host: '0.0.0.0', // Bind to all network interfaces for tunnel
         port: 5173,
         strictPort: true,
+        allowedHosts: ['app.wolfkrypt.me', 'localhost', '127.0.0.1'],
         proxy: {
-            "/api": "http://localhost:8080",
+            "/api": "https://api.wolfkrypt.me",
             "/socket.io": {
-                target: "http://localhost:8080",
+                target: "https://api.wolfkrypt.me",
                 ws: true
             }
         },
