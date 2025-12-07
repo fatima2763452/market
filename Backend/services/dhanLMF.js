@@ -67,10 +67,22 @@ export class DhanLMF {
 
     const requestCode = subscriptionTypeToCode[subscriptionType] || 21;
 
-    const instrumentsToSubscribe = list.map(inst => ({
-        ExchangeSegment: inst.segment === 'NSE_INDEX' ? 'IDX_I' : String(inst.segment || "").toUpperCase(),
+    const instrumentsToSubscribe = list.map(inst => {
+      let exchangeSegment = String(inst.segment || "").toUpperCase();
+      
+      // Convert segment names to Dhan's exchange segment format
+      if (inst.segment === 'NSE_INDEX' || inst.segment === 'BSE_INDEX') {
+        exchangeSegment = 'IDX_I';
+      }
+      
+      return {
+        ExchangeSegment: exchangeSegment,
         SecurityId: String(inst.securityId || "")
-    }));
+      };
+    });
+
+    console.log(`[LMF SUBSCRIBE] Type: ${subscriptionType}, Code: ${requestCode}, Instruments:`, 
+      instrumentsToSubscribe.map(i => `${i.ExchangeSegment}:${i.SecurityId}`).join(', '));
 
     const chunkSize = 100;
     for (let i = 0; i < instrumentsToSubscribe.length; i += chunkSize) {

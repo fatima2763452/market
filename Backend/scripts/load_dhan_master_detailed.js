@@ -165,13 +165,16 @@ async function run() {
         const CSV_SEGMENT = String(r.SEGMENT || "").toUpperCase();
         const SECURITY_ID = String(r.SECURITY_ID || "").trim();
 
-        if (!SECURITY_ID || EXCH_ID === "BSE") return;
+        if (!SECURITY_ID) return;
+
+        if (EXCH_ID === "BSE" && CSV_SEGMENT !== "I") return;
 
         let segmentNorm;
-       // if (EXCH_ID === "NSE" && CSV_SEGMENT === "E") segmentNorm = "NSE_EQ";
+        //if (EXCH_ID === "NSE" && CSV_SEGMENT === "E") segmentNorm = "NSE_EQ";
         if (EXCH_ID === "NSE" && CSV_SEGMENT === "D") segmentNorm = "NSE_FNO";
         else if (EXCH_ID === "NSE" && CSV_SEGMENT === "I") segmentNorm = "NSE_INDEX";
         else if (EXCH_ID === "NSE" && CSV_SEGMENT === "M") segmentNorm = "NSE_M";
+        else if (EXCH_ID === "BSE" && CSV_SEGMENT === "I") segmentNorm = "BSE_INDEX";
         else if (EXCH_ID === "MCX" && CSV_SEGMENT === "M") segmentNorm = "MCX_COMM";
         else return;
 

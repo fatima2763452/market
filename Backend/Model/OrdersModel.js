@@ -31,11 +31,13 @@ const OrderSchema = new mongoose.Schema(
     stop_loss: {
       type: Number,
       default: 0,
+      index: true,
     },
 
     target: {
       type: Number,
       default: 0,
+      index: true,
     },
 
     // Ye field record karega ki order kyu close hua (SL Hit, Target Hit, ya Manual)

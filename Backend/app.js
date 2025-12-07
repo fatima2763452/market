@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
+import helmet from "helmet";
 import { config } from "./config.js";
 
 // Routes
@@ -26,7 +27,7 @@ export function createApp() {
   const defaultOrigins = [
     "http://localhost:5173",                   // Local Vite frontend
     "http://127.0.0.1:5173",                   // Local IP
-    "https://devaki-brokerage.onrender.com",  // Render frontend (production)
+    "https://devakibrokerage.in",  // Render frontend (production)
   ];
 
   // If you have extra origins in your config file, we add them too
@@ -45,6 +46,9 @@ export function createApp() {
   
   app.use(cors(corsOpts));
   // -------------------------------
+
+  // Security headers
+  app.use(helmet());
 
   app.set("trust proxy", 1); // Essential for Cloudflare Tunnel to pass correct IPs
   app.use(cookieParser());
