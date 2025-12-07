@@ -58,6 +58,26 @@ function SearchPage() {
   const searchApi = useMemo(
     () => ({
       search: async (q) => {
+        // ==================== FRONTEND SEARCH CACHE ====================
+        const cacheKey = `search_${q.toLowerCase()}`;
+        const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+        
+        try {
+          const cached = sessionStorage.getItem(cacheKey);
+          const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
+          
+          if (cached && cacheTime) {
+            const age = Date.now() - parseInt(cacheTime);
+            if (age < CACHE_TTL) {
+              console.log(`[Search Cache] Using cached results for "${q}" (${Math.round(age/1000)}s old)`);
+              return JSON.parse(cached);
+            }
+          }
+        } catch (e) {
+          // Cache read failed, proceed with fetch
+        }
+        // ==================== END FRONTEND SEARCH CACHE ====================
+        
         const url = `${apiBase}/api/instruments/search?q=${encodeURIComponent(q)}`;
         const r = await fetch(url, { credentials: "include" });
         if (!r.ok) {
@@ -65,7 +85,18 @@ function SearchPage() {
           throw new Error(`search failed: ${q} status:${r.status} ${text}`);
         }
         const data = await r.json();
-        return Array.isArray(data) ? data : Array.isArray(data?.rows) ? data.rows : [];
+        const results = Array.isArray(data) ? data : Array.isArray(data?.rows) ? data.rows : [];
+        
+        // Cache the results
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(results));
+          sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+        } catch (e) {
+          // Cache write failed (probably quota exceeded), continue without caching
+          console.warn('[Search Cache] Failed to cache results:', e);
+        }
+        
+        return results;
       },
     }),
     [apiBase]
@@ -125,7 +156,7 @@ function SearchPage() {
           setSearchResults([]);
         }
       })();
-    }, 300);
+    }, 150); // Reduced from 300ms to 150ms for faster response
     return () => clearTimeout(handle);
   }, [searchTerm, searchApi]);
 

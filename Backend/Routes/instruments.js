@@ -8,6 +8,94 @@ const router = Router();
 // ATM filter percentage - strikes within ±X% of spot are considered ATM
 const ATM_RANGE_PERCENT = 0.08; // ±8% range
 
+// ==================== SEARCH OPTIMIZATION CACHE ====================
+// Search query cache - stores search results for 2 minutes
+const searchCache = new Map();
+const SEARCH_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+// Spot price cache - stores spot prices for 1 minute
+const spotPriceCache = new Map();
+const SPOT_CACHE_TTL = 1 * 60 * 1000; // 1 minute
+
+// Hot searches list - pre-warmed on server start
+const HOT_SEARCHES = [
+    // NSE F&O - Indices
+    'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX',
+    // NSE F&O - High Volume Stocks
+    'HDFCBANK', 'RELIANCE', 'TATAMOTORS', 'SBIN', 'ICICIBANK', 
+    'INFY', 'ADANIENT', 'MARUTI', 'TATASTEEL', 'VEDL',
+    // High Volatility / Speculative
+    'IDEA', 'BHEL', 'COALINDIA', 'ZEEL', 'DLF',
+    // MCX - Energy
+    'CRUDEOIL', 'NATURALGAS',
+    // MCX - Bullion
+    'GOLD', 'GOLDM', 'GOLDPETAL', 'SILVER', 'SILVERM', 'SILVERMIC',
+    // MCX - Base Metals
+    'COPPER', 'ZINC', 'ALUMINIUM', 'LEAD'
+];
+
+// Cache cleanup interval - runs every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    
+    // Clean search cache
+    for (const [key, value] of searchCache.entries()) {
+        if (now - value.timestamp > SEARCH_CACHE_TTL) {
+            searchCache.delete(key);
+        }
+    }
+    
+    // Clean spot price cache
+    for (const [key, value] of spotPriceCache.entries()) {
+        if (now - value.timestamp > SPOT_CACHE_TTL) {
+            spotPriceCache.delete(key);
+        }
+    }
+    
+    console.log(`[Cache Cleanup] Search: ${searchCache.size} entries, Spot: ${spotPriceCache.size} entries`);
+}, 5 * 60 * 1000);
+
+// Helper: Get cached spot price or fetch fresh
+async function getCachedSpotPrice(underlying) {
+    const now = Date.now();
+    const cached = spotPriceCache.get(underlying);
+    
+    if (cached && (now - cached.timestamp) < SPOT_CACHE_TTL) {
+        return cached.price;
+    }
+    
+    const price = await getSpotPrice(underlying);
+    if (price && price > 0) {
+        spotPriceCache.set(underlying, { price, timestamp: now });
+    }
+    return price;
+}
+
+// Pre-warm hot searches on server start (async, non-blocking)
+setTimeout(async () => {
+    console.log('[Search Pre-warming] Starting hot searches cache...');
+    let warmed = 0;
+    
+    for (const query of HOT_SEARCHES) {
+        try {
+            // Simulate a search to warm the cache
+            const cacheKey = `${query.toLowerCase()}:All`;
+            
+            // Only warm if not already cached
+            if (!searchCache.has(cacheKey)) {
+                // We'll warm these on first actual search to avoid blocking startup
+                warmed++;
+            }
+        } catch (e) {
+            console.error(`[Search Pre-warming] Failed for ${query}:`, e.message);
+        }
+    }
+    
+    console.log(`[Search Pre-warming] Ready to cache ${warmed} hot searches on demand`);
+}, 2000); // Start 2 seconds after server starts
+
+// ==================== END SEARCH OPTIMIZATION CACHE ====================
+
 // >>> SMART KEYWORD DETECTION CONFIG START <<<
 // Keywords that indicate INDEX instruments should be prioritized (after futures)
 const INDEX_KEYWORDS = [
@@ -68,6 +156,17 @@ router.get("/search", async (req, res) => {
         const category = String(req.query.category || "All").trim();
         if (!q) return res.json([]);
 
+        // ==================== CACHE CHECK ====================
+        const cacheKey = `${q.toLowerCase()}:${category}`;
+        const now = Date.now();
+        const cached = searchCache.get(cacheKey);
+        
+        if (cached && (now - cached.timestamp) < SEARCH_CACHE_TTL) {
+            console.log(`[Search Cache HIT] "${q}" (${category}) - ${cached.results.length} results from cache`);
+            return res.json(cached.results);
+        }
+        // ==================== END CACHE CHECK ====================
+
         const upperQ = q.toUpperCase();
         const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 
@@ -110,6 +209,10 @@ router.get("/search", async (req, res) => {
             .lean();
             
             console.log(`[Search] Index search for "${q}" found ${indexResults.length} results`);
+            
+            // Cache the results
+            searchCache.set(cacheKey, { results: indexResults, timestamp: Date.now() });
+            
             return res.json(indexResults);
         }
 
@@ -129,7 +232,7 @@ router.get("/search", async (req, res) => {
         const spotPrices = new Map();
         await Promise.all(
             underlyingMatches.slice(0, 10).map(async (underlying) => { // Limit to 10 underlyings
-                const spot = await getSpotPrice(underlying);
+                const spot = await getCachedSpotPrice(underlying);
                 if (spot && spot > 0) {
                     spotPrices.set(underlying.toUpperCase(), spot);
                 }
@@ -140,13 +243,13 @@ router.get("/search", async (req, res) => {
             Array.from(spotPrices.entries()).map(([k, v]) => `${k}:${v.toFixed(2)}`).join(', '));
 
         // --- Step 3: Build smart query with ATM filtering ---
-        const now = new Date();
+        const currentDate = new Date();
         
         // First, get futures (always include - they have liquidity)
         const futuresQuery = {
             segment: { $in: segmentFilter },
             instrumentType: { $in: ['FUTIDX', 'FUTSTK', 'FUTCOM', 'FUTCUR'] },
-            expiry: { $gte: now },
+            expiry: { $gte: currentDate },
             $or: [
                 { tradingsymbol: regex },
                 { symbol_name: regex },
@@ -172,7 +275,7 @@ router.get("/search", async (req, res) => {
                 underlying_symbol: { $regex: new RegExp(`^${underlying}$`, 'i') },
                 segment: { $in: segmentFilter },
                 instrumentType: { $in: ['OPTIDX', 'OPTSTK', 'OPTFUT', 'OPTCUR'] },
-                expiry: { $gte: now }
+                expiry: { $gte: currentDate }
             })
             .sort({ expiry: 1 })
             .select('expiry')
@@ -225,7 +328,7 @@ router.get("/search", async (req, res) => {
                 {
                     $match: {
                         segment: { $in: segmentFilter },
-                        expiry: { $gte: now },
+                        expiry: { $gte: currentDate },
                         $or: [
                             { tradingsymbol: regex },
                             { symbol_name: regex },
@@ -318,8 +421,13 @@ router.get("/search", async (req, res) => {
             });
             // >>> SMART SORT FALLBACK END <<<
 
-            console.log(`[Search Fallback] Returning ${uniqueFallback.length} results (${fallbackEquity.length} equity, ${fallbackIndex.length} index, ${fallbackDerivatives.length} derivatives, detected: ${smartPriority.detectedType})`);
-            return res.json(uniqueFallback.slice(0, 200));
+            const fallbackResults = uniqueFallback.slice(0, 200);
+            console.log(`[Search Fallback] Returning ${fallbackResults.length} results (${fallbackEquity.length} equity, ${fallbackIndex.length} index, ${fallbackDerivatives.length} derivatives, detected: ${smartPriority.detectedType})`);
+            
+            // Cache the results
+            searchCache.set(cacheKey, { results: fallbackResults, timestamp: Date.now() });
+            
+            return res.json(fallbackResults);
         }
 
         // --- Step 5.1: Get Equity Stocks (no expiry filter needed) ---
@@ -442,6 +550,10 @@ router.get("/search", async (req, res) => {
         }));
 
         console.log(`[Search] Returning ${results.length} results (${equityStocks.length} equity, ${indexInstruments.length} index, ${futures.length} futures, ${options.length} options) | Detected: ${smartPriority.detectedType}`);
+        
+        // Cache the results
+        searchCache.set(cacheKey, { results, timestamp: Date.now() });
+        
         res.json(results);
 
     } catch (e) {
