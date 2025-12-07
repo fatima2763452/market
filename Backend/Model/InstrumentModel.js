@@ -26,5 +26,21 @@ InstrumentSchema.index({ segment: 1, underlying_symbol: 1, expiry: 1, strike: 1,
 InstrumentSchema.index({ segment: 1, tradingsymbol: 1 });
 InstrumentSchema.index({ canon_key: 1 }, { unique: true }); // Optimized for watchlist batch lookups
 
+// Text search index for fast search queries (Phase 2 optimization)
+InstrumentSchema.index({ 
+  tradingsymbol: "text", 
+  symbol_name: "text", 
+  display_name: "text",
+  underlying_symbol: "text"
+}, {
+  weights: {
+    tradingsymbol: 10,        // Highest priority
+    underlying_symbol: 8,      // Second priority
+    symbol_name: 5,           // Third priority
+    display_name: 3           // Lowest priority
+  },
+  name: "search_text_index"
+});
+
 const Instrument = mongoose.model("Instrument", InstrumentSchema, "instruments");
 export default Instrument;

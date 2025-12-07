@@ -2,6 +2,7 @@
 import { Router } from "express";
 import Instrument from "../Model/InstrumentModel.js";
 import { getSpotPrice } from "../services/spotPriceCache.js";
+import { getCache, setCache } from "../services/redisCache.js";
 
 const router = Router();
 
@@ -16,6 +17,43 @@ const SEARCH_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 // Spot price cache - stores spot prices for 1 minute
 const spotPriceCache = new Map();
 const SPOT_CACHE_TTL = 1 * 60 * 1000; // 1 minute
+
+// Search analytics - track popular searches
+const searchAnalytics = new Map();
+const ANALYTICS_WINDOW = 60 * 60 * 1000; // 1 hour rolling window
+
+// Track search query
+function trackSearch(query, category, resultsCount) {
+    const key = `${query.toLowerCase()}:${category}`;
+    const now = Date.now();
+    
+    if (!searchAnalytics.has(key)) {
+        searchAnalytics.set(key, {
+            query,
+            category,
+            count: 0,
+            lastSearched: now,
+            avgResults: 0
+        });
+    }
+    
+    const stats = searchAnalytics.get(key);
+    stats.count++;
+    stats.lastSearched = now;
+    stats.avgResults = Math.round((stats.avgResults * (stats.count - 1) + resultsCount) / stats.count);
+}
+
+// Get top searches
+function getTopSearches(limit = 20) {
+    const now = Date.now();
+    const recentSearches = Array.from(searchAnalytics.entries())
+        .filter(([_, stats]) => (now - stats.lastSearched) < ANALYTICS_WINDOW)
+        .map(([key, stats]) => ({ key, ...stats }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit);
+    
+    return recentSearches;
+}
 
 // Hot searches list - pre-warmed on server start
 const HOT_SEARCHES = [
@@ -55,18 +93,34 @@ setInterval(() => {
     console.log(`[Cache Cleanup] Search: ${searchCache.size} entries, Spot: ${spotPriceCache.size} entries`);
 }, 5 * 60 * 1000);
 
-// Helper: Get cached spot price or fetch fresh
+// Helper: Get cached spot price or fetch fresh (Redis + Memory)
 async function getCachedSpotPrice(underlying) {
+    const spotKey = `spot:${underlying.toUpperCase()}`;
     const now = Date.now();
-    const cached = spotPriceCache.get(underlying);
     
+    // Try Redis first
+    const redisSpot = await getCache(spotKey);
+    if (redisSpot && redisSpot.price) {
+        return redisSpot.price;
+    }
+    
+    // Try memory cache
+    const cached = spotPriceCache.get(underlying);
     if (cached && (now - cached.timestamp) < SPOT_CACHE_TTL) {
+        // Promote to Redis
+        setCache(spotKey, { price: cached.price }, 60).catch(err => 
+            console.error('[Redis] Failed to cache spot price:', err)
+        );
         return cached.price;
     }
     
+    // Fetch fresh
     const price = await getSpotPrice(underlying);
     if (price && price > 0) {
         spotPriceCache.set(underlying, { price, timestamp: now });
+        setCache(spotKey, { price }, 60).catch(err => 
+            console.error('[Redis] Failed to cache spot price:', err)
+        );
     }
     return price;
 }
@@ -156,14 +210,28 @@ router.get("/search", async (req, res) => {
         const category = String(req.query.category || "All").trim();
         if (!q) return res.json([]);
 
-        // ==================== CACHE CHECK ====================
-        const cacheKey = `${q.toLowerCase()}:${category}`;
+        // ==================== REDIS/MEMORY CACHE CHECK ====================
+        const cacheKey = `search:${q.toLowerCase()}:${category}`;
         const now = Date.now();
-        const cached = searchCache.get(cacheKey);
         
-        if (cached && (now - cached.timestamp) < SEARCH_CACHE_TTL) {
-            console.log(`[Search Cache HIT] "${q}" (${category}) - ${cached.results.length} results from cache`);
-            return res.json(cached.results);
+        // Try Redis first (distributed cache)
+        const redisCache = await getCache(cacheKey);
+        if (redisCache) {
+            console.log(`[Search Redis Cache HIT] "${q}" (${category}) - ${redisCache.length} results`);
+            trackSearch(q, category, redisCache.length);
+            return res.json(redisCache);
+        }
+        
+        // Fallback to memory cache
+        const memoryCached = searchCache.get(cacheKey);
+        if (memoryCached && (now - memoryCached.timestamp) < SEARCH_CACHE_TTL) {
+            console.log(`[Search Memory Cache HIT] "${q}" (${category}) - ${memoryCached.results.length} results`);
+            trackSearch(q, category, memoryCached.results.length);
+            // Promote to Redis for other instances
+            setCache(cacheKey, memoryCached.results, 120).catch(err => 
+                console.error('[Redis] Failed to promote cache:', err)
+            );
+            return res.json(memoryCached.results);
         }
         // ==================== END CACHE CHECK ====================
 
@@ -209,9 +277,13 @@ router.get("/search", async (req, res) => {
             .lean();
             
             console.log(`[Search] Index search for "${q}" found ${indexResults.length} results`);
+            trackSearch(q, category, indexResults.length);
             
-            // Cache the results
+            // Cache the results in both Redis and memory
             searchCache.set(cacheKey, { results: indexResults, timestamp: Date.now() });
+            setCache(cacheKey, indexResults, 120).catch(err => 
+                console.error('[Redis] Failed to cache:', err)
+            );
             
             return res.json(indexResults);
         }
@@ -423,9 +495,13 @@ router.get("/search", async (req, res) => {
 
             const fallbackResults = uniqueFallback.slice(0, 200);
             console.log(`[Search Fallback] Returning ${fallbackResults.length} results (${fallbackEquity.length} equity, ${fallbackIndex.length} index, ${fallbackDerivatives.length} derivatives, detected: ${smartPriority.detectedType})`);
+            trackSearch(q, category, fallbackResults.length);
             
-            // Cache the results
+            // Cache the results in both Redis and memory
             searchCache.set(cacheKey, { results: fallbackResults, timestamp: Date.now() });
+            setCache(cacheKey, fallbackResults, 120).catch(err => 
+                console.error('[Redis] Failed to cache:', err)
+            );
             
             return res.json(fallbackResults);
         }
@@ -550,9 +626,13 @@ router.get("/search", async (req, res) => {
         }));
 
         console.log(`[Search] Returning ${results.length} results (${equityStocks.length} equity, ${indexInstruments.length} index, ${futures.length} futures, ${options.length} options) | Detected: ${smartPriority.detectedType}`);
+        trackSearch(q, category, results.length);
         
-        // Cache the results
+        // Cache the results in both Redis and memory
         searchCache.set(cacheKey, { results, timestamp: Date.now() });
+        setCache(cacheKey, results, 120).catch(err => 
+            console.error('[Redis] Failed to cache:', err)
+        );
         
         res.json(results);
 
@@ -733,6 +813,32 @@ router.get("/lookup", async (req, res) => {
         res.json(instrument);
     } catch (e) {
         console.error("instruments/lookup error:", e);
+        res.status(500).json({ error: "failed" });
+    }
+});
+
+/**
+ * GET /api/instruments/analytics
+ * Search analytics endpoint - shows popular searches and cache stats
+ */
+router.get("/analytics", async (req, res) => {
+    try {
+        const topSearches = getTopSearches(50);
+        const cacheStats = {
+            memory: {
+                searchCache: searchCache.size,
+                spotCache: spotPriceCache.size,
+                analyticsTracked: searchAnalytics.size
+            }
+        };
+        
+        res.json({
+            topSearches,
+            cacheStats,
+            timestamp: new Date().toISOString()
+        });
+    } catch (e) {
+        console.error("instruments/analytics error:", e);
         res.status(500).json({ error: "failed" });
     }
 });

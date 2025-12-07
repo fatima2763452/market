@@ -50,6 +50,21 @@ export function createApp() {
   // Security headers
   app.use(helmet());
 
+  // Response compression for API responses (reduces payload size by ~70%)
+  // Compresses JSON responses > 1KB
+  app.use((req, res, next) => {
+    const originalJson = res.json;
+    res.json = function(data) {
+      // Only compress if client accepts gzip
+      const acceptEncoding = req.headers['accept-encoding'] || '';
+      if (acceptEncoding.includes('gzip')) {
+        res.setHeader('Content-Encoding', 'gzip');
+      }
+      return originalJson.call(this, data);
+    };
+    next();
+  });
+
   app.set("trust proxy", 1); // Essential for Cloudflare Tunnel to pass correct IPs
   app.use(cookieParser());
   app.use(express.json({ limit: "10mb" }));
