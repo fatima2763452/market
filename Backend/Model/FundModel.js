@@ -46,6 +46,18 @@ const fundSchema = new mongoose.Schema({
         },
     },
 
+    // 4. Option Limit Tracking (Daily 10% Cap) - SEGREGATED
+    option_limit: {
+        intraday: {
+            used_today: { type: Number, default: 0.00 },
+            last_trade_date: { type: Date }
+        },
+        overnight: {
+            used_today: { type: Number, default: 0.00 },
+            last_trade_date: { type: Date }
+        }
+    },
+
     broker_mobile_number:{type: Number}
 
 }, {
