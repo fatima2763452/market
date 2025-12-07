@@ -7,6 +7,7 @@ import {
   addToWatchlist,
   updateTriggerInWatchlist,
 } from "../Utils/OrderManager.js";
+import { checkOptionLimit, updateOptionUsage, rollbackOptionUsage } from "../Utils/OptionLimitManager.js";
 
 const postOrder = asyncHandler(async (req, res) => {
   const body = req.body || {};
@@ -71,6 +72,20 @@ const postOrder = asyncHandler(async (req, res) => {
   const isIntraday = productNorm === "MIS";
   let availableLimit = 0;
 
+  // --- SPECIAL LOGIC: DAILY 10% LIMIT FOR OPTIONS ---
+  const symUpper = String(symbol).toUpperCase();
+  const isOption = (symUpper.endsWith("CE") || symUpper.endsWith("PE") || symUpper.endsWith("CALL") || symUpper.endsWith("PUT"));
+  
+  if (isOption) {
+      const limitCheck = checkOptionLimit(fund, productNorm, requiredMargin);
+      if (!limitCheck.allowed) {
+          return res.status(400).json({
+              error: limitCheck.message
+          });
+      }
+  }
+  // --------------------------------------------------
+
   if (isIntraday) {
     // Intraday: Free = Available - Used
     availableLimit = fund.intraday.available_limit - fund.intraday.used_limit;
@@ -94,6 +109,14 @@ const postOrder = asyncHandler(async (req, res) => {
   } else {
     // Overnight: Decrease Available Limit (Direct Cut)
     fund.overnight.available_limit -= requiredMargin;
+  }
+
+  // Update Option Usage
+  if (isOption) {
+      console.log(`[OrderController] Updating Option Usage: Symbol=${symbol}, Product=${productNorm}, Margin=${requiredMargin}, Price=${price}`);
+      updateOptionUsage(fund, productNorm, requiredMargin);
+  } else {
+      console.log(`[OrderController] Not an Option: Symbol=${symbol}`);
   }
 
   await fund.save();
@@ -139,6 +162,14 @@ const postOrder = asyncHandler(async (req, res) => {
     } else {
       fund.overnight.available_limit += requiredMargin;
     }
+    
+    // Rollback Option Limit
+    const symUpperRollback = String(symbol).toUpperCase();
+    const isOptionRollback = (symUpperRollback.endsWith("CE") || symUpperRollback.endsWith("PE") || symUpperRollback.endsWith("CALL") || symUpperRollback.endsWith("PUT"));
+    if (isOptionRollback) {
+        rollbackOptionUsage(fund, productNorm, requiredMargin);
+    }
+
     await fund.save();
 
     return res
@@ -296,6 +327,23 @@ const updateOrder = asyncHandler(async (req, res) => {
                     message: `Insufficient Funds! Required: ${marginToDeduct.toFixed(2)}, Available: ${freeLimit.toFixed(2)}` 
                 });
             }
+
+            // --- 10% OPTION LIMIT CHECK (Update Scenario) ---
+            const exSymUpper = String(existing.symbol).toUpperCase();
+            const isOptionUpdate = (exSymUpper.endsWith("CE") || exSymUpper.endsWith("PE") || exSymUpper.endsWith("CALL") || exSymUpper.endsWith("PUT"));
+            if (isOptionUpdate) {
+                const limitCheck = checkOptionLimit(fund, currentProduct, marginToDeduct);
+                if (!limitCheck.allowed) {
+                    // Slight change: message might refer to "Required" which here implies "Additional Required"
+                     return res.status(400).json({ 
+                        success: false, 
+                        message: limitCheck.message.replace('Required:', 'Additional Required:')
+                    });
+                }
+                
+                updateOptionUsage(fund, currentProduct, marginToDeduct);
+            }
+            // -----------------------------------------------
 
             // *** UPDATE FUND ***
             if (isIntraday) {
