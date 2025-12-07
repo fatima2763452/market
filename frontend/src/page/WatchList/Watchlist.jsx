@@ -182,7 +182,7 @@ function Watchlist() {
 
   // Helper function to get proper exchange display name based on segment and instrument type
   const getExchangeDisplayName = (segment, instrumentType) => {
-    if (segment === 'NSE_EQ' || segment === 'BSE_EQ') return 'NSE Equity';
+
     if (segment === 'NSE_INDEX') return 'NSE Index';
     if (segment === 'BSE_INDEX') return 'BSE Index';
     if (segment === 'NSE_FNO') {
@@ -279,8 +279,12 @@ function Watchlist() {
 
     // 3. Close bottom window if selected
     if (selectedStock?.id === stock.id) setSelectedStock(null);
+    
+    // 4. Invalidate cache
+    sessionStorage.removeItem('watchlist_cache');
+    sessionStorage.removeItem('watchlist_cache_time');
 
-    // 4. Perform API Call in Background
+    // 5. Perform API Call in Background
     try {
       const canonKey = stock.canonKey || `${stock.exchange}|${stock.segment}|${stock.securityId}`;
       const activeContextString = localStorage.getItem('activeContext');
@@ -310,58 +314,95 @@ function Watchlist() {
   }, [apiBase, token, unsubscribe, selectedStock]);
 
 
-  // ... (Initial load useEffect - SAME AS BEFORE)
+  // ... (Initial load useEffect - OPTIMIZED WITH CACHING)
   useEffect(() => {
     if (!isConnected || loadingRef.current) return;
     loadingRef.current = true;
+    
     const loadAllInstruments = async () => {
+      const startTime = performance.now();
+      console.log('[Watchlist Load] Starting...');
+      
       try {
         setIsLoading(true);
         
-        // Fetch index instruments from dedicated endpoint
-        const indexRes = await fetch(`${apiBase}/api/instruments/indexes`, { credentials: "include" }).then(res => res.json());
+        // Try to get cached data first
+        const cachedWatchlist = sessionStorage.getItem('watchlist_cache');
+        const cachedIndexes = sessionStorage.getItem('indexes_cache');
+        const cacheTime = sessionStorage.getItem('watchlist_cache_time');
+        const now = Date.now();
+        const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+        
+        // Use cache if available and fresh (< 2 min old)
+        if (cachedWatchlist && cachedIndexes && cacheTime && (now - parseInt(cacheTime)) < CACHE_TTL) {
+          console.log('[Watchlist Load] Using cached data');
+          const formattedIndexes = JSON.parse(cachedIndexes);
+          const uniqueWatchlist = JSON.parse(cachedWatchlist);
+          
+          setIndexInstruments(formattedIndexes);
+          setStocks(uniqueWatchlist);
+          
+          // Subscribe in background
+          if (formattedIndexes.length > 0) subscribeAndSnapshot(formattedIndexes, 'quote');
+          if (uniqueWatchlist.length > 0) subscribeAndSnapshot(uniqueWatchlist, 'quote');
+          
+          setIsLoading(false);
+          const elapsed = performance.now() - startTime;
+          console.log(`[Watchlist Load] Completed from cache in ${elapsed.toFixed(0)}ms`);
+          return;
+        }
+        
+        const activeContextString = localStorage.getItem('activeContext');
+        const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
+        const brokerId = activeContext.brokerId;
+        const customerId = activeContext.customerId;
+        
+        // OPTIMIZATION: Fetch indexes and watchlist in parallel
+        const fetchStart = performance.now();
+        const [indexRes, watchlistResponse] = await Promise.all([
+          fetch(`${apiBase}/api/instruments/indexes`, { credentials: "include" }).then(res => res.json()),
+          fetch(`${apiBase}/api/watchlist/getWatchlist?broker_id_str=${brokerId}&customer_id_str=${customerId}`, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(res => {
+            if (!res.ok) throw new Error("Failed to fetch watchlist");
+            return res.json();
+          })
+        ]);
+        const fetchElapsed = performance.now() - fetchStart;
+        console.log(`[Watchlist Load] API calls completed in ${fetchElapsed.toFixed(0)}ms`);
+        
+        // Process indexes
         const nifty50Inst = indexRes.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
         const sensexInst = indexRes.find(i => i.securityId === "51" && i.segment === "BSE_INDEX");
         const indexInstrumentsRaw = [nifty50Inst, sensexInst].filter(Boolean);
         const formattedIndexes = formatInstruments(indexInstrumentsRaw);
         setIndexInstruments(formattedIndexes);
-
-        const activeContextString = localStorage.getItem('activeContext');
-        const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
-        const brokerId = activeContext.brokerId;
-        const customerId = activeContext.customerId;
-
-        const response = await fetch(`${apiBase}/api/watchlist/getWatchlist?broker_id_str=${brokerId}&customer_id_str=${customerId}`, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!response.ok) throw new Error("Failed to fetch watchlist");
-        const payload = await response.json();
-        const instrumentsArr = Array.isArray(payload) ? payload : (payload?.instruments || []);
+        
+        // Process watchlist
+        const instrumentsArr = Array.isArray(watchlistResponse) ? watchlistResponse : (watchlistResponse?.instruments || []);
         const formattedWatchlist = formatInstruments(instrumentsArr);
         const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(item => [item.id ?? item._id ?? item.securityId, item])).values());
-        
         setStocks(uniqueWatchlist);
         
-        // Subscribe NSE and BSE indexes separately to avoid segment conflicts
-        if (formattedIndexes.length > 0) {
-          const nseIndexes = formattedIndexes.filter(i => i.segment === 'NSE_INDEX');
-          const bseIndexes = formattedIndexes.filter(i => i.segment === 'BSE_INDEX');
-          
-          if (nseIndexes.length > 0) {
-            console.log('[INDEX SUB] NSE indexes with quote (should use response_code 4):', nseIndexes.map(i => `${i.segment}:${i.securityId}`));
-            await subscribeAndSnapshot(nseIndexes, 'quote');
-          }
-          if (bseIndexes.length > 0) {
-            console.log('[INDEX SUB] BSE indexes with quote (should use response_code 4):', bseIndexes.map(i => `${i.segment}:${i.securityId}`));
-            await subscribeAndSnapshot(bseIndexes, 'quote');
-          }
-        }
+        // Cache the results
+        sessionStorage.setItem('watchlist_cache', JSON.stringify(uniqueWatchlist));
+        sessionStorage.setItem('indexes_cache', JSON.stringify(formattedIndexes));
+        sessionStorage.setItem('watchlist_cache_time', now.toString());
+        console.log(`[Watchlist Load] Cached ${uniqueWatchlist.length} instruments`);
         
+        // Subscribe to market data
+        const subStart = performance.now();
+        if (formattedIndexes.length > 0) await subscribeAndSnapshot(formattedIndexes, 'quote');
         if (uniqueWatchlist.length > 0) await subscribeAndSnapshot(uniqueWatchlist, 'quote');
+        const subElapsed = performance.now() - subStart;
+        console.log(`[Watchlist Load] Subscriptions completed in ${subElapsed.toFixed(0)}ms`);
+        
+        const totalElapsed = performance.now() - startTime;
+        console.log(`[Watchlist Load] Total time: ${totalElapsed.toFixed(0)}ms`);
+        
       } catch (e) {
-        console.error("Failed to load:", e);
+        console.error("[Watchlist Load] Failed:", e);
       } finally {
         setIsLoading(false);
       }
@@ -465,34 +506,60 @@ function Watchlist() {
   // *** Segment Filter Logic ***
   const SEGMENT_FILTER_MAP = useMemo(() => ({
     all: null, // null means show all
-    index: ['NSE_INDEX', 'BSE_INDEX'],
-    equity: ['NSE_EQ', 'BSE_EQ'],
-    fno: ['NSE_FNO'],
-    commodity: ['MCX_COMM']
+    index: { segments: ['NSE_FNO'], types: ['FUTIDX', 'OPTIDX'] },
+    futures: { segments: ['NSE_FNO', 'MCX_COMM'], types: ['FUTSTK', 'FUTCOM', 'FUTCUR'] },
+    options: { segments: ['NSE_FNO'], types: ['OPTSTK', 'OPTFUT', 'OPTCUR'] }
   }), []);
 
   const filteredStocks = useMemo(() => {
     if (activeFilter === 'all') return stocks;
-    const allowedSegments = SEGMENT_FILTER_MAP[activeFilter];
-    if (!allowedSegments) return stocks;
-    return stocks.filter(stock => allowedSegments.includes(stock.segment));
+    const filterConfig = SEGMENT_FILTER_MAP[activeFilter];
+    if (!filterConfig) return stocks;
+    
+    // If filterConfig has segments and types (index/futures/options)
+    if (filterConfig.segments && filterConfig.types) {
+      return stocks.filter(stock => 
+        filterConfig.segments.includes(stock.segment) && 
+        filterConfig.types.includes(stock.instrumentType)
+      );
+    }
+    
+    // Legacy: just segment filter array (if needed)
+    if (Array.isArray(filterConfig)) {
+      return stocks.filter(stock => filterConfig.includes(stock.segment));
+    }
+    
+    return stocks;
   }, [stocks, activeFilter, SEGMENT_FILTER_MAP]);
 
   // Get count for each filter category
   const getFilterCount = useCallback((filterKey) => {
     if (filterKey === 'all') return stocks.length;
-    const allowedSegments = SEGMENT_FILTER_MAP[filterKey];
-    if (!allowedSegments) return 0;
-    return stocks.filter(stock => allowedSegments.includes(stock.segment)).length;
+    const filterConfig = SEGMENT_FILTER_MAP[filterKey];
+    if (!filterConfig) return 0;
+    
+    // If filterConfig has segments and types (index/futures/options)
+    if (filterConfig.segments && filterConfig.types) {
+      return stocks.filter(stock => 
+        filterConfig.segments.includes(stock.segment) && 
+        filterConfig.types.includes(stock.instrumentType)
+      ).length;
+    }
+    
+    // Legacy: just segment filter array (if needed)
+    if (Array.isArray(filterConfig)) {
+      return stocks.filter(stock => filterConfig.includes(stock.segment)).length;
+    }
+    
+    return 0;
   }, [stocks, SEGMENT_FILTER_MAP]);
 
   // Filter tabs configuration
   const FILTER_TABS = [
     { key: 'all', label: 'All' },
     { key: 'index', label: 'Index' },
-    { key: 'equity', label: 'Equity' },
-    { key: 'fno', label: 'F&O' },
-    { key: 'commodity', label: 'Commodity' }
+    { key: 'futures', label: 'Futures' },
+    { key: 'options', label: 'Options' }
   ];
 
   return (

@@ -1,28 +1,60 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
+// === CRITICAL TRADING PAGES - EAGER LOAD (0ms navigation) ===
 import LoginForm from "./page/Login/LoginForm.jsx";
 import RegistrationForm from "./page/Registration/RegistrationForm.jsx";
-import BrockerDetailPage from './page/User/BrockerDetailPage.jsx';
-import CustomerDetailsPage from './page/User/CutomerDetailPage.jsx';
-import RecycleBin from './page/User/RecycleBin.jsx';
 import Watchlist from './page/WatchList/Watchlist.jsx';
 import Layout from './page/Layout';
-import Portfolio from './page/Portfolio/Portfolio.jsx';
-import FundPage from "./page/Funds/FundView.jsx";
 import Orders from './page/Orders/Order.jsx';
-import Profile from './page/Profile/Profile.jsx';
 import SearchPage from './page/Search/SearchPage.jsx';
-import ChartPage from './page/Chart/ChartPage.jsx';
-import AdminRegistrations from './page/Admin/AdminRegistrations.jsx';
+
+// === SECONDARY PAGES - LAZY LOAD (preloaded after login) ===
+const Portfolio = lazy(() => import('./page/Portfolio/Portfolio.jsx'));
+const FundPage = lazy(() => import("./page/Funds/FundView.jsx"));
+const Profile = lazy(() => import('./page/Profile/Profile.jsx'));
+const ChartPage = lazy(() => import('./page/Chart/ChartPage.jsx'));
+
+// === ADMIN/RARE PAGES - LAZY LOAD (load on demand) ===
+const BrockerDetailPage = lazy(() => import('./page/User/BrockerDetailPage.jsx'));
+const CustomerDetailsPage = lazy(() => import('./page/User/CutomerDetailPage.jsx'));
+const RecycleBin = lazy(() => import('./page/User/RecycleBin.jsx'));
+const AdminRegistrations = lazy(() => import('./page/Admin/AdminRegistrations.jsx'));
+
 import { MarketDataProvider } from './contexts/MarketDataContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
+
+// Smart preload function - called after login to cache secondary pages
+export const preloadSecondaryPages = () => {
+  // Preload in background (non-blocking)
+  setTimeout(() => {
+    import('./page/Portfolio/Portfolio.jsx');
+    import('./page/Funds/FundView.jsx');
+    import('./page/Profile/Profile.jsx');
+    import('./page/Chart/ChartPage.jsx');
+  }, 1000); // Wait 1 second after login before preloading
+};
+
+// Minimal loading fallback (only for lazy-loaded pages)
+const PageLoader = () => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    background: 'var(--bg-primary)',
+    color: 'var(--text-primary)'
+  }}>
+    <div>Loading...</div>
+  </div>
+);
 
 function App() {
     return (
         <BrowserRouter>
             <ThemeProvider>
             <MarketDataProvider>
+                <Suspense fallback={<PageLoader />}>
                 <Routes>
                 <Route path="/" element={<LoginForm />} />
                 <Route path="/register" element={<RegistrationForm />} />
@@ -93,6 +125,7 @@ function App() {
                     element={<ChartPage />}
                 />
             </Routes>
+            </Suspense>
             </MarketDataProvider>
             </ThemeProvider>
         </BrowserRouter>

@@ -17,6 +17,24 @@ export default defineConfig({
                 ws: true
             }
         },
-      
+    },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    // Vendor chunks - separate large dependencies
+                    'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+                    'chart-vendor': ['lightweight-charts'],
+                    'socket-vendor': ['socket.io-client'],
+                    'framer-vendor': ['framer-motion'],
+                    
+                    // Only chunk lazy-loaded pages for code splitting
+                    'chart': ['./src/page/Chart/TradingChart.jsx'],
+                }
+            }
+        },
+        chunkSizeWarningLimit: 1000, // Increase limit to 1000kb temporarily
+        sourcemap: false, // Disable sourcemaps in production for smaller files
+        minify: 'esbuild', // Use esbuild (faster, built-in, no extra dependency)
     }
 });

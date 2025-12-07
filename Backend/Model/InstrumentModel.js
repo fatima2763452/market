@@ -24,6 +24,7 @@ const InstrumentSchema = new mongoose.Schema({
 
 InstrumentSchema.index({ segment: 1, underlying_symbol: 1, expiry: 1, strike: 1, optionType: 1 });
 InstrumentSchema.index({ segment: 1, tradingsymbol: 1 });
+InstrumentSchema.index({ canon_key: 1 }, { unique: true }); // Optimized for watchlist batch lookups
 
 const Instrument = mongoose.model("Instrument", InstrumentSchema, "instruments");
 export default Instrument;

@@ -205,6 +205,10 @@ function SearchPage() {
       });
       
       if (response.ok) {
+        // Invalidate watchlist cache so it reloads fresh data
+        sessionStorage.removeItem('watchlist_cache');
+        sessionStorage.removeItem('watchlist_cache_time');
+        
         // *** Show Success Popup ***
         showToast(`${stock.tradingSymbol} added to watchlist!`, "success");
       } else {

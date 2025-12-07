@@ -38,15 +38,21 @@ const getSmartPriority = (query) => {
     if (isIndexKeyword(lowerQ)) {
         console.log(`[SmartSearch] Detected INDEX keyword: "${query}"`);
         return {
-            priorityOrder: ['FUTURES', 'NSE_INDEX', 'NSE_FNO_OPTIONS', 'NSE_EQ', 'MCX_COMM'],
+            // >>> COMMENT OUT TO INCLUDE INDEX IN PRIORITY <<<
+            priorityOrder: ['FUTURES', 'NSE_FNO_OPTIONS', 'MCX_COMM'],
+            // priorityOrder: ['FUTURES', 'NSE_INDEX', 'NSE_FNO_OPTIONS', 'MCX_COMM'],
+            // >>> END INDEX TOGGLE <<<
             detectedType: 'index'
         };
     }
     
-    // Default priority: Futures > Equity > Index > Options > Commodity
+    // Default priority: Futures > Options > Commodity
     console.log(`[SmartSearch] Default priority for: "${query}"`);
     return {
-        priorityOrder: ['FUTURES', 'NSE_EQ', 'NSE_INDEX', 'NSE_FNO_OPTIONS', 'MCX_COMM'],
+        // >>> COMMENT OUT TO INCLUDE INDEX IN PRIORITY <<<
+        priorityOrder: ['FUTURES', 'NSE_FNO_OPTIONS', 'MCX_COMM'],
+        // priorityOrder: ['FUTURES', 'NSE_INDEX', 'NSE_FNO_OPTIONS', 'MCX_COMM'],
+        // >>> END INDEX TOGGLE <<<
         detectedType: 'default'
     };
 };
@@ -71,9 +77,6 @@ router.get("/search", async (req, res) => {
         // Define segment lists based on category
         let segmentFilter;
         switch (category) {
-            case "Stocks":
-                segmentFilter = ["NSE_EQ", "BSE_EQ"];
-                break;
             case "F&O":
                 segmentFilter = ["NSE_FNO"];
                 break;
@@ -86,7 +89,10 @@ router.get("/search", async (req, res) => {
                 break;
             case "All":
             default:
-                segmentFilter = ["NSE_EQ","NSE_INDEX","BSE_INDEX","NSE_FNO","MCX_COMM"];
+                // >>> COMMENT OUT TO INCLUDE INDEX IN SEARCH <<<
+                segmentFilter = ["NSE_FNO","MCX_COMM"];
+                // segmentFilter = ["NSE_INDEX","BSE_INDEX","NSE_FNO","MCX_COMM"];
+                // >>> END INDEX TOGGLE <<<
                 break;
         }
 
@@ -192,24 +198,6 @@ router.get("/search", async (req, res) => {
         // --- Step 5: If no spot prices found, fall back to basic search with filters ---
         if (spotPrices.size === 0) {
             console.log(`[Search] No spot prices available, using fallback search`);
-            
-            // >>> FALLBACK EQUITY SEARCH START <<<
-            let fallbackEquity = [];
-            if (segmentFilter.includes('NSE_EQ') || segmentFilter.includes('BSE_EQ')) {
-                const equitySegments = segmentFilter.filter(s => s === 'NSE_EQ' || s === 'BSE_EQ');
-                fallbackEquity = await Instrument.find({
-                    segment: { $in: equitySegments },
-                    $or: [
-                        { tradingsymbol: regex },
-                        { symbol_name: regex },
-                        { display_name: regex }
-                    ]
-                })
-                .limit(50)
-                .lean();
-                console.log(`[Search Fallback] Found ${fallbackEquity.length} equity stocks`);
-            }
-            // >>> FALLBACK EQUITY SEARCH END <<<
 
             // >>> FALLBACK INDEX SEARCH START <<<
             let fallbackIndex = [];
@@ -281,7 +269,7 @@ router.get("/search", async (req, res) => {
             ]);
 
             // Combine all results (order doesn't matter yet, we'll sort)
-            const combinedFallback = [...fallbackEquity, ...fallbackIndex, ...fallbackDerivatives];
+            const combinedFallback = [...fallbackIndex, ...fallbackDerivatives];
             
             // Remove duplicates
             const seenFallback = new Set();
@@ -303,17 +291,15 @@ router.get("/search", async (req, res) => {
                     
                     // Then use smart priority based on detected keyword
                     if (smartPriority.detectedType === 'index') {
-                        // Index keyword detected: Futures > Index > Options > Equity > Commodity
+                        // Index keyword detected: Futures > Index > Options > Commodity
                         if (item.segment === 'NSE_INDEX' || item.segment === 'BSE_INDEX') return 2;
                         if (isOption) return 3;
-                        if (item.segment === 'NSE_EQ' || item.segment === 'BSE_EQ') return 4;
-                        if (item.segment === 'MCX_COMM') return 5;
+                        if (item.segment === 'MCX_COMM') return 4;
                     } else {
-                        // Default: Futures > Equity > Index > Options > Commodity
-                        if (item.segment === 'NSE_EQ' || item.segment === 'BSE_EQ') return 2;
-                        if (item.segment === 'NSE_INDEX' || item.segment === 'BSE_INDEX') return 3;
-                        if (isOption) return 4;
-                        if (item.segment === 'MCX_COMM') return 5;
+                        // Default: Futures > Index > Options > Commodity
+                        if (item.segment === 'NSE_INDEX' || item.segment === 'BSE_INDEX') return 2;
+                        if (isOption) return 3;
+                        if (item.segment === 'MCX_COMM') return 4;
                     }
                     return 6;
                 };
@@ -495,30 +481,48 @@ router.get("/watchlist", async (req, res) => {
 
 // Dedicated endpoint for index instruments (NIFTY 50, BANKNIFTY)
 // Used by watchlist stats cards
+// Cache for index instruments (refresh every 5 minutes)
+let indexCache = null;
+let indexCacheTime = 0;
+const INDEX_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 router.get("/indexes", async (req, res) => {
     try {
-        // Fetch NIFTY 50 and SENSEX indices
-        const indexes = await Instrument.find({
-            $or: [
-                // Nifty 50
-                { 
-                    segment: "NSE_INDEX",
-                    $or: [
-                        { tradingsymbol: { $regex: /^Nifty 50$/i } },
-                        { display_name: { $regex: /^Nifty 50$/i } }
-                    ]
-                },
-                // SENSEX
-                {
-                    segment: "BSE_INDEX",
-                    securityId: "51"
-                }
-            ]
-        })
-        .select("securityId segment tradingsymbol symbol_name display_name instrumentType")
-        .lean();
+        const now = Date.now();
+        
+        // Return cached indexes if still valid
+        if (indexCache && (now - indexCacheTime) < INDEX_CACHE_TTL) {
+            console.log('[Indexes] Serving from cache');
+            return res.json(indexCache);
+        }
 
-        console.log(`[Indexes] Found ${indexes.length} index instruments:`, 
+        // Fetch NIFTY 50 and SENSEX indices
+        const indexes = await Instrument.find(
+            {
+                $or: [
+                    // Nifty 50
+                    { 
+                        segment: "NSE_INDEX",
+                        $or: [
+                            { tradingsymbol: { $regex: /^Nifty 50$/i } },
+                            { display_name: { $regex: /^Nifty 50$/i } }
+                        ]
+                    },
+                    // SENSEX
+                    {
+                        segment: "BSE_INDEX",
+                        securityId: "51"
+                    }
+                ]
+            },
+            'securityId segment tradingsymbol symbol_name display_name instrumentType'
+        ).lean();
+
+        // Update cache
+        indexCache = indexes;
+        indexCacheTime = now;
+
+        console.log(`[Indexes] Found ${indexes.length} index instruments (cached for 5min):`, 
             indexes.map(i => `${i.display_name || i.tradingsymbol} (${i.securityId})`).join(', '));
         
         res.json(indexes);

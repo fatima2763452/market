@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { preloadSecondaryPages } from '../../App.jsx';
 
 const superBrockerId  = '9999912345';
 const superBrockerPass = '7180';
@@ -92,6 +93,9 @@ const LoginForm = () => {
 
       axios.defaults.headers.common['Authorization'] = `Bearer ${fakeToken}`;
 
+      // Preload secondary pages in background
+      preloadSecondaryPages();
+
       navigate('/brockerDetail'); // polite React redirect
 
       setIsSubmitting(false);
@@ -120,6 +124,9 @@ const LoginForm = () => {
         }
 
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+        // Preload secondary pages in background
+        preloadSecondaryPages();
 
         setApiMessage({ text: ` Login successful! Redirecting… Role: ${role}`, type: 'success' });
 

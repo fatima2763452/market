@@ -10,7 +10,8 @@ const router = express.Router();
 // @access  Private
 // GET /api/watchlist
 router.get("/getWatchlist", protect, async (req, res) => {
-      console.log('wathclist api hit')
+  const startTime = Date.now();
+  console.log('[Watchlist API] Request received');
 
   try {
     // Read from query
@@ -20,11 +21,11 @@ router.get("/getWatchlist", protect, async (req, res) => {
       return res.status(400).json({ message: "broker_id_str and customer_id_str required" });
     }
 
-    // FIND WATCHLIST USING broker + customer
+    // FIND WATCHLIST USING broker + customer (optimized with lean)
     let watchlist = await UserWatchlist.findOne({
       broker_id_str: broker_id_str,
       customer_id_str: customer_id_str
-    });
+    }).select('instruments').lean();
 
     // If no watchlist found → create one
     if (!watchlist) {
@@ -36,9 +37,14 @@ router.get("/getWatchlist", protect, async (req, res) => {
     }
 
     // Return instrument docs of all canon_keys in watchlist
-    const instruments = await Instrument.find({
-      canon_key: { $in: watchlist.instruments || [] }
-    }).lean();
+    // Optimized: Only select needed fields, use lean() for speed
+    const instruments = await Instrument.find(
+      { canon_key: { $in: watchlist.instruments || [] } },
+      'canon_key exchange segment securityId tradingsymbol symbol_name display_name underlying_symbol instrumentType optionType strike expiry lotSize tickSize'
+    ).lean();
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[Watchlist API] Loaded ${instruments.length} instruments in ${elapsed}ms`);
 
     return res.json({ success: true, instruments });
 

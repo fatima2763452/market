@@ -11,7 +11,7 @@ import { loadDhanConfig, config } from "./config.js";
 import { stockSquareoffScheduler } from './cron/Scheduler/cron-squareoff.js';
 import { getDhanCredentials } from './services/dhanCredentialService.js';
 import FundCronJobs from './cron/FundScheduler/fundCorn.js';
-import {logMarketStatus } from '../frontend/src/Utils/marketStatus.js'
+import { isMarketOpen } from './Utils/marketStatus.js';
 
 // 👇 1. IMPORT ORDER MANAGER
 import { loadOpenOrders } from './Utils/OrderManager.js';
@@ -82,7 +82,7 @@ server.listen(PORT, async () => {
     console.warn("⚠️  No credentials found in database.");
   }
   FundCronJobs();
-  console.log(logMarketStatus());
+  console.log(`[Market Status] ${isMarketOpen() ? "🟢 OPEN" : "🔴 CLOSED"}`);
   stockSquareoffScheduler();
   // Start the cron job for automatic token renewal
   startTokenRenewalCron();
