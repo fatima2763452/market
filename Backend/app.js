@@ -4,6 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import helmet from "helmet";
+import compression from "compression";
 import { config } from "./config.js";
 
 // Routes
@@ -50,20 +51,8 @@ export function createApp() {
   // Security headers
   app.use(helmet());
 
-  // Response compression for API responses (reduces payload size by ~70%)
-  // Compresses JSON responses > 1KB
-  app.use((req, res, next) => {
-    const originalJson = res.json;
-    res.json = function(data) {
-      // Only compress if client accepts gzip
-      const acceptEncoding = req.headers['accept-encoding'] || '';
-      if (acceptEncoding.includes('gzip')) {
-        res.setHeader('Content-Encoding', 'gzip');
-      }
-      return originalJson.call(this, data);
-    };
-    next();
-  });
+  // GZIP compression - reduces payload size by ~70% (improves load time)
+  app.use(compression({ threshold: 1024 })); // Only compress responses > 1KB
 
   app.set("trust proxy", 1); // Essential for Cloudflare Tunnel to pass correct IPs
   app.use(cookieParser());
@@ -111,7 +100,17 @@ export function createApp() {
   app.use("/api/funds", fundRoute);
   app.use("/api/registration", registrationRoute); // Public - no auth required
 
-
+  // Version endpoint for cache busting - INCREMENT VERSION ON EVERY DEPLOYMENT
+  const APP_VERSION = '1.0.1';
+  app.get("/api/version", (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.json({ 
+      version: APP_VERSION,
+      serverTime: new Date().toISOString()
+    });
+  });
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
 

@@ -167,7 +167,16 @@ async function run() {
 
         if (!SECURITY_ID) return;
 
-        if (EXCH_ID === "BSE" && CSV_SEGMENT !== "I") return;
+        // Filter BSE: keep only BSE_INDEX (I) and BSE_FNO (D)
+        if (EXCH_ID === "BSE" && CSV_SEGMENT !== "I" && CSV_SEGMENT !== "D") return;
+
+        // For BSE_FNO (segment D), only keep index derivatives (FUTIDX, OPTIDX)
+        const INSTRUMENT_TYPE = String(r.INSTRUMENT || "").toUpperCase();
+        if (EXCH_ID === "BSE" && CSV_SEGMENT === "D") {
+          if (INSTRUMENT_TYPE !== "FUTIDX" && INSTRUMENT_TYPE !== "OPTIDX") {
+            return; // Skip BSE stock derivatives (FUTSTK, OPTSTK)
+          }
+        }
 
         let segmentNorm;
         //if (EXCH_ID === "NSE" && CSV_SEGMENT === "E") segmentNorm = "NSE_EQ";
@@ -175,6 +184,7 @@ async function run() {
         else if (EXCH_ID === "NSE" && CSV_SEGMENT === "I") segmentNorm = "NSE_INDEX";
         else if (EXCH_ID === "NSE" && CSV_SEGMENT === "M") segmentNorm = "NSE_M";
         else if (EXCH_ID === "BSE" && CSV_SEGMENT === "I") segmentNorm = "BSE_INDEX";
+        else if (EXCH_ID === "BSE" && CSV_SEGMENT === "D") segmentNorm = "BSE_FNO";
         else if (EXCH_ID === "MCX" && CSV_SEGMENT === "M") segmentNorm = "MCX_COMM";
         else return;
 

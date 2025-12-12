@@ -30,13 +30,13 @@ function StockChart({ symbol, tradingSymbol }) {
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [isInitialized, setIsInitialized] = useState(false);
   const [liveCandle, setLiveCandle] = useState(null); // Current candle being built from live ticks
-  
+
   // Refs for tracking
   const lastCandleTimeRef = useRef(null);
   const isSubscribedRef = useRef(false);
-  
+
   // Get live market data
-  const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
+  const { ticksRef, subscribe, unsubscribe, isConnected } = useMarketData();
 
   // Display name for chart title
   const displayName = tradingSymbol || symbol.split("|")[1] || symbol;
@@ -48,10 +48,10 @@ function StockChart({ symbol, tradingSymbol }) {
   const getDefaultDateRange = useCallback((intervalConfig) => {
     const today = new Date();
     const from = new Date(today);
-    
+
     // Use default days from interval config
     from.setDate(today.getDate() - intervalConfig.days);
-    
+
     return {
       from: from.toISOString().slice(0, 10),
       to: today.toISOString().slice(0, 10)
@@ -70,13 +70,13 @@ function StockChart({ symbol, tradingSymbol }) {
   // Format date for API based on interval type
   const formatDateForAPI = (date, isStartDate = false) => {
     const d = new Date(date);
-    
+
     if (currentInterval.type === 'intraday') {
       // Intraday requires "YYYY-MM-DD HH:MM:SS" format
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      
+
       // Set time: 09:15:00 for start, 15:30:00 for end
       const time = isStartDate ? '09:15:00' : '15:30:00';
       return `${year}-${month}-${day} ${time}`;
@@ -92,7 +92,7 @@ function StockChart({ symbol, tradingSymbol }) {
       const fromDate = new Date(from);
       const toDate = new Date(to);
       const daysDiff = (toDate - fromDate) / (1000 * 60 * 60 * 24);
-      
+
       if (daysDiff > 90) {
         return { valid: false, message: 'Intraday data is limited to 90 days. Please select a shorter range.' };
       }
@@ -124,7 +124,7 @@ function StockChart({ symbol, tradingSymbol }) {
 
         let url;
         const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
-        
+
         if (currentInterval.type === 'intraday') {
           // Use intraday endpoint
           url = `${baseUrl}/api/chart/getIntradayData?symbol=${encodeURIComponent(
@@ -197,7 +197,7 @@ function StockChart({ symbol, tradingSymbol }) {
     }];
 
     console.log('[StockChart] Subscribing to live data:', subscription);
-    
+
     // Subscribe to live ticks
     subscribe(subscription, 'full').catch(err => {
       console.warn('[StockChart] Subscribe failed:', err);
@@ -216,78 +216,104 @@ function StockChart({ symbol, tradingSymbol }) {
     };
   }, [symbol, isConnected, subscribe, unsubscribe, candles.length]);
 
+  // Use ref for candles to access latest data in interval without restarting it
+  const candlesRef = useRef(candles);
+  useEffect(() => {
+    candlesRef.current = candles;
+  }, [candles]);
+
   // Process live ticks and update current candle
   useEffect(() => {
-    if (!candles || candles.length === 0 || currentInterval.type === 'daily') return;
+    if (currentInterval.type === 'daily') return;
 
     const [segment, securityId] = symbol.split('|');
     if (!segment || !securityId) return;
 
     // Map segment to numeric format for ticks
     const segmentMap = {
-      "IDX_I": 0,
-      "NSE_EQ": 1,
-      "NSE_FNO": 2,
-      "NSE_CURRENCY": 3,
-      "BSE_EQ": 4,
-      "BSE_CURRENCY": 5,
-      "MCX_COMM": 5,
-      "NSE_INDEX": 0,
+      "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3,
+      "BSE_EQ": 4, "BSE_CURRENCY": 7, "MCX_COMM": 5, "NSE_INDEX": 0, "BSE_INDEX": 0, "BSE_FNO": 8
     };
 
     const numericSegment = segmentMap[segment];
     const tickKey = `${numericSegment}-${securityId}`;
-    const tick = ticks.get(tickKey);
 
-    if (!tick || !tick.ltp) return;
+    const updateLoop = () => {
+      if (!ticksRef.current) return;
+      const tick = ticksRef.current.get(tickKey);
+      if (!tick || !tick.ltp) return;
 
-    const lastCandle = candles[candles.length - 1];
-    if (!lastCandle) return;
+      const currentCandles = candlesRef.current;
+      if (!currentCandles || currentCandles.length === 0) return;
 
-    const lastCandleTime = lastCandle.x.getTime();
-    const intervalMs = Number(selectedInterval) * 60 * 1000; // Convert minutes to milliseconds
-    const now = Date.now();
+      const lastCandle = currentCandles[currentCandles.length - 1];
+      if (!lastCandle) return;
 
-    // Check if this tick belongs to the last candle or a new one
-    const timeSinceLastCandle = now - lastCandleTime;
-    
-    if (timeSinceLastCandle < intervalMs) {
-      // Update existing candle
-      const updatedCandle = {
-        x: lastCandle.x,
-        y: [
-          lastCandle.y[0], // Keep original open
-          Math.max(lastCandle.y[1], tick.ltp), // Update high
-          Math.min(lastCandle.y[2], tick.ltp), // Update low
-          tick.ltp // Update close to current LTP
-        ],
-        volume: tick.volume || lastCandle.volume
-      };
-      
-      setLiveCandle(updatedCandle);
-    } else if (timeSinceLastCandle >= intervalMs && timeSinceLastCandle < intervalMs * 2) {
-      // Create new candle for current interval
-      const newCandleTime = new Date(lastCandleTime + intervalMs);
-      const newCandle = {
-        x: newCandleTime,
-        y: [tick.ltp, tick.ltp, tick.ltp, tick.ltp], // Open, High, Low, Close all start at LTP
-        volume: tick.volume || 0
-      };
-      
-      setLiveCandle(newCandle);
-      lastCandleTimeRef.current = newCandleTime.getTime();
-    }
-  }, [ticks, candles, symbol, selectedInterval, currentInterval.type]);
+      const lastCandleTime = lastCandle.x.getTime();
+      const intervalMs = Number(selectedInterval) * 60 * 1000;
+      const now = Date.now();
+      const timeSinceLastCandle = now - lastCandleTime;
 
+      if (timeSinceLastCandle < intervalMs) {
+        // Update existing candle
+        setLiveCandle(prev => {
+          // If we already have a live candle, base it on that, else base on last historical
+          // But wait, lastCandle IS the historical one.
+          // If we are "updating existing", we are effectively modifying the last candle relative to itself.
+          // ApexCharts expects us to replace the last point.
+
+          // Construct the "new" version of the last candle
+          // We need to know if 'prev' corresponds to the same timeslot
+          return {
+            x: lastCandle.x,
+            y: [
+              lastCandle.y[0],
+              Math.max(prev?.y?.[1] ?? lastCandle.y[1], tick.ltp),
+              Math.min(prev?.y?.[2] ?? lastCandle.y[2], tick.ltp),
+              tick.ltp
+            ],
+            volume: (tick.volume || lastCandle.volume)
+          };
+        });
+      } else if (timeSinceLastCandle >= intervalMs && timeSinceLastCandle < intervalMs * 2) {
+        // Create new candle
+        const newCandleTime = new Date(lastCandleTime + intervalMs);
+        setLiveCandle(prev => {
+          if (prev && prev.x.getTime() === newCandleTime.getTime()) {
+            // Update the *new* candle we are building
+            return {
+              x: newCandleTime,
+              y: [
+                prev.y[0],
+                Math.max(prev.y[1], tick.ltp),
+                Math.min(prev.y[2], tick.ltp),
+                tick.ltp
+              ],
+              volume: (tick.volume || 0)
+            };
+          }
+          // Init new candle
+          return {
+            x: newCandleTime,
+            y: [tick.ltp, tick.ltp, tick.ltp, tick.ltp],
+            volume: tick.volume || 0
+          };
+        });
+      }
+    };
+
+    const intervalId = setInterval(updateLoop, 1000);
+    return () => clearInterval(intervalId);
+  }, [symbol, selectedInterval, currentInterval.type]);
   // Merge live candle with historical candles
   const displayCandles = React.useMemo(() => {
     if (!liveCandle || candles.length === 0) return candles;
-    
+
     // Check if live candle is updating the last candle or adding a new one
     const lastCandle = candles[candles.length - 1];
     const lastCandleTime = lastCandle.x.getTime();
     const liveCandleTime = liveCandle.x.getTime();
-    
+
     if (liveCandleTime === lastCandleTime) {
       // Update last candle
       return [...candles.slice(0, -1), liveCandle];
@@ -295,7 +321,7 @@ function StockChart({ symbol, tradingSymbol }) {
       // Append new candle
       return [...candles, liveCandle];
     }
-    
+
     return candles;
   }, [candles, liveCandle]);
 
@@ -318,16 +344,16 @@ function StockChart({ symbol, tradingSymbol }) {
       background: "#1A1F30",
       foreColor: "#ccc",
       height: 400,
-      toolbar: { 
-        show: true, 
-        tools: { 
-          download: true, 
+      toolbar: {
+        show: true,
+        tools: {
+          download: true,
           zoom: true,
           zoomin: true,
           zoomout: true,
           pan: true,
           reset: true
-        } 
+        }
       },
       zoom: {
         enabled: true,
@@ -351,7 +377,7 @@ function StockChart({ symbol, tradingSymbol }) {
     },
     xaxis: {
       type: "datetime",
-      labels: { 
+      labels: {
         style: { colors: "#aaa" },
         datetimeFormatter: {
           year: 'yyyy',
@@ -363,7 +389,7 @@ function StockChart({ symbol, tradingSymbol }) {
     },
     yaxis: {
       tooltip: { enabled: true },
-      labels: { 
+      labels: {
         style: { colors: "#aaa" },
         formatter: (val) => `₹${val?.toFixed(2) || 0}`
       },
@@ -385,7 +411,7 @@ function StockChart({ symbol, tradingSymbol }) {
     },
     tooltip: {
       theme: "dark",
-      x: { 
+      x: {
         show: true,
         format: currentInterval.type === 'intraday' ? 'dd MMM HH:mm' : 'dd MMM yyyy'
       },
@@ -410,7 +436,7 @@ function StockChart({ symbol, tradingSymbol }) {
       foreColor: "#ccc",
       height: 150,
       toolbar: { show: false },
-      animations: { 
+      animations: {
         enabled: false,
         dynamicAnimation: {
           enabled: false
@@ -418,7 +444,7 @@ function StockChart({ symbol, tradingSymbol }) {
       },
     },
     plotOptions: {
-      bar: { 
+      bar: {
         columnWidth: candles.length > 100 ? "95%" : candles.length > 50 ? "90%" : "80%",
         borderRadius: 2,
         colors: {
@@ -438,7 +464,7 @@ function StockChart({ symbol, tradingSymbol }) {
       labels: { show: false },
     },
     yaxis: {
-      labels: { 
+      labels: {
         style: { colors: "#aaa" },
         formatter: (val) => {
           if (val >= 10000000) return `${(val / 10000000).toFixed(1)}Cr`;
@@ -469,11 +495,11 @@ function StockChart({ symbol, tradingSymbol }) {
   // Handle interval change
   const handleIntervalChange = (interval) => {
     if (interval === selectedInterval) return; // Prevent unnecessary updates
-    
+
     setSelectedInterval(interval);
     setCandles([]); // Clear old candles immediately
     setLoading(true);
-    
+
     // Get new interval config and set appropriate date range
     const newInterval = INTERVALS.find(i => i.value === interval) || INTERVALS[1];
     const defaults = getDefaultDateRange(newInterval);
@@ -528,11 +554,10 @@ function StockChart({ symbol, tradingSymbol }) {
             <button
               key={interval.value}
               onClick={() => handleIntervalChange(interval.value)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                selectedInterval === interval.value
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-transparent text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${selectedInterval === interval.value
+                ? 'bg-indigo-600 text-white'
+                : 'bg-transparent text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               {interval.label}
             </button>

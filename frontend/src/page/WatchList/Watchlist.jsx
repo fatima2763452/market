@@ -48,7 +48,7 @@ const IndexCard = ({ name, price, change, isPositive }) => {
 
 
   const defaultColor = isPositive ? "text-green-400" : "text-red-400";
-  
+
   const priceColor = flashColor || defaultColor;
 
   // Arrow icon logic    
@@ -63,12 +63,12 @@ const IndexCard = ({ name, price, change, isPositive }) => {
         </div>
         <div className="text-right">
           {/* Price with Flash Effect */}
-          <p 
+          <p
             className={`font-bold text-sm md:text-base transition-all duration-200 ${priceColor}`}
           >
             {price}
           </p>
-          
+
           {/* Percentage Change */}
           <p className={`text-[10px] md:text-xs font-medium ${defaultColor}`}>
             {arrow} {change}%
@@ -85,13 +85,13 @@ const SwipeableWatchlistItem = ({
 }) => {
   // Destructure price data
   const { ltp, netChange, percentChange, isPositive, volume, close } = priceData;
-  
+
   const priceColor = isPositive === true ? "text-green-400" : isPositive === false ? "text-red-400" : "text-gray-400";
   const formattedPrice = ltp == null ? "—" : `₹${Number(ltp).toFixed(2)}`;
   const formattedNetChange = netChange == null ? "—" : `${netChange > 0 ? "+" : ""}${Number(netChange).toFixed(2)}`;
   const formattedPercentChange = percentChange == null ? "—" : `(${percentChange > 0 ? "+" : ""}${Number(percentChange).toFixed(2)}%)`;
   const formattedVolume = volume ? `${(Number(volume) / 100000).toFixed(2)}L` : "—";
-  const formattedClose = close ? `Close: ₹${Number(close).toFixed(2)}` : ""; 
+  const formattedClose = close ? `Close: ₹${Number(close).toFixed(2)}` : "";
 
   // Motion values for swipe effect
   const x = useMotionValue(0);
@@ -101,7 +101,7 @@ const SwipeableWatchlistItem = ({
   return (
     <div className="relative overflow-hidden rounded-lg mb-2">
       {/* Background Layer (Red with Delete Icon) */}
-      <motion.div 
+      <motion.div
         style={{ opacity: bgOpacity }}
         className="absolute inset-y-0 right-0 w-full bg-red-600/20 rounded-lg flex items-center justify-end pr-6 z-0"
       >
@@ -123,8 +123,8 @@ const SwipeableWatchlistItem = ({
         style={{ x, backgroundColor: "var(--bg-secondary)" }}
         className="relative z-10 border border-[var(--border-color)] p-3 rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
         onClick={() => {
-            // Prevent click if user was dragging
-            if (x.get() === 0) onClick();
+          // Prevent click if user was dragging
+          if (x.get() === 0) onClick();
         }}
       >
         <div className="flex justify-between items-center w-full pointer-events-none"> {/* pointer-events-none helps drag work smoothly on text */}
@@ -150,7 +150,7 @@ const SwipeableWatchlistItem = ({
 function Watchlist() {
   // ... (State and Context logic same as before)
   const token = (typeof window !== "undefined" && localStorage.getItem("token")) || null;
-  const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
+  const { ticksRef, subscribe, unsubscribe, isConnected } = useMarketData();
   const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
 
   const [stocks, setStocks] = useState([]);
@@ -190,6 +190,11 @@ function Watchlist() {
       if (['OPTIDX', 'OPTSTK'].includes(instrumentType)) return 'NSE Options';
       return 'NSE F&O';
     }
+    if (segment === 'BSE_FNO') {
+      if (instrumentType === 'FUTIDX') return 'BSE Index Futures';
+      if (instrumentType === 'OPTIDX') return 'BSE Index Options';
+      return 'BSE F&O';
+    }
     if (segment === 'MCX_COMM') {
       if (instrumentType === 'FUTCOM') return 'MCX Futures';
       if (instrumentType === 'OPTFUT') return 'MCX Options';
@@ -223,6 +228,11 @@ function Watchlist() {
     if (!instrumentList || instrumentList.length === 0) return;
     const subs = instrumentList.map(p => ({ segment: p.segment, securityId: p.securityId }));
     try { await subscribe(subs, subscriptionType); } catch (e) { console.warn(e); }
+    
+    // Small delay to allow first WebSocket tick to arrive before snapshot
+    // This improves snapshot quality as data may already be in LMF cache
+    await new Promise(r => setTimeout(r, 50));
+    
     try {
       const r = await fetch(`${apiBase}/api/quotes/snapshot`, {
         method: "POST",
@@ -241,11 +251,11 @@ function Watchlist() {
     if (openedInstrumentRef.current?.key === instrumentKey) return;
     isUpgradingRef.current = true;
     const sub = [{ segment: instrument.segment, securityId: instrument.securityId }];
-    try { await unsubscribe(sub, 'quote'); } catch (e) {}
+    try { await unsubscribe(sub, 'quote'); } catch (e) { }
     try {
       await subscribe(sub, 'full');
       openedInstrumentRef.current = { ...instrument, key: instrumentKey };
-    } catch (e) {}
+    } catch (e) { }
     try {
       const r = await fetch(`${apiBase}/api/quotes/snapshot`, {
         method: "POST",
@@ -255,15 +265,15 @@ function Watchlist() {
       });
       const map = r.ok ? await r.json() : {};
       setSnapshots(prev => ({ ...prev, ...map }));
-    } catch (e) {} finally { isUpgradingRef.current = false; }
+    } catch (e) { } finally { isUpgradingRef.current = false; }
   }, [subscribe, unsubscribe, apiBase, token]);
 
   const handleDowngradeToQuote = useCallback(async () => {
     const instrument = openedInstrumentRef.current;
     if (!instrument) return;
     const sub = [{ segment: instrument.segment, securityId: instrument.securityId }];
-    try { await unsubscribe(sub, 'full'); } catch (e) {}
-    try { await subscribe(sub, 'quote'); openedInstrumentRef.current = null; } catch (e) {}
+    try { await unsubscribe(sub, 'full'); } catch (e) { }
+    try { await subscribe(sub, 'quote'); openedInstrumentRef.current = null; } catch (e) { }
   }, [subscribe, unsubscribe]);
 
 
@@ -273,13 +283,13 @@ function Watchlist() {
 
     // 1. Immediately remove from UI (Optimistic Update) - "Thoda jaldi aana chahiye"
     setStocks(prev => prev.filter(s => s.id !== stock.id));
-    
+
     // 2. Show Toast Immediately
     showToast(`Stock removed successfully`, "success");
 
     // 3. Close bottom window if selected
     if (selectedStock?.id === stock.id) setSelectedStock(null);
-    
+
     // 4. Invalidate cache
     sessionStorage.removeItem('watchlist_cache');
     sessionStorage.removeItem('watchlist_cache_time');
@@ -318,45 +328,45 @@ function Watchlist() {
   useEffect(() => {
     if (!isConnected || loadingRef.current) return;
     loadingRef.current = true;
-    
+
     const loadAllInstruments = async () => {
       const startTime = performance.now();
       console.log('[Watchlist Load] Starting...');
-      
+
       try {
         setIsLoading(true);
-        
+
         // Try to get cached data first
         const cachedWatchlist = sessionStorage.getItem('watchlist_cache');
         const cachedIndexes = sessionStorage.getItem('indexes_cache');
         const cacheTime = sessionStorage.getItem('watchlist_cache_time');
         const now = Date.now();
         const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-        
+
         // Use cache if available and fresh (< 2 min old)
         if (cachedWatchlist && cachedIndexes && cacheTime && (now - parseInt(cacheTime)) < CACHE_TTL) {
           console.log('[Watchlist Load] Using cached data');
           const formattedIndexes = JSON.parse(cachedIndexes);
           const uniqueWatchlist = JSON.parse(cachedWatchlist);
-          
+
           setIndexInstruments(formattedIndexes);
           setStocks(uniqueWatchlist);
-          
+
           // Subscribe in background
           if (formattedIndexes.length > 0) subscribeAndSnapshot(formattedIndexes, 'quote');
           if (uniqueWatchlist.length > 0) subscribeAndSnapshot(uniqueWatchlist, 'quote');
-          
+
           setIsLoading(false);
           const elapsed = performance.now() - startTime;
           console.log(`[Watchlist Load] Completed from cache in ${elapsed.toFixed(0)}ms`);
           return;
         }
-        
+
         const activeContextString = localStorage.getItem('activeContext');
         const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
         const brokerId = activeContext.brokerId;
         const customerId = activeContext.customerId;
-        
+
         // OPTIMIZATION: Fetch indexes and watchlist in parallel
         const fetchStart = performance.now();
         const [indexRes, watchlistResponse] = await Promise.all([
@@ -371,36 +381,36 @@ function Watchlist() {
         ]);
         const fetchElapsed = performance.now() - fetchStart;
         console.log(`[Watchlist Load] API calls completed in ${fetchElapsed.toFixed(0)}ms`);
-        
+
         // Process indexes
         const nifty50Inst = indexRes.find(i => (i.display_name === "Nifty 50" || i.tradingsymbol === "Nifty 50") && i.segment === "NSE_INDEX");
         const sensexInst = indexRes.find(i => i.securityId === "51" && i.segment === "BSE_INDEX");
         const indexInstrumentsRaw = [nifty50Inst, sensexInst].filter(Boolean);
         const formattedIndexes = formatInstruments(indexInstrumentsRaw);
         setIndexInstruments(formattedIndexes);
-        
+
         // Process watchlist
         const instrumentsArr = Array.isArray(watchlistResponse) ? watchlistResponse : (watchlistResponse?.instruments || []);
         const formattedWatchlist = formatInstruments(instrumentsArr);
         const uniqueWatchlist = Array.from(new Map(formattedWatchlist.map(item => [item.id ?? item._id ?? item.securityId, item])).values());
         setStocks(uniqueWatchlist);
-        
+
         // Cache the results
         sessionStorage.setItem('watchlist_cache', JSON.stringify(uniqueWatchlist));
         sessionStorage.setItem('indexes_cache', JSON.stringify(formattedIndexes));
         sessionStorage.setItem('watchlist_cache_time', now.toString());
         console.log(`[Watchlist Load] Cached ${uniqueWatchlist.length} instruments`);
-        
+
         // Subscribe to market data
         const subStart = performance.now();
         if (formattedIndexes.length > 0) await subscribeAndSnapshot(formattedIndexes, 'quote');
         if (uniqueWatchlist.length > 0) await subscribeAndSnapshot(uniqueWatchlist, 'quote');
         const subElapsed = performance.now() - subStart;
         console.log(`[Watchlist Load] Subscriptions completed in ${subElapsed.toFixed(0)}ms`);
-        
+
         const totalElapsed = performance.now() - startTime;
         console.log(`[Watchlist Load] Total time: ${totalElapsed.toFixed(0)}ms`);
-        
+
       } catch (e) {
         console.error("[Watchlist Load] Failed:", e);
       } finally {
@@ -410,48 +420,95 @@ function Watchlist() {
     loadAllInstruments();
   }, [isConnected, apiBase, token, subscribeAndSnapshot]);
 
-  const segmentStringToNumberMap = useMemo(() => ({ "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3, "BSE_EQ": 4, "BSE_CURRENCY": 5, "MCX_COMM": 5, "NSE_INDEX": 0, "BSE_INDEX": 14 }), []);
+  const segmentStringToNumberMap = useMemo(() => ({ "IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "NSE_CURRENCY": 3, "BSE_EQ": 4, "BSE_CURRENCY": 7, "MCX_COMM": 5, "NSE_INDEX": 0, "BSE_INDEX": 0, "BSE_FNO": 8 }), []);
 
   // ... (prices useMemo - SAME AS BEFORE)
-  const prices = useMemo(() => {
-    const byId = {};
-    const num = (v) => (v == null || v === "" ? null : Number(v));
-    stocks.forEach((s) => {
-      const numericSegment = segmentStringToNumberMap[s.segment];
-      const tickKey = `${numericSegment}-${s.securityId}`;
-      const snapKey = String(s.securityId);
-      const snap = snapshots[snapKey] || {};
-      const t = ticks.get(tickKey) || {};
-      const combined = { ...snap, ...t };
-      const ltp = num(combined.ltp);
-      const open = num(combined.open);
-      const high = num(combined.dayHigh) ?? num(combined.high);
-      const low = num(combined.dayLow) ?? num(combined.low);
-      const close = num(combined.close);
-      const volume = num(combined.volume);
-      const oi = num(combined.oi) ?? num(combined.openInterest);
-      let percentChange = num(combined.percentChange);
-      if (percentChange == null && ltp != null) {
-        if (close != null && close !== 0) percentChange = ((ltp - close) / close) * 100;
-        else if (open != null && open !== 0) percentChange = ((ltp - open) / open) * 100;
+  // *** HIGH PERFORMANCE MARKET DATA LOOP ***
+  const [prices, setPrices] = useState({});
+  const stocksRef = useRef(stocks); // Keep latest stocks in ref to avoid effect dependency re-runs
+
+  useEffect(() => {
+    stocksRef.current = stocks;
+  }, [stocks]);
+
+  useEffect(() => {
+    let animationFrameId;
+    let lastUpdate = 0;
+    const THROTTLE_MS = 100; // Update Watchlist max 10 times/sec (smooth enough for human eye)
+
+    const updateLoop = (timestamp) => {
+      if (timestamp - lastUpdate < THROTTLE_MS) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
       }
-      let netChange = num(combined.netChange);
-      if (netChange == null && ltp != null) {
-        if (percentChange != null) netChange = (ltp * (percentChange / 100));
-        else if (close != null) netChange = ltp - close;
-        else if (open != null) netChange = ltp - open;
+
+      if (!ticksRef.current || ticksRef.current.size === 0) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
       }
-      byId[s.id] = {
-        ltp, netChange, percentChange,
-        isPositive: netChange != null ? netChange >= 0 : (percentChange != null ? percentChange >= 0 : null),
-        open, high, low, close, volume, oi,
-        bestBidPrice: num(combined.bestBidPrice), bestBidQuantity: num(combined.bestBidQuantity),
-        bestAskPrice: num(combined.bestAskPrice), bestAskQuantity: num(combined.bestAskQuantity),
-        lastTradeQty: num(combined.lastTradeQty), lastTradeTime: combined.lastTradeTime, depth: combined.depth || null,
-      };
-    });
-    return byId;
-  }, [ticks, snapshots, stocks, segmentStringToNumberMap]);
+
+      // Calculate new prices based on current ticksRef and stocks
+      const currentStocks = stocksRef.current;
+      const ticksMap = ticksRef.current;
+      const byId = {};
+      const num = (v) => (v == null || v === "" ? null : Number(v));
+
+      let hasUpdates = false;
+
+      currentStocks.forEach((s) => {
+        const numericSegment = segmentStringToNumberMap[s.segment];
+        const tickKey = `${numericSegment}-${s.securityId}`;
+        const snapKey = String(s.securityId);
+        const snap = snapshots[snapKey] || {};
+        const t = ticksMap.get(tickKey) || {}; // Read directly from Mutable Ref
+
+        const combined = { ...snap, ...t };
+        const ltp = num(combined.ltp);
+
+        // Calculate changes
+        const open = num(combined.open);
+        const high = num(combined.dayHigh) ?? num(combined.high);
+        const low = num(combined.dayLow) ?? num(combined.low);
+        const close = num(combined.close);
+        const volume = num(combined.volume);
+        const oi = num(combined.oi) ?? num(combined.openInterest);
+
+        let percentChange = num(combined.percentChange);
+        if (percentChange == null && ltp != null) {
+          if (close != null && close !== 0) percentChange = ((ltp - close) / close) * 100;
+          else if (open != null && open !== 0) percentChange = ((ltp - open) / open) * 100;
+        }
+        let netChange = num(combined.netChange);
+        if (netChange == null && ltp != null) {
+          if (percentChange != null) netChange = (ltp * (percentChange / 100));
+          else if (close != null) netChange = ltp - close;
+          else if (open != null) netChange = ltp - open;
+        }
+
+        byId[s.id] = {
+          ltp, netChange, percentChange,
+          isPositive: netChange != null ? netChange >= 0 : (percentChange != null ? percentChange >= 0 : null),
+          open, high, low, close, volume, oi,
+          bestBidPrice: num(combined.bestBidPrice), bestBidQuantity: num(combined.bestBidQuantity),
+          bestAskPrice: num(combined.bestAskPrice), bestAskQuantity: num(combined.bestAskQuantity),
+          lastTradeQty: num(combined.lastTradeQty), lastTradeTime: combined.lastTradeTime, depth: combined.depth || null,
+        };
+
+        hasUpdates = true;
+      });
+
+      if (hasUpdates) {
+        setPrices(byId);
+        lastUpdate = timestamp;
+      }
+
+      animationFrameId = requestAnimationFrame(updateLoop);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLoop);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [snapshots, segmentStringToNumberMap]); // Only restart loop if snapshots/map changes (rare)
 
   useEffect(() => {
     if (!selectedStock) return;
@@ -468,35 +525,69 @@ function Watchlist() {
   const sheetData = selectedStock ? prices[selectedStock.id] || {} : {};
 
   // ... (indexPrices useMemo and Index vars - SAME AS BEFORE)
-  const indexPrices = useMemo(() => {
-    const byId = {};
-    const num = (v) => (v == null || v === "" ? null : Number(v));
-    indexInstruments.forEach((s) => {
-      const numericSegment = segmentStringToNumberMap[s.segment];
-      const tickKey = `${numericSegment}-${s.securityId}`;
-      const snapKey = String(s.securityId);
-      let snap = snapshots[snapKey] || {};
-      let t = ticks.get(tickKey) || {};
-      if (t.exchangeSegment !== undefined && t.exchangeSegment !== numericSegment) t = {};
-      if (snap.exchangeSegment !== undefined && snap.exchangeSegment !== numericSegment) snap = {};
-      const ltp = num(t.ltp) ?? num(snap.ltp);
-      const open = num(t.open) ?? num(snap.open);
-      const close = num(t.close) ?? num(snap.close);
-      let percentChange = (t.percentChange != null ? num(t.percentChange) : snap.percentChange != null ? num(snap.percentChange) : null);
-      if (percentChange == null && ltp != null) {
-        if (close != null && close !== 0) percentChange = ((ltp - close) / close) * 100;
-        else if (open != null && open !== 0) percentChange = ((ltp - open) / open) * 100;
+  // *** INDEX PRICES RAF LOOP ***
+  const [indexPrices, setIndexPrices] = useState({});
+  const indexInstrumentsRef = useRef(indexInstruments);
+  useEffect(() => { indexInstrumentsRef.current = indexInstruments; }, [indexInstruments]);
+
+  useEffect(() => {
+    let animationFrameId;
+    let lastUpdate = 0;
+    const THROTTLE_MS = 200; // Update Indices slower (5fps is fine)
+
+    const updateLoop = (timestamp) => {
+      if (timestamp - lastUpdate < THROTTLE_MS) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
       }
-      let netChange = (t.netChange != null ? num(t.netChange) : snap.netChange != null ? num(snap.netChange) : null);
-      if (netChange == null && ltp != null) {
-        if (percentChange != null) netChange = (ltp * percentChange) / 100;
-        else if (close != null) netChange = ltp - close;
-        else if (open != null) netChange = ltp - open;
+
+      if (!ticksRef.current) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
       }
-      byId[s.id] = { ltp, netChange, percentChange, isPositive: netChange != null ? netChange >= 0 : (percentChange != null ? percentChange >= 0 : null), };
-    });
-    return byId;
-  }, [ticks, snapshots, indexInstruments, segmentStringToNumberMap]);
+
+      const currentIndexes = indexInstrumentsRef.current;
+      const ticksMap = ticksRef.current;
+      const byId = {};
+      const num = (v) => (v == null || v === "" ? null : Number(v));
+      let hasUpdates = false;
+
+      currentIndexes.forEach((s) => {
+        const numericSegment = segmentStringToNumberMap[s.segment];
+        const tickKey = `${numericSegment}-${s.securityId}`;
+        const snapKey = String(s.securityId);
+        let snap = snapshots[snapKey] || {};
+        let t = ticksMap.get(tickKey) || {};
+        if (t.exchangeSegment !== undefined && t.exchangeSegment !== numericSegment) t = {};
+        if (snap.exchangeSegment !== undefined && snap.exchangeSegment !== numericSegment) snap = {};
+        const ltp = num(t.ltp) ?? num(snap.ltp);
+        const open = num(t.open) ?? num(snap.open);
+        const close = num(t.close) ?? num(snap.close);
+        let percentChange = (t.percentChange != null ? num(t.percentChange) : snap.percentChange != null ? num(snap.percentChange) : null);
+        if (percentChange == null && ltp != null) {
+          if (close != null && close !== 0) percentChange = ((ltp - close) / close) * 100;
+          else if (open != null && open !== 0) percentChange = ((ltp - open) / open) * 100;
+        }
+        let netChange = (t.netChange != null ? num(t.netChange) : snap.netChange != null ? num(snap.netChange) : null);
+        if (netChange == null && ltp != null) {
+          if (percentChange != null) netChange = (ltp * percentChange) / 100;
+          else if (close != null) netChange = ltp - close;
+          else if (open != null) netChange = ltp - open;
+        }
+        byId[s.id] = { ltp, netChange, percentChange, isPositive: netChange != null ? netChange >= 0 : (percentChange != null ? percentChange >= 0 : null), };
+        hasUpdates = true;
+      });
+
+      if (hasUpdates) {
+        setIndexPrices(byId);
+        lastUpdate = timestamp;
+      }
+      animationFrameId = requestAnimationFrame(updateLoop);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [snapshots, segmentStringToNumberMap]);
 
   const sensexInst = indexInstruments.find(i => i.securityId === "51" && i.segment === "BSE_INDEX");
   const nifty50Inst = indexInstruments.find(i => i.tradingSymbol === "Nifty 50");
@@ -506,29 +597,29 @@ function Watchlist() {
   // *** Segment Filter Logic ***
   const SEGMENT_FILTER_MAP = useMemo(() => ({
     all: null, // null means show all
-    index: { segments: ['NSE_FNO'], types: ['FUTIDX', 'OPTIDX'] },
-    futures: { segments: ['NSE_FNO', 'MCX_COMM'], types: ['FUTSTK', 'FUTCOM', 'FUTCUR'] },
-    options: { segments: ['NSE_FNO'], types: ['OPTSTK', 'OPTFUT', 'OPTCUR'] }
+    index: { segments: ['NSE_FNO', 'BSE_FNO'], types: ['FUTIDX', 'OPTIDX'] },
+    futures: { segments: ['NSE_FNO', 'BSE_FNO', 'MCX_COMM'], types: ['FUTSTK', 'FUTCOM', 'FUTCUR'] },
+    options: { segments: ['NSE_FNO', 'BSE_FNO'], types: ['OPTSTK', 'OPTFUT', 'OPTCUR'] }
   }), []);
 
   const filteredStocks = useMemo(() => {
     if (activeFilter === 'all') return stocks;
     const filterConfig = SEGMENT_FILTER_MAP[activeFilter];
     if (!filterConfig) return stocks;
-    
+
     // If filterConfig has segments and types (index/futures/options)
     if (filterConfig.segments && filterConfig.types) {
-      return stocks.filter(stock => 
-        filterConfig.segments.includes(stock.segment) && 
+      return stocks.filter(stock =>
+        filterConfig.segments.includes(stock.segment) &&
         filterConfig.types.includes(stock.instrumentType)
       );
     }
-    
+
     // Legacy: just segment filter array (if needed)
     if (Array.isArray(filterConfig)) {
       return stocks.filter(stock => filterConfig.includes(stock.segment));
     }
-    
+
     return stocks;
   }, [stocks, activeFilter, SEGMENT_FILTER_MAP]);
 
@@ -537,20 +628,20 @@ function Watchlist() {
     if (filterKey === 'all') return stocks.length;
     const filterConfig = SEGMENT_FILTER_MAP[filterKey];
     if (!filterConfig) return 0;
-    
+
     // If filterConfig has segments and types (index/futures/options)
     if (filterConfig.segments && filterConfig.types) {
-      return stocks.filter(stock => 
-        filterConfig.segments.includes(stock.segment) && 
+      return stocks.filter(stock =>
+        filterConfig.segments.includes(stock.segment) &&
         filterConfig.types.includes(stock.instrumentType)
       ).length;
     }
-    
+
     // Legacy: just segment filter array (if needed)
     if (Array.isArray(filterConfig)) {
       return stocks.filter(stock => filterConfig.includes(stock.segment)).length;
     }
-    
+
     return 0;
   }, [stocks, SEGMENT_FILTER_MAP]);
 
@@ -564,7 +655,7 @@ function Watchlist() {
 
   return (
     <div className="w-full h-full bg-[var(--bg-primary)] md:w-1/2 lg:w-3/12 md:border-r border-[var(--border-color)] flex flex-col relative min-h-0">
-      
+
       {/* Toast Notification */}
       <Toast message={notification.message} type={notification.type} show={notification.show} />
 
@@ -595,7 +686,7 @@ function Watchlist() {
           <Search size={16} className="group-hover:text-[var(--text-primary)] transition-colors" />
           <span className="text-sm font-medium group-hover:text-[var(--text-primary)] transition-colors">Search & add instruments...</span>
         </Link>
-        
+
         {/* Filter Tabs - Auto-sizing to fill available width */}
         <div className="flex w-full">
           {FILTER_TABS.map(({ key, label }) => {
@@ -605,18 +696,16 @@ function Watchlist() {
               <button
                 key={key}
                 onClick={() => setActiveFilter(key)}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium whitespace-nowrap transition-all duration-150 border-b-2 ${
-                  isActive
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium whitespace-nowrap transition-all duration-150 border-b-2 ${isActive
                     ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500'
                     : 'bg-transparent text-[var(--text-secondary)] border-transparent hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                }`}
+                  }`}
               >
                 {label}
-                <span className={`text-[10px] ${
-                  isActive 
-                    ? 'text-indigo-300' 
+                <span className={`text-[10px] ${isActive
+                    ? 'text-indigo-300'
                     : 'text-[var(--text-muted)]'
-                }`}>
+                  }`}>
                   {count}
                 </span>
               </button>
@@ -686,6 +775,8 @@ function Watchlist() {
         setSelectedStock={setSelectedStock}
         onRemoveFromWatchlist={handleRemoveFromWatchlist}
         subscriptionType="full"
+        ticksRef={ticksRef}
+        segmentStringToNumberMap={segmentStringToNumberMap}
       />
     </div>
   );

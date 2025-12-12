@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useMarketData } from "../../../contexts/MarketDataContext.jsx";
 import { AlertTriangle } from "lucide-react";
 import OpenOrderBottomWindow from "./OpenOderBottomWindow.jsx";
@@ -21,7 +21,7 @@ export default function OpenOrder() {
   const [showExitModal, setShowExitModal] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
-  const { ticks, subscribe, unsubscribe } = useMarketData();
+  const { ticksRef, subscribe, unsubscribe } = useMarketData();
 
   const activeContextString = localStorage.getItem("activeContext");
   const activeContext = activeContextString ? JSON.parse(activeContextString) : {};
@@ -29,9 +29,9 @@ export default function OpenOrder() {
   const customerId = activeContext.customerId;
   const orderStatus = "OPEN";
 
-    const userString = localStorage.getItem('loggedInUser');
-    const userObject = userString ? JSON.parse(userString) : {};
-    const userRole = userObject.role;
+  const userString = localStorage.getItem('loggedInUser');
+  const userObject = userString ? JSON.parse(userString) : {};
+  const userRole = userObject.role;
 
   const apiBase =
     import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:8080";
@@ -45,6 +45,8 @@ export default function OpenOrder() {
       BSE_EQ: 4,
       NSE_INDEX: 0,
       IDX_I: 0,
+      BSE_INDEX: 0,
+      BSE_FNO: 8,
     }),
     []
   );
@@ -85,8 +87,8 @@ export default function OpenOrder() {
       const instruments = Array.isArray(data?.ordersInstrument)
         ? data.ordersInstrument
         : Array.isArray(data)
-        ? data
-        : [];
+          ? data
+          : [];
       setInstrumentData(instruments);
       setError(null);
     } catch (err) {
@@ -159,7 +161,7 @@ export default function OpenOrder() {
     const handler = () => {
       try {
         fetchInstrumentData();
-      } catch {}
+      } catch { }
     };
     window.addEventListener("orders:changed", handler);
     return () => window.removeEventListener("orders:changed", handler);
@@ -210,7 +212,7 @@ export default function OpenOrder() {
           setOrders({});
           return;
         }
- 
+
         const snapshotData = await res.json();
         let snapshotMap = {};
         if (
@@ -242,26 +244,68 @@ export default function OpenOrder() {
         }))
         .filter((i) => i.segment && i.securityId);
       if (items.length > 0)
-        unsubscribe(items, "quote").catch((e) => {});
+        unsubscribe(items, "quote").catch((e) => { });
     };
   }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
 
-  // ---------- 4) MERGE SNAPSHOT + TICKS ----------
+  // ---------- 4.1) RAF Loop for Live Ticks ----------
+  const [liveTicks, setLiveTicks] = useState({});
+  const instrumentDataRef = useRef(instrumentData);
+  useEffect(() => { instrumentDataRef.current = instrumentData; }, [instrumentData]);
+
+  useEffect(() => {
+    let animationFrameId;
+    let lastUpdate = 0;
+    const THROTTLE_MS = 200;
+
+    const updateLoop = (timestamp) => {
+      if (timestamp - lastUpdate < THROTTLE_MS) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      if (!ticksRef.current || !instrumentDataRef.current || instrumentDataRef.current.length === 0) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      const ticksMap = ticksRef.current;
+      const currentData = instrumentDataRef.current;
+      const newTicks = {};
+      let hasUpdates = false;
+
+      currentData.forEach(inst => {
+        const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
+        const numericSegment = segmentStringToNumberMap[inst.segment];
+        const tickKey = `${numericSegment}-${securityKey}`;
+        const tick = ticksMap.get(tickKey);
+        if (tick) {
+          newTicks[tickKey] = tick;
+          hasUpdates = true;
+        }
+      });
+
+      if (hasUpdates) {
+        setLiveTicks(prev => newTicks);
+        lastUpdate = timestamp;
+      }
+      animationFrameId = requestAnimationFrame(updateLoop);
+    };
+    animationFrameId = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [segmentStringToNumberMap]);
+
+  // ---------- 4.2) MERGE SNAPSHOT + LIVE TICKS ----------
   useEffect(() => {
     if (!instrumentData || instrumentData.length === 0) {
       setAllData([]);
       return;
     }
     const merged = instrumentData.map((inst) => {
-      const securityKey = String(
-        inst.security_Id ?? inst.securityId ?? inst.id ?? ""
-      );
+      const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
       let snapshot = null;
       if (orders && typeof orders === "object") {
-        snapshot =
-          orders[securityKey] ??
-          orders[String(inst.securityId ?? "")] ??
-          null;
+        snapshot = orders[securityKey] ?? orders[String(inst.securityId ?? "")] ?? null;
         if (!snapshot && inst.segment)
           snapshot = orders[`${inst.segment}|${securityKey}`] ?? null;
         if (!snapshot) {
@@ -278,12 +322,12 @@ export default function OpenOrder() {
       }
       const numericSegment = segmentStringToNumberMap[inst.segment];
       const tickKey = `${numericSegment}-${securityKey}`;
-      const tick = ticks.get(tickKey) || {};
+      const tick = liveTicks[tickKey] || {};
       const combined = { ...snapshot, ...tick };
       return { ...inst, snapshot: combined };
     });
     setAllData(merged);
-  }, [instrumentData, orders, ticks, segmentStringToNumberMap]);
+  }, [instrumentData, orders, liveTicks, segmentStringToNumberMap]);
 
   // ---------- 5) selectedOrderMarketData ----------
   const selectedOrderMarketData = useMemo(() => {
@@ -357,13 +401,13 @@ export default function OpenOrder() {
           // In this case, use the saved order price as fallback
           const isOptionChainOrder = data?.meta?.from === 'ui_option_chain';
           const snapshotLtp = Number(data.snapshot?.ltp ?? 0);
-          
+
           // If it's an option chain order and snapshot LTP seems to be parent's LTP (very different from avg),
           // or if snapshot LTP is 0, use the saved order price
-          const ltp = (isOptionChainOrder && (snapshotLtp === 0 || !data.snapshot?.ltp)) 
-            ? Number(data.price ?? 0) 
+          const ltp = (isOptionChainOrder && (snapshotLtp === 0 || !data.snapshot?.ltp))
+            ? Number(data.price ?? 0)
             : (snapshotLtp || Number(data.ltp ?? data.price ?? 0));
-          
+
           const avg = Number(data.price ?? 0);
           const qty = Number(data?.quantity ?? 0);
 

@@ -15,13 +15,13 @@ export function useOptionChain({ segment, securityId, expiry }) {
   const [expiries, setExpiries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  const { ticksRef, subscribe, unsubscribe, isConnected } = useMarketData();
-
+  
+  const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
+  
   // Track subscribed option securityIds for cleanup
   const subscribedSecurityIdsRef = useRef([]);
   const lastFetchParamsRef = useRef(null);
-
+  
   // Store securityId to chain position mapping for tick updates
   const securityIdMapRef = useRef(new Map());
 
@@ -39,7 +39,7 @@ export function useOptionChain({ segment, securityId, expiry }) {
     if (expiry) params.append('expiry', expiry);
 
     const paramsKey = `${segment}|${securityId}|${expiry || 'default'}`;
-
+    
     // Avoid duplicate fetches
     if (lastFetchParamsRef.current === paramsKey) {
       console.log('[useOptionChain] Skipping duplicate fetch');
@@ -74,7 +74,7 @@ export function useOptionChain({ segment, securityId, expiry }) {
 
       setChainData(result.data.chain);
       setSpotPrice(result.data.spotPrice);
-
+      
       lastFetchParamsRef.current = paramsKey;
       return result.data;
 
@@ -144,10 +144,10 @@ export function useOptionChain({ segment, securityId, expiry }) {
           securityId: String(row.call.securityId)
         });
         // Map securityId to chain position for tick updates
-        newSecurityIdMap.set(String(row.call.securityId), {
-          index,
+        newSecurityIdMap.set(String(row.call.securityId), { 
+          index, 
           type: 'call',
-          strike: row.strike
+          strike: row.strike 
         });
       }
 
@@ -157,10 +157,10 @@ export function useOptionChain({ segment, securityId, expiry }) {
           segment: 'NSE_FNO',
           securityId: String(row.put.securityId)
         });
-        newSecurityIdMap.set(String(row.put.securityId), {
-          index,
+        newSecurityIdMap.set(String(row.put.securityId), { 
+          index, 
           type: 'put',
-          strike: row.strike
+          strike: row.strike 
         });
       }
     });
@@ -172,12 +172,12 @@ export function useOptionChain({ segment, securityId, expiry }) {
 
     // Store mapping for tick updates
     securityIdMapRef.current = newSecurityIdMap;
-
+    
     // Store for cleanup
     subscribedSecurityIdsRef.current = subscriptionList;
 
     console.log(`[useOptionChain] Subscribing to ${subscriptionList.length} option contracts (ticker mode)`);
-
+    
     // Subscribe with 'ticker' packet type for LTP-only updates
     subscribe(subscriptionList, 'ticker');
 
@@ -190,9 +190,9 @@ export function useOptionChain({ segment, securityId, expiry }) {
     if (subscribedSecurityIdsRef.current.length === 0) return;
 
     console.log('[useOptionChain] Unsubscribing from', subscribedSecurityIdsRef.current.length, 'option contracts');
-
+    
     unsubscribe(subscribedSecurityIdsRef.current, 'ticker');
-
+    
     // Clear tracking
     subscribedSecurityIdsRef.current = [];
     securityIdMapRef.current.clear();
@@ -244,99 +244,58 @@ export function useOptionChain({ segment, securityId, expiry }) {
   }, [chainData]);
 
   useEffect(() => {
-    let animationFrameId;
-    let lastUpdate = 0;
-    const THROTTLE_MS = 50; // Update UI max 20 times per second
+    if (!chainDataRef.current || chainDataRef.current.length === 0 || ticks.size === 0) return;
+    if (securityIdMapRef.current.size === 0) return;
 
-    const updateLoop = (timestamp) => {
-      // Throttle checks
-      if (timestamp - lastUpdate < THROTTLE_MS) {
-        animationFrameId = requestAnimationFrame(updateLoop);
-        return;
-      }
+    // NSE_FNO exchangeSegment = 2
+    const NSE_FNO_SEGMENT = 2;
+    
+    let hasUpdates = false;
+    let updateCount = 0;
+    const currentChain = chainDataRef.current;
+    // Create new array with new row objects for proper React state update
+    const updatedChain = currentChain.map(row => ({ ...row }));
 
-      const ticks = ticksRef.current;
-      if (!chainDataRef.current || chainDataRef.current.length === 0 || ticks.size === 0) {
-        animationFrameId = requestAnimationFrame(updateLoop);
-        return;
-      }
-
-      if (securityIdMapRef.current.size === 0) {
-        animationFrameId = requestAnimationFrame(updateLoop);
-        return;
-      }
-
-      // NSE_FNO exchangeSegment = 2
-      const NSE_FNO_SEGMENT = 2;
-
-      let hasUpdates = false;
-      const currentChain = chainDataRef.current; // Read from ref, not state dependency
-
-      // We'll build a map of indices that need updates to avoid iterating the whole chain if possible
-      // But for React state we need a new array reference if ANYTHING changes.
-      // Strategy: Check for changes first, then clone only if needed.
-
-      // OPTIMIZATION: Check if any relevant ticks have changed since last render
-      // We can iterate our subscribed map which is smaller than the ticks map
-
-      const pendingUpdates = new Map(); // index -> { call: ltp, put: ltp }
-
-      securityIdMapRef.current.forEach((position, securityId) => {
-        const tickKey = `${NSE_FNO_SEGMENT}-${securityId}`;
-        const tick = ticks.get(tickKey);
-
-        if (tick?.ltp !== undefined && tick.ltp > 0) {
-          const { index, type } = position;
-          const row = currentChain[index];
-          if (!row) return;
-
+    // Iterate through our subscribed securityIds and check for tick updates
+    securityIdMapRef.current.forEach((position, securityId) => {
+      const tickKey = `${NSE_FNO_SEGMENT}-${securityId}`;
+      const tick = ticks.get(tickKey);
+      
+      if (tick?.ltp !== undefined && tick.ltp > 0) {
+        const { index, type } = position;
+        const row = updatedChain[index];
+        
+        if (row) {
           const currentLtp = type === 'call' ? row.call?.ltp : row.put?.ltp;
-
+          
+          // Only update if LTP has changed
           if (currentLtp !== tick.ltp) {
-            // Found a change!
-            const entry = pendingUpdates.get(index) || {};
-            if (type === 'call') entry.callLtp = tick.ltp;
-            if (type === 'put') entry.putLtp = tick.ltp;
-            pendingUpdates.set(index, entry);
+            hasUpdates = true;
+            updateCount++;
+            
+            if (type === 'call' && row.call) {
+              updatedChain[index] = {
+                ...row,
+                call: { ...row.call, ltp: tick.ltp }
+              };
+            } else if (type === 'put' && row.put) {
+              updatedChain[index] = {
+                ...row,
+                put: { ...row.put, ltp: tick.ltp }
+              };
+            }
           }
         }
-      });
-
-      if (pendingUpdates.size > 0) {
-        // Apply updates
-        // console.log(`[useOptionChain] ⚡ RAF UPDATE: ${pendingUpdates.size} rows changed`);
-
-        const updatedChain = [...currentChain]; // Shallow clone array
-
-        for (const [index, updates] of pendingUpdates.entries()) {
-          const row = updatedChain[index];
-          const newRow = { ...row };
-
-          if (updates.callLtp !== undefined && newRow.call) {
-            newRow.call = { ...newRow.call, ltp: updates.callLtp };
-          }
-          if (updates.putLtp !== undefined && newRow.put) {
-            newRow.put = { ...newRow.put, ltp: updates.putLtp };
-          }
-          updatedChain[index] = newRow;
-        }
-
-        chainDataRef.current = updatedChain;
-        setChainData(updatedChain);
-        hasUpdates = true;
-        lastUpdate = timestamp;
       }
+    });
 
-      animationFrameId = requestAnimationFrame(updateLoop);
-    };
-
-    // Start the loop
-    animationFrameId = requestAnimationFrame(updateLoop);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []); // Empty dependency array = runs once on mount, but closes over Refs
+    if (hasUpdates) {
+      console.log(`[useOptionChain] 🔴 LIVE UPDATE: ${updateCount} LTPs changed`);
+      // Update ref immediately so next tick comparison uses fresh data
+      chainDataRef.current = updatedChain;
+      setChainData(updatedChain);
+    }
+  }, [ticks]); // Only depend on ticks, use ref for chainData
 
   return {
     chainData,

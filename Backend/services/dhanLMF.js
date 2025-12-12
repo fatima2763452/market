@@ -191,7 +191,16 @@ export class DhanLMF {
 
     ws.on("open", () => {
       this.reconnectAttempts = 0;
-      console.log("[LMF] WS open. Processing subscription queue...");
+      console.log("[LMF] WS open. Sending Connect Feed (Request Code 11)...");
+      
+      // Send Connect Feed Request (Code 11) - Required by Dhan to initialize feed
+      try {
+        const connectPacket = JSON.stringify({ RequestCode: 11 });
+        ws.send(connectPacket);
+        console.log("[LMF] Connect Feed (11) sent successfully");
+      } catch (e) {
+        console.warn("[LMF] Failed to send Connect Feed:", e?.message || e);
+      }
       
       // Process any pending subscriptions
       while(this.subscriptionQueue.length > 0) {

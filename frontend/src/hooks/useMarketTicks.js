@@ -3,9 +3,10 @@ import { useRef, useState, useEffect, useCallback } from "react";
 
 export function useMarketTicks(url, opts = {}) {
   const socket = useRef(null);
-  const [ticks, setTicks] = useState(new Map());
+  // RAW DATA STORE (0ms latency): Mutable Map to store latest ticks
+  const ticksRef = useRef(new Map());
   const [isConnected, setIsConnected] = useState(false);
-  
+
   // Track last subscribed instruments for instant refresh on tab return
   const lastSubscribedRef = useRef([]);
   const lastSubscriptionTypeRef = useRef('full');
@@ -23,7 +24,7 @@ export function useMarketTicks(url, opts = {}) {
       lastSubscribedRef.current = list;
       lastSubscriptionTypeRef.current = subscriptionType;
     }
-    
+
     if (socket.current?.connected) {
       socket.current.emit("subscribe", list, subscriptionType);
     } else {
@@ -52,7 +53,7 @@ export function useMarketTicks(url, opts = {}) {
       if (!document.hidden) {
         // Tab is now visible - INSTANT refresh
         console.log("[useMarketTicks] Tab visible - instant refresh");
-        
+
         if (!socket.current?.connected) {
           // Socket disconnected - reconnect immediately
           socket.current?.connect();
@@ -101,7 +102,7 @@ export function useMarketTicks(url, opts = {}) {
     const onConnect = () => {
       console.log("✅ market connected:", newSocket.id);
       setIsConnected(true);
-      
+
       // Instant re-subscribe on reconnect
       if (lastSubscribedRef.current.length > 0) {
         console.log("[useMarketTicks] Re-subscribing after reconnect");
@@ -116,13 +117,11 @@ export function useMarketTicks(url, opts = {}) {
 
     const onMarketUpdate = (update) => {
       if (update?.securityId && update?.exchangeSegment !== undefined) {
-        setTicks((prev) => {
-          const copy = new Map(prev);
-          const key = `${update.exchangeSegment}-${update.securityId}`;
-          const existing = copy.get(key) || {};
-          copy.set(key, { ...existing, ...update });
-          return copy;
-        });
+        // DIRECT MUTATION (0ms latency): Update the Ref instantly
+        // No React State update = No Re-render per tick
+        const key = `${update.exchangeSegment}-${update.securityId}`;
+        const existing = ticksRef.current.get(key) || {};
+        ticksRef.current.set(key, { ...existing, ...update });
       }
     };
 
@@ -152,5 +151,11 @@ export function useMarketTicks(url, opts = {}) {
     };
   }, [url]);
 
-  return { ticks, subscribe, unsubscribe, isConnected, refreshSubscriptions };
+  return {
+    ticksRef, // Expose the Ref directly for consumers to poll
+    subscribe,
+    unsubscribe,
+    isConnected,
+    refreshSubscriptions
+  };
 }

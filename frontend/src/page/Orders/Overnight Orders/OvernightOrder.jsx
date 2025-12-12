@@ -1,5 +1,5 @@
 // OvernightOrder.jsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { MOCK_ORDERS } from "../mockData";
 import { useMarketData } from "../../../contexts/MarketDataContext.jsx";
 import OvernightOrderBottomWindow from "./OvernightOrderBottomWindow.jsx";
@@ -21,7 +21,7 @@ export default function OvernightOrder() {
   const [selectedOrderData, setSelectedOrderData] = useState(null);
 
   // Add WebSocket connection
-  const { ticks, subscribe, unsubscribe, isConnected } = useMarketData();
+  const { ticksRef, subscribe, unsubscribe, isConnected } = useMarketData();
 
   const activeContextString = localStorage.getItem("activeContext");
   const activeContext = activeContextString
@@ -44,6 +44,8 @@ export default function OvernightOrder() {
       BSE_EQ: 4,
       NSE_INDEX: 0,
       IDX_I: 0,
+      BSE_INDEX: 0,
+      BSE_FNO: 8,
     }),
     []
   );
@@ -79,7 +81,7 @@ export default function OvernightOrder() {
         let text = "<no-body>";
         try {
           text = await res.text();
-        } catch (e) {}
+        } catch (e) { }
         console.error(
           "getOrderInstrument failed:",
           res.status,
@@ -95,8 +97,8 @@ export default function OvernightOrder() {
       const instruments = Array.isArray(data?.ordersInstrument)
         ? data.ordersInstrument
         : Array.isArray(data)
-        ? data
-        : [];
+          ? data
+          : [];
       setInstrumentData(instruments);
       setError(null);
     } catch (err) {
@@ -186,7 +188,7 @@ export default function OvernightOrder() {
           let text = "<no-body>";
           try {
             text = await res.text();
-          } catch (e) {}
+          } catch (e) { }
           console.error(
             "[OvernightOrder] snapshot fetch failed:",
             res.status,
@@ -243,6 +245,54 @@ export default function OvernightOrder() {
     };
   }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
 
+  // --- HIGH PERF: RAF LOOP for Live Ticks ---
+  const [liveTicks, setLiveTicks] = useState({});
+  const instrumentDataRef = useRef(instrumentData);
+  useEffect(() => { instrumentDataRef.current = instrumentData; }, [instrumentData]);
+
+  useEffect(() => {
+    let animationFrameId;
+    let lastUpdate = 0;
+    const THROTTLE_MS = 200;
+
+    const updateLoop = (timestamp) => {
+      if (timestamp - lastUpdate < THROTTLE_MS) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      if (!ticksRef.current || !instrumentDataRef.current || instrumentDataRef.current.length === 0) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      const ticksMap = ticksRef.current;
+      const currentData = instrumentDataRef.current;
+      const newTicks = {};
+      let hasUpdates = false;
+
+      currentData.forEach(inst => {
+        const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
+        const numericSegment = segmentStringToNumberMap[inst.segment];
+        const tickKey = `${numericSegment}-${securityKey}`;
+        const tick = ticksMap.get(tickKey);
+        if (tick) {
+          newTicks[tickKey] = tick;
+          hasUpdates = true;
+        }
+      });
+
+      if (hasUpdates) {
+        setLiveTicks(prev => newTicks);
+        lastUpdate = timestamp;
+      }
+      animationFrameId = requestAnimationFrame(updateLoop);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [segmentStringToNumberMap]);
+
   // Merge instrument + snapshot + real-time tick data
   useEffect(() => {
     if (!instrumentData || instrumentData.length === 0) {
@@ -281,7 +331,7 @@ export default function OvernightOrder() {
 
       const numericSegment = segmentStringToNumberMap[inst.segment];
       const tickKey = `${numericSegment}-${securityKey}`;
-      const tick = ticks.get(tickKey) || {};
+      const tick = liveTicks[tickKey] || {};
 
       const combined = { ...snapshot, ...tick };
 
@@ -289,7 +339,7 @@ export default function OvernightOrder() {
     });
 
     setAllData(merged);
-  }, [instrumentData, orders, ticks, segmentStringToNumberMap]);
+  }, [instrumentData, orders, liveTicks, segmentStringToNumberMap]);
 
   const selectedOrderMarketData = useMemo(() => {
     if (!selectedOrderData) return {};

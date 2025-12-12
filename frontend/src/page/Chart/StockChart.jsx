@@ -22,11 +22,11 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
   const [dateRange, setDateRange] = useState({ from: initialFrom || '', to: initialTo || '' });
   const [isInitialized, setIsInitialized] = useState(false);
   const [liveConnectionStatus, setLiveConnectionStatus] = useState('disconnected');
-  
+
   // Refs for tracking
   const isSubscribedRef = useRef(false);
   const candlesLoadedRef = useRef(false);
-  
+
   // Get live market data
   const { subscribe, unsubscribe, isConnected } = useMarketData();
 
@@ -40,10 +40,10 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
   const getDefaultDateRange = useCallback((intervalConfig) => {
     const today = new Date();
     const from = new Date(today);
-    
+
     // Use default days from interval config
     from.setDate(today.getDate() - intervalConfig.days);
-    
+
     return {
       from: from.toISOString().slice(0, 10),
       to: today.toISOString().slice(0, 10)
@@ -65,13 +65,13 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
   // Format date for API based on interval type
   const formatDateForAPI = (date, isStartDate = false) => {
     const d = new Date(date);
-    
+
     if (currentInterval.type === 'intraday') {
       // Intraday requires "YYYY-MM-DD HH:MM:SS" format
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      
+
       // Set time: 09:15:00 for start, 15:30:00 for end
       const time = isStartDate ? '09:15:00' : '15:30:00';
       return `${year}-${month}-${day} ${time}`;
@@ -87,7 +87,7 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
       const fromDate = new Date(from);
       const toDate = new Date(to);
       const daysDiff = (toDate - fromDate) / (1000 * 60 * 60 * 24);
-      
+
       if (daysDiff > 90) {
         return { valid: false, message: 'Intraday data is limited to 90 days. Please select a shorter range.' };
       }
@@ -119,7 +119,7 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
 
         let url;
         const baseUrl = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:8080';
-        
+
         if (currentInterval.type === 'intraday') {
           // Use intraday endpoint
           url = `${baseUrl}/api/chart/getIntradayData?symbol=${encodeURIComponent(
@@ -187,10 +187,10 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
       setLiveConnectionStatus('disconnected');
       return;
     }
-    
+
     // Don't subscribe until we have initial data loaded
     if (loading) return;
-    
+
     // Use ref to check if candles were loaded (avoids dependency on candles state)
     if (!candlesLoadedRef.current) {
       return;
@@ -206,10 +206,10 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
       segment: segment,
       securityId: securityId
     }];
-    
+
     // Set connecting status
     setLiveConnectionStatus('connecting');
-    
+
     // Subscribe to live ticks
     subscribe(subscription, 'full')
       .then(() => {
@@ -239,12 +239,12 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
   // Handle interval change
   const handleIntervalChange = (interval) => {
     if (interval === selectedInterval) return;
-    
+
     setSelectedInterval(interval);
     setCandles([]);
     candlesLoadedRef.current = false;
     setLoading(true);
-    
+
     const newInterval = INTERVALS.find(i => i.value === interval) || INTERVALS[1];
     const defaults = getDefaultDateRange(newInterval);
     setDateRange(defaults);
@@ -298,11 +298,10 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
             <button
               key={interval.value}
               onClick={() => handleIntervalChange(interval.value)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                selectedInterval === interval.value
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${selectedInterval === interval.value
                   ? 'bg-indigo-600 text-white'
                   : 'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              }`}
+                }`}
             >
               {interval.label}
             </button>
@@ -338,7 +337,7 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
             Max 90 days for intraday
           </div>
         )}
-        
+
         {/* Fullscreen Toggle */}
         <button
           onClick={() => {
@@ -360,59 +359,59 @@ function StockChart({ symbol, tradingSymbol, initialInterval, initialFrom, initi
 
       {/* Chart Container with fullscreen support */}
       <div className="chart-container space-y-3">
-      {/* Live Connection Status Badge */}
-      {currentInterval.type === 'intraday' && (
-        <div className="flex items-center justify-center gap-2 py-1">
-          {liveConnectionStatus === 'connected' && (
-            <div className="flex items-center gap-1.5 text-xs text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-400/30">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-              <span className="font-semibold">LIVE</span>
-            </div>
+        {/* Live Connection Status Badge */}
+        {currentInterval.type === 'intraday' && (
+          <div className="flex items-center justify-center gap-2 py-1">
+            {liveConnectionStatus === 'connected' && (
+              <div className="flex items-center gap-1.5 text-xs text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-400/30">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                <span className="font-semibold">LIVE</span>
+              </div>
+            )}
+            {liveConnectionStatus === 'connecting' && (
+              <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full border border-yellow-400/30">
+                <span className="w-2 h-2 bg-yellow-400 rounded-full animate-spin"></span>
+                <span className="font-semibold">CONNECTING...</span>
+              </div>
+            )}
+            {liveConnectionStatus === 'error' && (
+              <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-400/10 px-3 py-1 rounded-full border border-red-400/30">
+                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                <span className="font-semibold">CONNECTION ERROR</span>
+              </div>
+            )}
+            {liveConnectionStatus === 'disconnected' && isConnected && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-400/10 px-3 py-1 rounded-full border border-gray-400/30">
+                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                <span className="font-semibold">HISTORICAL DATA</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Trading Chart */}
+        <div style={{ height: '500px', width: '100%' }}>
+          <TradingChart
+            candles={candles}
+            symbol={symbol}
+            interval={selectedInterval}
+            isLiveEnabled={currentInterval.type === 'intraday' && liveConnectionStatus === 'connected'}
+            loading={loading}
+          />
+        </div>
+
+        {/* Data Info */}
+        <div className="text-xs text-[var(--text-muted)] text-center pt-2 border-t border-[var(--border-color)]">
+          Showing {candles.length} candles • {currentInterval.label} interval
+          {liveConnectionStatus === 'connected' && currentInterval.type === 'intraday' && (
+            <span className="text-green-400 ml-2">• Live updating</span>
           )}
-          {liveConnectionStatus === 'connecting' && (
-            <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full border border-yellow-400/30">
-              <span className="w-2 h-2 bg-yellow-400 rounded-full animate-spin"></span>
-              <span className="font-semibold">CONNECTING...</span>
-            </div>
-          )}
-          {liveConnectionStatus === 'error' && (
-            <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-400/10 px-3 py-1 rounded-full border border-red-400/30">
-              <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-              <span className="font-semibold">CONNECTION ERROR</span>
-            </div>
-          )}
-          {liveConnectionStatus === 'disconnected' && isConnected && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-400/10 px-3 py-1 rounded-full border border-gray-400/30">
-              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-              <span className="font-semibold">HISTORICAL DATA</span>
-            </div>
+          {candles.length >= currentInterval.maxCandles && (
+            <span className="text-yellow-400 ml-2">
+              ⚠️ Large dataset may affect performance
+            </span>
           )}
         </div>
-      )}
-      
-      {/* Trading Chart */}
-      <div style={{ height: '500px', width: '100%' }}>
-        <TradingChart
-          candles={candles}
-          symbol={symbol}
-          interval={selectedInterval}
-          isLiveEnabled={currentInterval.type === 'intraday' && liveConnectionStatus === 'connected'}
-          loading={loading}
-        />
-      </div>
-
-      {/* Data Info */}
-      <div className="text-xs text-[var(--text-muted)] text-center pt-2 border-t border-[var(--border-color)]">
-        Showing {candles.length} candles • {currentInterval.label} interval
-        {liveConnectionStatus === 'connected' && currentInterval.type === 'intraday' && (
-          <span className="text-green-400 ml-2">• Live updating</span>
-        )}
-        {candles.length >= currentInterval.maxCandles && (
-          <span className="text-yellow-400 ml-2">
-            ⚠️ Large dataset may affect performance
-          </span>
-        )}
-      </div>
       </div>
     </div>
   );

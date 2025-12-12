@@ -29,7 +29,9 @@ function Summery({
   placeFakeOrder,
   setSelectedStock,
   productType,
-  setProductType
+  setProductType,
+  ticksRef,
+  segmentStringToNumberMap,
 }) {
   // ---------- local states ----------
   const [jobbin_price, setJobbin_price] = useState("0.08");
@@ -38,6 +40,43 @@ function Summery({
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const isOpen = logMarketStatus();
+
+  // ---------- FRESH DATA HELPER ----------
+  // Gets the latest tick data directly from ticksRef (0ms latency)
+  const getLatestTickData = () => {
+    if (!selectedStock || !ticksRef?.current || !segmentStringToNumberMap) return null;
+    const numericSegment = segmentStringToNumberMap[selectedStock.segment];
+    if (numericSegment === undefined) return null;
+    const key = `${numericSegment}-${selectedStock.securityId}`;
+    return ticksRef.current.get(key) || null;
+  };
+
+  // Smart price extraction - handles instruments with only close price
+  const extractValidPrice = (data, isBuy = true) => {
+    if (!data) return null;
+    // Priority 1: LTP (live trading price)
+    if (data.ltp != null && data.ltp > 0) return data.ltp;
+    // Priority 2: Best Ask (for BUY) or Best Bid (for SELL)
+    if (isBuy && data.bestAskPrice != null && data.bestAskPrice > 0) return data.bestAskPrice;
+    if (!isBuy && data.bestBidPrice != null && data.bestBidPrice > 0) return data.bestBidPrice;
+    // Priority 3: Opposite side bid/ask
+    if (isBuy && data.bestBidPrice != null && data.bestBidPrice > 0) return data.bestBidPrice;
+    if (!isBuy && data.bestAskPrice != null && data.bestAskPrice > 0) return data.bestAskPrice;
+    // Priority 4: Close price (for illiquid instruments)
+    if (data.close != null && data.close > 0) return data.close;
+    return null;
+  };
+
+  // Check if we have ANY valid price data
+  const hasValidPriceData = (data) => {
+    if (!data) return false;
+    return (
+      (data.ltp != null && data.ltp > 0) ||
+      (data.bestBidPrice != null && data.bestBidPrice > 0) ||
+      (data.bestAskPrice != null && data.bestAskPrice > 0) ||
+      (data.close != null && data.close > 0)
+    );
+  };
 
   // Ensure productType once (Intraday or Overnight)
   useEffect(() => {
@@ -152,21 +191,44 @@ function Summery({
       return;
     }
 
+    // *** CRITICAL: Get FRESH price from ticksRef at this exact moment ***
+    const isBuy = actionTab === 'Buy';
+    const latestTickData = getLatestTickData();
+    const freshPrice = extractValidPrice(latestTickData, isBuy);
+
+    // Smart validation - only block if we have NO valid price data at all
+    if (freshPrice === null) {
+      // Check sheetData as fallback (from React state)
+      const fallbackPrice = extractValidPrice(sheetData, isBuy);
+      if (fallbackPrice === null) {
+        setFeedback({ type: 'error', message: 'Unable to fetch price. Please wait a moment and try again.' });
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    // Use fresh price if available, otherwise fallback to displayed price
+    const priceForOrder = freshPrice ?? extractValidPrice(sheetData, isBuy) ?? 0;
+
     const activeContextString = localStorage.getItem('activeContext');
     const activeContext = activeContextString ? JSON.parse(activeContextString) : null;
     const brokerId = activeContext?.brokerId || '';
     const customerId = activeContext?.customerId || '';
 
-    const side = actionTab === 'Buy' ? 'BUY' : 'SELL';
+    const side = isBuy ? 'BUY' : 'SELL';
     const product = productType === 'Intraday' ? 'MIS' : 'NRML';
     const lot_size = selectedStock?.lot_size || selectedStock?.lotSize || 1;
     const qty = Number(lots) * Number(lot_size);
-    const finalPrice = adjustedPricePerShare || baseLtp;
+    
+    // Calculate final price with jobbin adjustment using FRESH price
+    const jobbinFactor = isBuy ? (1 + jobbinPct) : (1 - jobbinPct);
+    const finalPrice = Number((priceForOrder * jobbinFactor).toFixed(4));
+    const calculatedOrderValue = Number((finalPrice * qty).toFixed(2));
 
     // *** 2. FUND VALIDATION LOGIC ***
     try {
-      // Calculate Total Required Amount for this Order
-      const requiredAmount = Number(totalOrderValue);
+      // Calculate Total Required Amount for this Order (using fresh calculated value)
+      const requiredAmount = calculatedOrderValue;
 
       // Fetch Latest Funds from Backend
       const fundsData = await getFundsData();

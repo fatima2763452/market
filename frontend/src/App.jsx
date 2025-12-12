@@ -9,6 +9,9 @@ import Layout from './page/Layout';
 import Orders from './page/Orders/Order.jsx';
 import SearchPage from './page/Search/SearchPage.jsx';
 
+// === VERSION CHECKER - Auto-update on new deployments ===
+import VersionChecker from './components/VersionChecker.jsx';
+
 // === SECONDARY PAGES - LAZY LOAD (preloaded after login) ===
 const Portfolio = lazy(() => import('./page/Portfolio/Portfolio.jsx'));
 const FundPage = lazy(() => import("./page/Funds/FundView.jsx"));
@@ -54,6 +57,9 @@ function App() {
         <BrowserRouter>
             <ThemeProvider>
             <MarketDataProvider>
+                {/* Version Checker - Shows update banner when new version available */}
+                <VersionChecker />
+                
                 <Suspense fallback={<PageLoader />}>
                 <Routes>
                 <Route path="/" element={<LoginForm />} />

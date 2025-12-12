@@ -46,6 +46,8 @@ function BottomWindow({
   onAddToWatchlist,
   onRemoveFromWatchlist,
   subscriptionType = 'full', // Optional: 'quote' or 'full' - shows data quality badge
+  ticksRef,
+  segmentStringToNumberMap,
 }) {
  
   const [viewMode, setViewMode] = useState('Summary'); // Default tab
@@ -101,6 +103,8 @@ function BottomWindow({
       setSelectedStock,
       productType,
       setProductType,
+      ticksRef,
+      segmentStringToNumberMap,
     };
 
     switch (viewMode) {

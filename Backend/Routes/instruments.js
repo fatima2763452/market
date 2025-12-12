@@ -245,7 +245,7 @@ router.get("/search", async (req, res) => {
         let segmentFilter;
         switch (category) {
             case "F&O":
-                segmentFilter = ["NSE_FNO"];
+                segmentFilter = ["NSE_FNO", "BSE_FNO"];
                 break;
             case "Commodity":
                 segmentFilter = ["MCX_COMM", "NSE_COMM"];
@@ -257,8 +257,8 @@ router.get("/search", async (req, res) => {
             case "All":
             default:
                 // >>> COMMENT OUT TO INCLUDE INDEX IN SEARCH <<<
-                segmentFilter = ["NSE_FNO","MCX_COMM"];
-                // segmentFilter = ["NSE_INDEX","BSE_INDEX","NSE_FNO","MCX_COMM"];
+                segmentFilter = ["NSE_FNO", "BSE_FNO", "MCX_COMM"];
+                // segmentFilter = ["NSE_INDEX","BSE_INDEX","NSE_FNO","BSE_FNO","MCX_COMM"];
                 // >>> END INDEX TOGGLE <<<
                 break;
         }
@@ -494,7 +494,7 @@ router.get("/search", async (req, res) => {
             // >>> SMART SORT FALLBACK END <<<
 
             const fallbackResults = uniqueFallback.slice(0, 200);
-            console.log(`[Search Fallback] Returning ${fallbackResults.length} results (${fallbackEquity.length} equity, ${fallbackIndex.length} index, ${fallbackDerivatives.length} derivatives, detected: ${smartPriority.detectedType})`);
+            console.log(`[Search Fallback] Returning ${fallbackResults.length} results (${fallbackIndex.length} index, ${fallbackDerivatives.length} derivatives, detected: ${smartPriority.detectedType})`);
             trackSearch(q, category, fallbackResults.length);
             
             // Cache the results in both Redis and memory

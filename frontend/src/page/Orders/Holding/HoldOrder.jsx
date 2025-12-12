@@ -8,8 +8,8 @@ const MOCK_TICKS = new Map();
 const useMarketData = () => {
   return {
     ticks: MOCK_TICKS,
-    subscribe: async () => {},
-    unsubscribe: async () => {},
+    subscribe: async () => { },
+    unsubscribe: async () => { },
     isConnected: true,
   };
 };
@@ -29,7 +29,7 @@ export default function HoldOrder() {
   const [error, setError] = useState(null);
   const [selectedOrderData, setSelectedOrderData] = useState(null);
 
-  const { ticks, subscribe, unsubscribe } = useMarketData();
+  const { ticksRef, subscribe, unsubscribe } = useMarketData();
   const subscribeRef = useRef(subscribe);
   const unsubscribeRef = useRef(unsubscribe);
 
@@ -55,6 +55,8 @@ export default function HoldOrder() {
       BSE_EQ: 4,
       NSE_INDEX: 0,
       IDX_I: 0,
+      BSE_INDEX: 0,
+      BSE_FNO: 8,
     }),
     []
   );
@@ -100,8 +102,8 @@ export default function HoldOrder() {
       const instruments = Array.isArray(data?.ordersInstrument)
         ? data.ordersInstrument
         : Array.isArray(data)
-        ? data
-        : [];
+          ? data
+          : [];
 
       setInstrumentData(instruments);
       setError(null);
@@ -122,7 +124,7 @@ export default function HoldOrder() {
     const handler = () => {
       try {
         fetchInstrumentData();
-      } catch {}
+      } catch { }
     };
     window.addEventListener("orders:changed", handler);
     return () => window.removeEventListener("orders:changed", handler);
@@ -219,16 +221,73 @@ export default function HoldOrder() {
     };
   }, [instrumentData, subscribe, unsubscribe, apiBase, token]);
 
-  // ---- MERGE instruments + snapshots + ticks ----
+  // --- HIGH PERF: RAF LOOP for Live Ticks ---
+  const [liveTicks, setLiveTicks] = useState({});
+  const instrumentDataRef = useRef(instrumentData);
+
+  useEffect(() => {
+    instrumentDataRef.current = instrumentData;
+  }, [instrumentData]);
+
+  useEffect(() => {
+    let animationFrameId;
+    let lastUpdate = 0;
+    const THROTTLE_MS = 200; // 5 FPS is sufficient for Holdings
+
+    const updateLoop = (timestamp) => {
+      if (timestamp - lastUpdate < THROTTLE_MS) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      if (!ticksRef.current || !instrumentDataRef.current || instrumentDataRef.current.length === 0) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      const ticksMap = ticksRef.current;
+      const currentData = instrumentDataRef.current;
+      const newTicks = {};
+      let hasUpdates = false;
+
+      currentData.forEach(inst => {
+        const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
+        const numericSegment = segmentStringToNumberMap[inst.segment];
+        const tickKey = `${numericSegment}-${securityKey}`;
+        const tick = ticksMap.get(tickKey);
+
+        if (tick) {
+          newTicks[tickKey] = tick;
+          hasUpdates = true;
+        }
+      });
+
+      if (hasUpdates) {
+        setLiveTicks(prev => {
+          // Simple optimization: if no keys changed, don't update? 
+          // Actually, prices always change. Just set it.
+          // To avoid excessive object creation, we could diff?
+          // For now, just setting new object is safer for correctness.
+          return newTicks;
+        });
+        lastUpdate = timestamp;
+      }
+
+      animationFrameId = requestAnimationFrame(updateLoop);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [segmentStringToNumberMap]);
+
+  // ---- MERGE instruments + snapshots + liveTicks ----
   const displayList = useMemo(() => {
     if (!instrumentData || instrumentData.length === 0) {
       return list;
     }
 
     return instrumentData.map((inst) => {
-      const securityKey = String(
-        inst.security_Id ?? inst.securityId ?? inst.id ?? ""
-      );
+      const securityKey = String(inst.security_Id ?? inst.securityId ?? inst.id ?? "");
       let snapshot = null;
 
       if (orders && typeof orders === "object") {
@@ -243,12 +302,12 @@ export default function HoldOrder() {
 
       const numericSegment = segmentStringToNumberMap[inst.segment];
       const tickKey = `${numericSegment}-${securityKey}`;
-      const tick = ticks.get(tickKey) || {};
+      const tick = liveTicks[tickKey] || {};
 
       const combined = { ...snapshot, ...tick };
       return { ...inst, snapshot: combined };
     });
-  }, [instrumentData, orders, ticks, segmentStringToNumberMap, list]);
+  }, [instrumentData, orders, liveTicks, segmentStringToNumberMap, list]);
 
   const selectedOrderMarketData = useMemo(() => {
     if (!selectedOrderData) return {};
